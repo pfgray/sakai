@@ -19,6 +19,7 @@
 
 package org.sakaiproject.basiclti.util;
 
+
 import java.util.Properties;
 import java.util.Map;
 import java.util.TreeMap;
@@ -120,6 +121,8 @@ public class SakaiBLTIUtil {
 	public static final String BASICLTI_SETTINGS_ENABLED_DEFAULT = "true";
 	public static final String BASICLTI_ROSTER_ENABLED = "basiclti.roster.enabled";
 	public static final String BASICLTI_ROSTER_ENABLED_DEFAULT = "true";
+	public static final String BASICLTI_ANALYTICS_ENABLED = "basiclti.analytics.enabled";
+	public static final String BASICLTI_ANALYTICS_ENABLED_DEFAULT = "true";
 	public static final String BASICLTI_LORI_ENABLED = "basiclti.lori.enabled";
 	public static final String BASICLTI_LORI_ENABLED_DEFAULT = "true";
 	public static final String BASICLTI_CONTENTLINK_ENABLED = "basiclti.contentlink.enabled";
@@ -153,6 +156,10 @@ public class SakaiBLTIUtil {
 
 		String allowRoster = ServerConfigurationService.getString(BASICLTI_ROSTER_ENABLED, BASICLTI_ROSTER_ENABLED_DEFAULT);
 		if ( LTIService.LTI_ALLOWROSTER.equals(propName) && ! "true".equals(allowRoster) ) return "false";
+
+		//TODO: make these 'allowables' more generic..
+		String allowAnalytics = ServerConfigurationService.getString(BASICLTI_ANALYTICS_ENABLED, BASICLTI_ANALYTICS_ENABLED_DEFAULT);
+		if ( LTIService.LTI_ALLOWANALYTICS.equals(propName) && ! "true".equals(allowAnalytics) ) return "false";
 
 		String allowLori = ServerConfigurationService.getString(BASICLTI_LORI_ENABLED, BASICLTI_LORI_ENABLED_DEFAULT);
 		if ( LTIService.LTI_ALLOWLORI.equals(propName) && ! "true".equals(allowLori) ) return "false";
@@ -440,7 +447,6 @@ public class SakaiBLTIUtil {
 
 	public static void addPlacementInfo(Properties props, String placementId)
 	{
-
 		// Get the placement to see if we are to release information
 		ToolConfiguration placement = SiteService.findTool(placementId);
 		Properties config = placement.getConfig();
@@ -505,6 +511,9 @@ public class SakaiBLTIUtil {
 			String allowRoster = toNull(getCorrectProperty(config,LTIService.LTI_ALLOWROSTER, placement));
 			if ( ! "on".equals(allowRoster) ) allowRoster = null;
 
+			String allowAnalytics = toNull(getCorrectProperty(config,LTIService.LTI_ALLOWANALYTICS, placement));
+			if ( ! "on".equals(allowAnalytics) ) allowAnalytics = null;
+
 			String allowLori = toNull(getCorrectProperty(config,LTIService.LTI_ALLOWLORI, placement));
 			if ( ! "on".equals(allowLori) ) allowLori = null;
 
@@ -526,7 +535,7 @@ public class SakaiBLTIUtil {
 				}
 
 				if ( "on".equals(allowSettings) ) {
-					setProperty(props,"ext_ims_lti_tool_setting_id", result_sourcedid);  
+					setProperty(props,"ext_ims_lti_tool_setting_id", result_sourcedid);
 
 					String service_url = ServerConfigurationService.getString("basiclti.consumer.ext_ims_lti_tool_setting_url",null);
 					if ( service_url == null ) service_url = getOurServerUrl() + LTI1_PATH;  
@@ -539,6 +548,12 @@ public class SakaiBLTIUtil {
 					String roster_url = ServerConfigurationService.getString("basiclti.consumer.ext_ims_lis_memberships_url",null);
 					if ( roster_url == null ) roster_url = getOurServerUrl() + LTI1_PATH;  
 					setProperty(props,"ext_ims_lis_memberships_url", roster_url);  
+				}
+
+				if ( "on".equals(allowAnalytics) ) {
+					String caliper_url = ServerConfigurationService.getString("basiclti.consumer.ext_ims_lis_caliper_profile_service_url", null);
+					if ( caliper_url == null ) caliper_url = getOurServerUrl() + LTI1_PATH;
+					setProperty(props,"ext_ims_lis_caliper_profile_service_url", caliper_url);
 				}
 
 				if ( "on".equals(allowLori) ) {
@@ -794,6 +809,7 @@ public class SakaiBLTIUtil {
 
 		int allowoutcomes = getInt(tool.get(LTIService.LTI_ALLOWOUTCOMES));
 		int allowroster = getInt(tool.get(LTIService.LTI_ALLOWROSTER));
+		int allowanalytics = getInt(tool.get(LTIService.LTI_ALLOWANALYTICS));
 		int allowsettings = getInt(tool.get(LTIService.LTI_ALLOWSETTINGS));
 		int allowlori = getInt(tool.get(LTIService.LTI_ALLOWLORI));
 		String placement_secret = (String) content.get(LTIService.LTI_PLACEMENTSECRET);
@@ -837,6 +853,13 @@ public class SakaiBLTIUtil {
 				String roster_url = ServerConfigurationService.getString("basiclti.consumer.ext_ims_lis_memberships_url",null);
 				if ( roster_url == null ) roster_url = getOurServerUrl() + LTI1_PATH;  
 				setProperty(ltiProps,"ext_ims_lis_memberships_url", roster_url);  
+			}
+			if ( allowanalytics == 1 ) {
+				setProperty(ltiProps,"ext_ims_lis_caliper_profile_service_url", result_sourcedid);
+
+				String caliper_url = ServerConfigurationService.getString("basiclti.consumer.ext_ims_lis_caliper_profile_service_url",null);
+				if ( caliper_url == null ) caliper_url = getOurServerUrl() + LTI1_PATH;
+				setProperty(ltiProps,"ext_ims_lis_caliper_profile_service_url", caliper_url);
 			}
 
 			if ( allowlori == 1 ) {
@@ -1226,6 +1249,7 @@ public class SakaiBLTIUtil {
 		if ( ! loadFromPlacement(toolProps, ltiProps, placement) ) {
 			return postError("<p>" + getRB(rb, "error.nolaunch" ,"Not Configured.")+"</p>");
 		}
+
 		return postLaunchHTML(toolProps, ltiProps, rb);
 	}
 
@@ -1294,8 +1318,10 @@ public class SakaiBLTIUtil {
 
 		String debugProperty = toolProps.getProperty(LTIService.LTI_DEBUG);
 		boolean dodebug = "on".equals(debugProperty) || "1".equals(debugProperty);
+
 		String postData = BasicLTIUtil.postLaunchHTML(ltiProps, launch_url, dodebug, extra);
 
+        M_log.info("paul Okay, got postData: " + postData);
 		String [] retval = { postData, launch_url };
 		return retval;
 	}
@@ -1620,7 +1646,8 @@ public class SakaiBLTIUtil {
 		// for the fields in tool/content
 		String [] fieldList = { "key", LTIService.LTI_SECRET, LTIService.LTI_PLACEMENTSECRET, 
 				LTIService.LTI_OLDPLACEMENTSECRET, LTIService.LTI_ALLOWSETTINGS, 
-				"assignment", LTIService.LTI_ALLOWROSTER, "releasename", "releaseemail", 
+				"assignment", LTIService.LTI_ALLOWROSTER, LTIService.LTI_ALLOWANALYTICS,
+				"releasename", "releaseemail",
 				"toolsetting", "allowlori"};
 
 		Properties retval = new Properties();

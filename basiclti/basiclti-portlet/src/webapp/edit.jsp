@@ -56,6 +56,8 @@ Boolean allowSettings = (Boolean) rReq.getAttribute("allowSettings");
 
 Boolean allowRoster = (Boolean) rReq.getAttribute("allowRoster");
 
+Boolean allowAnalytics = (Boolean) rReq.getAttribute("allowAnalytics");
+
 Boolean allowLori = (Boolean) rReq.getAttribute("allowLori");
 
 Boolean allowContentLink = (Boolean) rReq.getAttribute("allowContentLink");
@@ -71,7 +73,8 @@ Boolean allowContentLink = (Boolean) rReq.getAttribute("allowContentLink");
         allow(sp,"frameheight") || allow(sp, "debug") ||
         allow(sp, "releasename") || allow(sp,"releaseemail")  ||
 		allow(sp,"custom") || 
-		allow(sp,"allowsettings") || allow(sp, "allowroster") || 
+		allow(sp,"allowsettings") || allow(sp, "allowroster") ||
+		allow(sp,"allowAnalytics") || allow(sp, "allowAnalytics") ||
         allow(sp, "allowoutcomes") || allow(sp, "allowlori") || 
 		allow(sp, "contentlink") || allow(sp, "splash") ||
         allow(sp, "fa_icon")
@@ -256,7 +259,8 @@ if ( document.getElementById("UISwitcher") ) switchui();
 <% } %>
 
 <% if ( allow(sp,"releasename") || allow(sp, "releaseemail") || 
-        ( allow(sp, "allowroster") && allowRoster )  || 
+        ( allow(sp, "allowroster") && allowRoster )  ||
+        ( allow(sp, "allowAnalytics") && allowAnalytics )  ||
         ( allow(sp, "allowlori") && allowLori ) 
 ) { %>
 <h3><%=rb.getString("launch.privacy") %></h3>
@@ -293,9 +297,27 @@ if ( document.getElementById("UISwitcher") ) switchui();
    />
 <% } %>
 <label for="imsti.allowroster"><%=rb.getString("privacy.allowroster") %></label>
+
 <span class="textPanelFooter"><%=rb.getString("allowroster.detail") %></span>
 </p>
 <% } %>
+
+
+<% if ( allow(sp,"allowanalytics") && allowAnalytics ) { %>
+<p>
+
+<input type="checkbox" size="10" name="imsti.allowanalytics" id="imsti.allowanalytics"
+<% if ( ov.getProperty("imsti.allowanalytics",null) != null ) { %>
+  checked="yes" />
+<% } else { %>
+   />
+<% } %>
+<label for="imsti.allowanalytics"><%=rb.getString("privacy.allowanalytics") %></label>
+
+<span class="textPanelFooter"><%=rb.getString("allowroster.detail") %></span>
+</p>
+<% } %>
+
 <% if ( allow(sp,"allowlori") && allowLori ) { %>
 <p>
 

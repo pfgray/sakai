@@ -142,6 +142,7 @@ public class IMSBLTIPortlet extends GenericPortlet {
 		// fieldList.add("maximize");
 		fieldList.add("allowsettings");
 		fieldList.add("allowroster");
+		fieldList.add("allowanalytics");
 		fieldList.add("allowlori");
 		fieldList.add("contentlink");
 		fieldList.add("splash");
@@ -191,13 +192,14 @@ public class IMSBLTIPortlet extends GenericPortlet {
 			String allowOutcomes = getSakaiProperty(sakaiProperties,"imsti.allowoutcomes");
 			String allowSettings = getSakaiProperty(sakaiProperties,"imsti.allowsettings");
 			String allowRoster = getSakaiProperty(sakaiProperties,"imsti.allowroster");
+			String allowAnalytics = getSakaiProperty(sakaiProperties,"imsti.allowanalytics");
 			String allowLORI = getSakaiProperty(sakaiProperties,"imsti.allowlori");
 			String assignment = getSakaiProperty(sakaiProperties,"imsti.assignent");
 			String launch = getSakaiProperty(sakaiProperties,"imsti.launch");
 
 			if ( placementSecret == null && 
 			   ( "on".equals(allowOutcomes) || "on".equals(allowSettings) || 
-				 "on".equals(allowRoster) || "on".equals(allowLORI) ) ) {
+				 "on".equals(allowRoster) || "on".equals(allowLORI) || "on".equals(allowAnalytics) ) ) {
 				String uuid = UUID.randomUUID().toString();
 				Date date = new Date();
 				SimpleDateFormat sdf = new SimpleDateFormat(ISO_8601_FORMAT);
@@ -342,6 +344,8 @@ public class IMSBLTIPortlet extends GenericPortlet {
 		request.setAttribute("allowSettings", new Boolean("true".equals(allowSettings)));
 		String allowRoster = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_ROSTER_ENABLED, SakaiBLTIUtil.BASICLTI_ROSTER_ENABLED_DEFAULT);
 		request.setAttribute("allowRoster", new Boolean("true".equals(allowRoster)));
+		String allowAnalytics = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_ANALYTICS_ENABLED, SakaiBLTIUtil.BASICLTI_ANALYTICS_ENABLED_DEFAULT);
+		request.setAttribute("allowAnalytics", new Boolean("true".equals(allowAnalytics)));
 		String allowContentLink = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_CONTENTLINK_ENABLED, SakaiBLTIUtil.BASICLTI_CONTENTLINK_ENABLED_DEFAULT);
 		request.setAttribute("allowContentLink", new Boolean("true".equals(allowContentLink)));
 
@@ -666,6 +670,7 @@ public class IMSBLTIPortlet extends GenericPortlet {
 			String allowOutcomes = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_OUTCOMES_ENABLED, SakaiBLTIUtil.BASICLTI_OUTCOMES_ENABLED_DEFAULT);
 			String allowSettings = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_SETTINGS_ENABLED, SakaiBLTIUtil.BASICLTI_SETTINGS_ENABLED_DEFAULT);
 			String allowRoster = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_ROSTER_ENABLED, SakaiBLTIUtil.BASICLTI_ROSTER_ENABLED_DEFAULT);
+			String allowAnalytics = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_ANALYTICS_ENABLED, SakaiBLTIUtil.BASICLTI_ROSTER_ENABLED_DEFAULT);
 			String allowLori = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_LORI_ENABLED, SakaiBLTIUtil.BASICLTI_LORI_ENABLED_DEFAULT);
 
 			if ( "true".equals(allowOutcomes) && newAssignment != null && newAssignment.trim().length() > 1 ) {
@@ -678,7 +683,7 @@ public class IMSBLTIPortlet extends GenericPortlet {
 			// System.out.println("old placementsecret="+oldPlacementSecret);
 			if ( oldPlacementSecret == null && 
 					("true".equals(allowOutcomes) || "true".equals(allowSettings) || 
-                     "true".equals(allowRoster) || "true".equals(allowLori) ) ) {
+                     "true".equals(allowRoster) || "true".equals(allowLori) || "true".equals(allowAnalytics)) ) {
 				try {
 					String uuid = UUID.randomUUID().toString();
 					Date date = new Date();

@@ -47,6 +47,7 @@
                 <configuration name="imsti.custom" />
                 <configuration name="imsti.allowsettings" />
                 <configuration name="imsti.allowroster" />
+                <configuration name="imsti.allowanalytics" />
                 <configuration name="imsti.allowoutcomes" />
                 <configuration name="imsti.allowlori" />
                 <configuration name="imsti.contentlink" />
@@ -72,6 +73,7 @@
                 <configuration name="final.custom" value="false"/>
                 <configuration name="final.allowsettings" value="false"/>
                 <configuration name="final.allowroster" value="false"/>
+                <configuration name="final.allowanalytics" value="false"/>
                 <configuration name="final.allowoutcomes" value="false"/>
                 <configuration name="final.allowlori" value="false"/>
                 <configuration name="final.contentlink" value="false"/>

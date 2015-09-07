@@ -289,7 +289,11 @@ public class ServiceServlet extends HttpServlet {
 					SakaiBLTIUtil.BASICLTI_ROSTER_ENABLED, SakaiBLTIUtil.BASICLTI_ROSTER_ENABLED_DEFAULT);
 			if ( ! "true".equals(allowRoster) ) allowRoster = null;
 
-			if (allowOutcomes == null && allowSettings == null && allowRoster == null ) {
+			String allowAnalytics = ServerConfigurationService.getString(
+				SakaiBLTIUtil.BASICLTI_ANALYTICS_ENABLED, SakaiBLTIUtil.BASICLTI_ANALYTICS_ENABLED_DEFAULT);
+			if ( ! "true".equals(allowAnalytics) ) allowAnalytics = null;
+
+			if (allowOutcomes == null && allowSettings == null && allowRoster == null && allowAnalytics == null) {
 				M_log.warn("LTI Services are disabled IP=" + ipAddress);
 				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 				return;

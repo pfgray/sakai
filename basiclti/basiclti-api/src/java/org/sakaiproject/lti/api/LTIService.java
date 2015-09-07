@@ -845,6 +845,7 @@ public interface LTIService {
 	static final String LTI_SENDEMAILADDR = "sendemailaddr";
 	static final String LTI_ALLOWOUTCOMES = "allowoutcomes";
 	static final String LTI_ALLOWROSTER = "allowroster";
+	static final String LTI_ALLOWANALYTICS = "allowanalytics";
 	static final String LTI_ALLOWSETTINGS = "allowsettings";
 	static final String LTI_ALLOWLORI = "allowlori";
 	static final String LTI_ALLOWCONTENTITEM = "allowcontentitem";
