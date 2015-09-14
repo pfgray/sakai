@@ -43,6 +43,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.oauth.OAuthAccessor;
 import net.oauth.OAuthConsumer;
 import net.oauth.OAuthMessage;
@@ -126,6 +128,9 @@ public class ServiceServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	private static Log M_log = LogFactory.getLog(ServiceServlet.class);
 	private static ResourceLoader rb = new ResourceLoader("blis");
+
+	public static final String ANALYTICS_ENDPOINT_URL = "basiclti.analytics.url";
+	public static final String ANALYTICS_ENDPOINT_KEY = "basiclti.analytics.key";
 
     protected static SakaiFoorm foorm = new SakaiFoorm();
 
@@ -255,7 +260,7 @@ public class ServiceServlet extends HttpServlet {
 		if ( rpi.startsWith("/return-url") ) {
 			handleReturnUrl(request, response);
 			return;
-		} 
+		}
 		doPost(request, response);
 	}
 
@@ -776,6 +781,29 @@ public class ServiceServlet extends HttpServlet {
             throws ServletException, IOException 
     {
         String ipAddress = request.getRemoteAddr();
+
+		if(request.getPathInfo().startsWith("/" + SakaiBLTIUtil.ANALYTICS_SERVICE_ENDPOINT)){
+			//TODO: verify request
+
+			//verify the launch & then send back the configured data
+			// we should return with:
+			//{
+		    //	"@context":"http://purl.imsglobal.org/ctx/lti/v1/CaliperProfile",
+			//  "@type":"CaliperProfile",
+		    //	"id": "http://lms.example.com/caliper/1a39u298284238942394823498”,
+		    //	"eventStoreUrl”: “http://some-event-store.edu/event”,
+		    //	"apiKey":"f12960ef-f928-4360-8b33-df10c8ec97ef"
+		    //}
+			final String url = ServerConfigurationService.getString(ANALYTICS_ENDPOINT_URL);
+			final String key = ServerConfigurationService.getString(ANALYTICS_ENDPOINT_KEY);
+			new ObjectMapper().writeValue(response.getOutputStream(), new Object() {
+				@JsonProperty("@context") String _context = "http://purl.imsglobal.org/ctx/lti/v1/CaliperProfile";
+				@JsonProperty("@id") String _id = "CaliperProfile";
+				@JsonProperty("eventStoreUrl") String eventStoreUrl = url;
+				@JsonProperty("apiKey") String apiKey = key;
+			});
+			return;
+		}
 
         M_log.warn("LTI JSON Services not implemented IP=" + ipAddress);
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);

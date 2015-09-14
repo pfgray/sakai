@@ -122,7 +122,7 @@ public class SakaiBLTIUtil {
 	public static final String BASICLTI_ROSTER_ENABLED = "basiclti.roster.enabled";
 	public static final String BASICLTI_ROSTER_ENABLED_DEFAULT = "true";
 	public static final String BASICLTI_ANALYTICS_ENABLED = "basiclti.analytics.enabled";
-	public static final String BASICLTI_ANALYTICS_ENABLED_DEFAULT = "true";
+	public static final String BASICLTI_ANALYTICS_ENABLED_DEFAULT = "false";
 	public static final String BASICLTI_LORI_ENABLED = "basiclti.lori.enabled";
 	public static final String BASICLTI_LORI_ENABLED_DEFAULT = "true";
 	public static final String BASICLTI_CONTENTLINK_ENABLED = "basiclti.contentlink.enabled";
@@ -139,6 +139,7 @@ public class SakaiBLTIUtil {
 
 	public static final String LTI1_PATH = "/imsblis/service/";
 	public static final String LTI2_PATH = "/imsblis/lti2/";
+	public static final String ANALYTICS_SERVICE_ENDPOINT = "caliper_profile_service";
 
 	public static void dPrint(String str)
 	{
@@ -552,7 +553,7 @@ public class SakaiBLTIUtil {
 
 				if ( "on".equals(allowAnalytics) ) {
 					String caliper_url = ServerConfigurationService.getString("basiclti.consumer.ext_ims_lis_caliper_profile_service_url", null);
-					if ( caliper_url == null ) caliper_url = getOurServerUrl() + LTI1_PATH;
+					if ( caliper_url == null ) caliper_url = getOurServerUrl() + LTI1_PATH + "/" + ANALYTICS_SERVICE_ENDPOINT;
 					setProperty(props,"ext_ims_lis_caliper_profile_service_url", caliper_url);
 				}
 
