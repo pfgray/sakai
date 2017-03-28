@@ -15,19 +15,21 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.markup.html.AjaxLink;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.extensions.ajax.markup.html.repeater.data.table.AjaxFallbackDefaultDataTable;
 import org.apache.wicket.extensions.markup.html.form.DateTextField;
+import org.apache.wicket.extensions.markup.html.repeater.data.sort.SortOrder;
 import org.apache.wicket.extensions.markup.html.repeater.data.table.AbstractColumn;
 import org.apache.wicket.extensions.markup.html.repeater.data.table.IColumn;
+import org.apache.wicket.extensions.markup.html.repeater.data.table.ISortableDataProvider;
 import org.apache.wicket.extensions.markup.html.repeater.data.table.PropertyColumn;
 import org.apache.wicket.extensions.markup.html.repeater.util.SortableDataProvider;
 import org.apache.wicket.markup.ComponentTag;
-import org.apache.wicket.markup.html.IHeaderResponse;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.Button;
 import org.apache.wicket.markup.html.form.CheckBox;
@@ -52,7 +54,7 @@ import org.sakaiproject.site.api.Site;
 
 public class ShoppingEditBulkPage extends BasePage{
 	
-	private static final Logger log = Logger.getLogger(ShoppingEditBulkPage.class);
+	private static final Logger log = LoggerFactory.getLogger(ShoppingEditBulkPage.class);
 	private SelectOption role = null;
 	private List<DecoratedSiteModel> deleteSites = new ArrayList<DecoratedSiteModel>();
 	private List<DecoratedSiteModel> addSites = new ArrayList<DecoratedSiteModel>();
@@ -97,22 +99,22 @@ public class ShoppingEditBulkPage extends BasePage{
 				deleteSites.addAll(deleteSitesList);
 				if(deleteSitesList.size() > 0 || errorMessage == null){
 					//need to update list:
-					target.addComponent(deleteTable);
+					target.add(deleteTable);
 					deleteSitesInput = "";
-					target.addComponent(deleteSitesInputField);
+					target.add(deleteSitesInputField);
 				}
 				
 				if(errorMessage != null && !"".equals(errorMessage.getObject().toString())){
 					formFeedback.setDefaultModel(errorMessage);
 					formFeedback.add(new AttributeModifier("class", true, new Model("alertMessage")));
-					target.addComponent(formFeedback);
+					target.add(formFeedback);
 					formFeedback2.setDefaultModel(errorMessage);
 					formFeedback2.add(new AttributeModifier("class", true, new Model("alertMessage")));
-					target.addComponent(formFeedback2);
+					target.add(formFeedback2);
 
 					//call a js function to hide the message in 5 seconds
-					target.appendJavascript("hideFeedbackTimer('" + formFeedbackId + "');");
-					target.appendJavascript("hideFeedbackTimer('" + formFeedback2Id + "');");
+					target.appendJavaScript("hideFeedbackTimer('" + formFeedbackId + "');");
+					target.appendJavaScript("hideFeedbackTimer('" + formFeedback2Id + "');");
 				}
 			}
 		});
@@ -151,7 +153,7 @@ public class ShoppingEditBulkPage extends BasePage{
 								break;
 							}
 						}
-						target.addComponent(deleteTable);
+						target.add(deleteTable);
 					}
 					
 				});
@@ -159,7 +161,7 @@ public class ShoppingEditBulkPage extends BasePage{
 			
 		});
 		//Delete Data table:
-		deleteTable = new AjaxFallbackDefaultDataTable("deleteSites", deleteSitesColumns, new DeleteSitesDataProvider(), 20){
+		deleteTable = new AjaxFallbackDefaultDataTable("deleteSites", deleteSitesColumns, (ISortableDataProvider) new DeleteSitesDataProvider(), 20){
 
 		};
 		deleteTable.setOutputMarkupId(true);
@@ -180,22 +182,22 @@ public class ShoppingEditBulkPage extends BasePage{
 				addSites.addAll(addSitesList);
 				if(addSitesList.size() > 0 || errorMessage == null){
 					//need to update list:
-					target.addComponent(addTable);
+					target.add(addTable);
 					addSitesInput = "";
-					target.addComponent(addSitesInputField);
+					target.add(addSitesInputField);
 				}
 
 				if(errorMessage != null && !"".equals(errorMessage.getObject().toString())){
 					formFeedback.setDefaultModel(errorMessage);
 					formFeedback.add(new AttributeModifier("class", true, new Model("alertMessage")));
-					target.addComponent(formFeedback);
+					target.add(formFeedback);
 					formFeedback2.setDefaultModel(errorMessage);
 					formFeedback2.add(new AttributeModifier("class", true, new Model("alertMessage")));
-					target.addComponent(formFeedback2);
+					target.add(formFeedback2);
 
 					//call a js function to hide the message in 5 seconds
-					target.appendJavascript("hideFeedbackTimer('" + formFeedbackId + "');");
-					target.appendJavascript("hideFeedbackTimer('" + formFeedback2Id + "');");
+					target.appendJavaScript("hideFeedbackTimer('" + formFeedbackId + "');");
+					target.appendJavaScript("hideFeedbackTimer('" + formFeedback2Id + "');");
 				}
 			}
 		});
@@ -234,7 +236,7 @@ public class ShoppingEditBulkPage extends BasePage{
 								break;
 							}
 						}
-						target.addComponent(addTable);
+						target.add(addTable);
 					}
 
 				});
@@ -242,7 +244,7 @@ public class ShoppingEditBulkPage extends BasePage{
 
 		});
 		//add Data table:
-		addTable = new AjaxFallbackDefaultDataTable("addSites", addSitesColumns, new AddSitesDataProvider(), 20){
+		addTable = new AjaxFallbackDefaultDataTable("addSites", addSitesColumns, (ISortableDataProvider) new AddSitesDataProvider(), 20){
 
 		};
 		addTable.setOutputMarkupId(true);
@@ -419,14 +421,14 @@ public class ShoppingEditBulkPage extends BasePage{
 				}else{
 					formFeedback.setDefaultModel(errorMessage);
 					formFeedback.add(new AttributeModifier("class", true, new Model("alertMessage")));
-					target.addComponent(formFeedback);
+					target.add(formFeedback);
 					formFeedback2.setDefaultModel(errorMessage);
 					formFeedback2.add(new AttributeModifier("class", true, new Model("alertMessage")));
-					target.addComponent(formFeedback2);
+					target.add(formFeedback2);
 
 					//call a js function to hide the message in 5 seconds
-					target.appendJavascript("hideFeedbackTimer('" + formFeedbackId + "');");
-					target.appendJavascript("hideFeedbackTimer('" + formFeedback2Id + "');");
+					target.appendJavaScript("hideFeedbackTimer('" + formFeedbackId + "');");
+					target.appendJavaScript("hideFeedbackTimer('" + formFeedback2Id + "');");
 				}
 			}
 		};
@@ -443,14 +445,14 @@ public class ShoppingEditBulkPage extends BasePage{
 	}
 
 
-	private class DeleteSitesDataProvider extends SortableDataProvider<DecoratedSiteModel>{
+	private class DeleteSitesDataProvider extends SortableDataProvider{
 
 		public DeleteSitesDataProvider() {
-			setSort("siteId", true);
+			setSort("siteId", SortOrder.DESCENDING);
 		}
 		
 		@Override
-		public Iterator<? extends DecoratedSiteModel> iterator(int first, int count) {
+		public Iterator<? extends DecoratedSiteModel> iterator(long first, long count) {
 			Collections.sort(deleteSites, new Comparator<DecoratedSiteModel>(){
 
 				@Override
@@ -469,14 +471,15 @@ public class ShoppingEditBulkPage extends BasePage{
 		}
 
 		@Override
-		public IModel<DecoratedSiteModel> model(DecoratedSiteModel arg0) {
+		public IModel model(Object arg0) {
 			return new DeleteSitesDetachableModel((DecoratedSiteModel) arg0);
 		}
 
 		@Override
-		public int size() {
+		public long size() {
 			return deleteSites.size();
 		}
+
 	}
 	
 	private class DeleteSitesDetachableModel extends LoadableDetachableModel{
@@ -493,14 +496,14 @@ public class ShoppingEditBulkPage extends BasePage{
 		
 	}
 	
-	private class AddSitesDataProvider extends SortableDataProvider<DecoratedSiteModel>{
+	private class AddSitesDataProvider extends SortableDataProvider{
 
 		public AddSitesDataProvider() {
-			setSort("siteId", true);
+			setSort("siteId", SortOrder.DESCENDING);
 		}
 		
 		@Override
-		public Iterator<? extends DecoratedSiteModel> iterator(int first, int count) {
+		public Iterator<? extends DecoratedSiteModel> iterator(long first, long count) {
 			Collections.sort(addSites, new Comparator<DecoratedSiteModel>(){
 
 				@Override
@@ -519,14 +522,15 @@ public class ShoppingEditBulkPage extends BasePage{
 		}
 
 		@Override
-		public IModel<DecoratedSiteModel> model(DecoratedSiteModel arg0) {
+		public IModel model(Object arg0) {
 			return new AddSitesDetachableModel((DecoratedSiteModel) arg0);
 		}
 
 		@Override
-		public int size() {
+		public long size() {
 			return addSites.size();
 		}
+
 	}
 	
 	private class AddSitesDetachableModel extends LoadableDetachableModel{

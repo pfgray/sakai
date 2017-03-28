@@ -22,8 +22,10 @@
 package org.sakaiproject.tool.assessment.ui.bean.select;
 
 import java.io.Serializable;
+import java.util.List;
 
-import java.util.ArrayList;
+import org.sakaiproject.component.api.ServerConfigurationService;
+import org.sakaiproject.component.cover.ComponentManager;
 
 /**
  * @author <a href="mailto:lance@indiana.edu">Lance Speelmon</a>
@@ -34,13 +36,13 @@ import java.util.ArrayList;
 public class SelectAssessmentBean
 implements Serializable
 {
-	private ArrayList takeableAssessments;
+	private List takeableAssessments;
 
 	/** Use serialVersionUID for interoperability. */
 	private final static long serialVersionUID = 7401578412639293693L;
-	private ArrayList lateHandlingAssessments;
-	private ArrayList reviewableAssessments;
-	private ArrayList nonReviewableAssessments;
+	private List lateHandlingAssessments;
+	private List reviewableAssessments;
+	private List nonReviewableAssessments;
 	private String reviewableSortOrder="title";
 	private String takeableSortOrder ="title";
 	private boolean takeableAscending = true;
@@ -49,17 +51,19 @@ implements Serializable
 	private org.sakaiproject.tool.assessment.ui.model.PagingModel takePager;
 	private boolean hasHighestMultipleSubmission = false;  // this is used to display the message on the bottom if there are any highest multiple submissions. 
 	private boolean hasAnyAssessmentBeenModified = false;  // this is used to display the message on the bottom if there is any assessment been modified after submitted.
+	private Boolean warnUserOfModification;
 	private boolean hasAnyAssessmentRetractForEdit = false;  // this is used to display the message on the bottom if there is any assessment retracted for edit.
 	private String displayAllAssessments = "2"; // display all
 	private boolean hasAverageMultipleSubmissions=false;
 	private String secureDeliveryHTMLFragments;
+	private static final ServerConfigurationService serverConfigurationService= (ServerConfigurationService) ComponentManager.get( ServerConfigurationService.class );
 	
 	/**
 	 * ArrayLists should be lists of DeliveryBean objects
 	 *
 	 * @return ArrayLists of DeliveryBean objects
 	 */
-	public ArrayList getTakeableAssessments()
+	public List getTakeableAssessments()
 	{
 		return takeableAssessments;
 	}
@@ -69,7 +73,7 @@ implements Serializable
 	 *
 	 * @param takeableAssessments ArrayLists of DeliveryBean objects
 	 */
-	public void setTakeableAssessments(ArrayList takeableAssessments)
+	public void setTakeableAssessments(List takeableAssessments)
 	{
 		this.takeableAssessments = takeableAssessments;
 	}
@@ -79,7 +83,7 @@ implements Serializable
 	 *
 	 * @return ArrayLists of DeliveryBean objects
 	 */
-	public ArrayList getLateHandlingAssessments()
+	public List getLateHandlingAssessments()
 	{
 		return lateHandlingAssessments;
 	}
@@ -89,7 +93,7 @@ implements Serializable
 	 *
 	 * @param lateHandlingAssessments ArrayLists of DeliveryBean objects
 	 */
-	public void setLateHandlingAssessments(ArrayList lateHandlingAssessments)
+	public void setLateHandlingAssessments(List lateHandlingAssessments)
 	{
 		this.lateHandlingAssessments = lateHandlingAssessments;
 	}
@@ -99,7 +103,7 @@ implements Serializable
 	 *
 	 * @return ArrayLists of DeliveryBean objects
 	 */
-	public ArrayList getReviewableAssessments()
+	public List getReviewableAssessments()
 	{
 		return reviewableAssessments;
 	}
@@ -109,7 +113,7 @@ implements Serializable
 	 *
 	 * @param reviewAssessments ArrayLists should be lists of DeliveryBean objects
 	 */
-	public void setReviewableAssessments(ArrayList reviewableAssessments)
+	public void setReviewableAssessments(List reviewableAssessments)
 	{
 		this.reviewableAssessments = reviewableAssessments;
 	}
@@ -119,7 +123,7 @@ implements Serializable
 	 *
 	 * @return ArrayLists of DeliveryBean objects
 	 */
-	public ArrayList getNonReviewableAssessments()
+	public List getNonReviewableAssessments()
 	{
 		return this.nonReviewableAssessments;
 	}
@@ -129,7 +133,7 @@ implements Serializable
 	 *
 	 * @param nonReviewableAssessments ArrayLists should be lists of DeliveryBean objects
 	 */
-	public void setNonReviewableAssessments(ArrayList nonReviewableAssessments)
+	public void setNonReviewableAssessments(List nonReviewableAssessments)
 	{
 		this.nonReviewableAssessments = nonReviewableAssessments;
 	}
@@ -292,6 +296,17 @@ implements Serializable
 	 */
 	public void setHasAverageMultipleSubmissions(boolean hasAverageMultipleSubmissions) {
 		this.hasAverageMultipleSubmissions = hasAverageMultipleSubmissions;
+	}
+
+	public Boolean getWarnUserOfModification() {
+		if(warnUserOfModification == null){
+			warnUserOfModification = serverConfigurationService.getBoolean("samigo.SelectAssessmentBean.warnUserOfModification", true);
+		}
+		return warnUserOfModification;
+	}
+
+	public void setWarnUserOfModification(Boolean warnUserOfModification) {
+		this.warnUserOfModification = warnUserOfModification;
 	}       
 	
 	public String getSecureDeliveryHTMLFragments() {

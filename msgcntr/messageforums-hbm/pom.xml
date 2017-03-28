@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.sakaiproject.msgcntr</groupId>
     <artifactId>msgcntr</artifactId>
-    <version>11-SNAPSHOT</version>
+    <version>12-SNAPSHOT</version>
   </parent>
   <name>Sakai Message Forums Hibernate Module</name>
   <groupId>org.sakaiproject.msgcntr</groupId>
@@ -24,17 +24,16 @@
       <artifactId>sakai-kernel-api</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.sakaiproject.kernel</groupId>
+      <artifactId>sakai-component-manager</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.sakaiproject.msgcntr</groupId>
       <artifactId>messageforums-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>commons-logging</groupId>
-      <artifactId>commons-logging</artifactId>
-    </dependency>
-    <dependency>
       <groupId>commons-beanutils</groupId>
       <artifactId>commons-beanutils</artifactId>
-      <version>1.7.0</version>
     </dependency>
   </dependencies>
   <build>

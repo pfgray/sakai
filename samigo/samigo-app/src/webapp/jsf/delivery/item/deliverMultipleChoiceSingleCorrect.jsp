@@ -50,31 +50,28 @@ should be included in file importing DeliveryMessages
   <f:verbatim></div></f:verbatim>
 
 
-  <h:dataTable value="#{question.selectionArray}" var="selection" width="100%">
-    <h:column rendered="#{delivery.feedback eq 'true' &&
-       delivery.feedbackComponent.showCorrectResponse && !delivery.noFeedback=='true'}">
-      <h:graphicImage id="image"
+  <t:dataList layout="unorderedList" styleClass="samigo-question" itemStyleClass="samigo-question-answer" value="#{question.selectionArray}" var="selection">
+    <h:panelGroup rendered="#{delivery.feedback eq 'true' && delivery.feedbackComponent.showCorrectResponse && !delivery.noFeedback=='true'}">
+      <h:panelGroup id="image"
         rendered="#{(selection.answer.isCorrect eq 'true' || (question.itemData.partialCreditFlag && selection.answer.partialCredit gt 0)) && selection.response}"
-        alt="#{deliveryMessages.alt_correct}" url="/images/checkmark.gif" >
-      </h:graphicImage>
-      <h:graphicImage id="image2"
+        styleClass="icon-sakai--check feedBackCheck" >
+      </h:panelGroup>
+      <h:panelGroup id="image2"
         rendered="#{((question.itemData.partialCreditFlag && (selection.answer.partialCredit le 0 || selection.answer.partialCredit == null)) || (selection.answer.isCorrect != null && !selection.answer.isCorrect)) && selection.response}"
-        width="16" height="16" alt="#{deliveryMessages.alt_incorrect}" url="/images/crossmark.gif">
-      </h:graphicImage>
-    </h:column>
-    <h:column>
-      <f:verbatim><div class="mcscFixUpTarget"></div></f:verbatim>	  	 
-	</h:column> 	 
-	<h:column> 	 
-      <f:verbatim><div class="mcAnswerText"></f:verbatim>
+        styleClass="icon-sakai--delete feedBackCross" >
+      </h:panelGroup>
+    </h:panelGroup>
+    <div class="mcscFixUpTarget"></div>
+	<h:panelGroup> 	 
+      <div class="mcAnswerText">
 	  <h:outputText value=" #{selection.answer.label}" escape="false" /> 	 
 	  <h:outputText value=". " rendered="#{selection.answer.label ne ''}" /> 	 
 	  <h:outputText value="#{selection.answer.text}" styleClass="mcAnswerText" escape="false" >
      	<f:converter converterId="org.sakaiproject.tool.assessment.jsf.convert.AnswerSurveyConverter" />
       </h:outputText>
-      <f:verbatim></div></f:verbatim>
-    </h:column>
-    <h:column>
+      </div>
+    </h:panelGroup>
+    <h:panelGroup>
       <h:panelGroup rendered="#{delivery.feedback eq 'true' &&
        delivery.feedbackComponent.showSelectionLevel && question.itemData.typeId != 3 &&
 	   selection.answer.generalAnswerFeedback != 'null' && selection.answer.generalAnswerFeedback != null && selection.answer.generalAnswerFeedback != '' && selection.response}" >
@@ -83,8 +80,8 @@ should be included in file importing DeliveryMessages
        <h:outputText value="#{commonMessages.feedback}#{deliveryMessages.column} " />
        <h:outputText value="#{selection.answer.generalAnswerFeedback}" escape="false" />
       </h:panelGroup>
-    </h:column>
-  </h:dataTable>
+    </h:panelGroup>
+  </t:dataList>
 
   <f:verbatim></div></f:verbatim>
   <f:verbatim><script>$('div.mcscFixUp').each(

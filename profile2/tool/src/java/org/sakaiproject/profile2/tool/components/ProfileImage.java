@@ -4,6 +4,7 @@ import org.apache.wicket.markup.ComponentTag;
 import org.apache.wicket.markup.html.WebComponent;
 import org.apache.wicket.model.IModel;
 import org.sakaiproject.profile2.util.ProfileConstants;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Renders a user's profile image via the direct entity URL. 
@@ -57,9 +58,11 @@ public class ProfileImage extends WebComponent {
 			}
 		}
 		
-		String url = "/direct/profile/"+userUuid + "/image" + sizePart;
+		//Cache for a minute
+		String url = "/direct/profile/"+userUuid + "/image" + sizePart + "?t=" + TimeUnit.MILLISECONDS.toMinutes(System.currentTimeMillis());
 		
 		tag.put("src", url);
+		tag.put("alt", "User profile image");
 	}
 	
 	/**

@@ -22,6 +22,7 @@
 package org.sakaiproject.content.api;
 
 import java.io.InputStream;
+import java.net.URI;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.Stack;
 import java.util.TreeSet;
 
 import org.sakaiproject.antivirus.api.VirusFoundException;
+import org.sakaiproject.authz.api.AuthzPermissionException;
 import org.sakaiproject.entity.api.Entity;
 import org.sakaiproject.entity.api.EntityProducer;
 import org.sakaiproject.entity.api.ResourceProperties;
@@ -1620,6 +1622,47 @@ public interface ContentHostingService extends EntityProducer
 	public void setPubView(String id, boolean pubview);
 
 	/**
+	 * Grants or removes access to the content for a given role at a low level and should be used with caution.
+	 * Recommend using org.sakaiproject.content.api.GroupAwareEdit#addRoleAccess and #removeRoleAccess instead.
+	 *
+	 * @param id
+	 *        The resource or collection id.
+	 * @param roleId
+	 *        The id of the role to add or remove.
+	 * @param grantAccess
+	 *        The desired access setting - true gives access and false removes access.
+	 */
+	public void setRoleView(String id, String roleId, boolean grantAccess) throws AuthzPermissionException;
+
+	/**
+	 * Checks whether the given role is defined for the content.
+	 *
+	 * @param id
+	 *        The resource or collection id.
+	 * @param roleId
+	 *        The id of the role to check for.
+	 */
+	public boolean isRoleView(String id, String roleId);
+
+	/**
+	 * Checks whether the role is defined for the container of the specified entity.
+	 *
+	 * @param id
+	 *        The resource or collection id.
+	 * @param roleId
+	 *        The id of the role to check for.
+	 */
+	public boolean isInheritingRoleView(String id, String roleId);
+
+	/**
+	 * Gets a list of roles that are defined against this entity.
+	 *
+	 * @param id
+	 *        The resource or collection id.
+	 */
+	public Set<String> getRoleViews(String id);
+
+	/**
 	 * Find all resources in specified sites that match the spcified type and mime type
 	 * 
 	 * @param type
@@ -1897,6 +1940,35 @@ public interface ContentHostingService extends EntityProducer
 		throws PermissionException, IdUnusedException, IdUsedException, 
 				IdLengthException, IdInvalidException, TypeException;
 
+	/**
+	 * This method with the limit parameter should be used if you want to create a unique collection id.
+	 * Because the Resources tool allows renaming folders, the end-user can become confused when folder
+	 * creation is denied because the resourceId was already taken.
+	 * 
+	 * @param collectionId
+	 * @param name
+	 * @param limit
+	 *            number of attempts to find a unique resourceId for the collection via incrementing
+	 * @return
+	 * @exception PermissionException
+	 *            if the user does not have permission to add a resource to the containing collection.
+	 * @exception TypeException
+	 *            if the collectionId is not in the form to identify a collection.
+	 * @exception IdUnusedException
+	 *            if the collectionId does not identify an existing collection.
+	 * @exception IdUnusedException
+	 *            if the collection id for the proposed name already exists in this collection.
+	 * @exception IdLengthException
+	 *            if the new collection id exceeds the maximum number of characters for a valid collection id.
+	 * @exception IdInvalidException
+	 *            if the resource id is invalid.
+	 * @exception IdUniquenessException
+	 *            if a unique id for the collection cannot be found despite using an incrementor
+	 */
+	public ContentCollectionEdit addCollection(String collectionId, String name, int limit)
+		throws PermissionException, IdUnusedException, IdUsedException,
+				IdLengthException, IdInvalidException, TypeException, IdUniquenessException;
+
    /**
     * gets the quota for a site collection or for a user's my workspace collection
     *
@@ -1977,6 +2049,14 @@ public interface ContentHostingService extends EntityProducer
 	 */
 	public void removeDeletedResource(String resourceId) throws PermissionException, IdUnusedException, TypeException, InUseException; 
 
+	/**
+	 * Return a direct link to retrieve the asset instead of streaming the asset inside the JVM. See SAK-30325
+	 *
+	 * @param resourceId The file resource that may have a direct link available
+	 *
+	 * @return URI that will return the asset directly
+	 */
+	public URI getDirectLinkToAsset(ContentResource resource) throws Exception;
 
 	/**
 	 * Expand the supplied resource under its parent collection. See KNL-273
@@ -1984,4 +2064,15 @@ public interface ContentHostingService extends EntityProducer
 	 * @param resourceId The zip file resource that we want to expand
 	 */
 	public void expandZippedResource(String resourceId) throws Exception;
+
+	/**
+	 * Expand macros in a URL
+	 *
+	 * @param url - string, a URL to be expanded
+	 *
+	 * @return URL with macro expansion
+	 */
+
+	public String expandMacros(String url);
+
 }

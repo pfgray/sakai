@@ -24,8 +24,7 @@ import java.util.Map;
 import javax.servlet.http.HttpServletResponse;
 
 import lombok.Setter;
-import lombok.extern.apachecommons.CommonsLog;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.lang.StringUtils;
 import org.sakaiproject.entitybroker.EntityReference;
@@ -52,8 +51,10 @@ import org.sakaiproject.profile2.logic.ProfileConnectionsLogic;
 import org.sakaiproject.profile2.logic.ProfileImageLogic;
 import org.sakaiproject.profile2.logic.ProfileLinkLogic;
 import org.sakaiproject.profile2.logic.ProfileLogic;
+import org.sakaiproject.profile2.logic.ProfileMessagingLogic;
 import org.sakaiproject.profile2.logic.SakaiProxy;
 import org.sakaiproject.profile2.model.BasicConnection;
+import org.sakaiproject.profile2.model.Person;
 import org.sakaiproject.profile2.model.ProfileImage;
 import org.sakaiproject.profile2.model.UserProfile;
 import org.sakaiproject.profile2.util.Messages;
@@ -66,7 +67,7 @@ import org.sakaiproject.profile2.util.ProfileUtils;
  * @author Steve Swinsburg (s.swinsburg@lancaster.ac.uk)
  *
  */
-@CommonsLog
+@Slf4j
 public class ProfileEntityProvider extends AbstractEntityProvider implements CoreEntityProvider, AutoRegisterEntityProvider, Outputable, Resolvable, Sampleable, Describeable, Redirectable, ActionsExecutable, RequestAware {
 
 	public final static String ENTITY_PREFIX = "profile";
@@ -251,12 +252,33 @@ public class ProfileEntityProvider extends AbstractEntityProvider implements Cor
 		
 		return connectionsLogic.getConnectionStatus(uuid, parameters.get("friendId").toString());
 	}
-	
+
+	@EntityCustomAction(action="unreadMessagesCount",viewKey=EntityView.VIEW_SHOW)
+	public Object getUnreadMessagesCount(EntityReference ref) {
+
+		if (!sakaiProxy.isLoggedIn()) {
+			throw new SecurityException("You must be logged in to get the unread messages count.");
+		}
+
+		//convert input to uuid
+		String uuid = sakaiProxy.ensureUuid(ref.getId());
+		if (StringUtils.isBlank(uuid)) {
+			throw new EntityNotFoundException("Invalid user.", ref.getId());
+		}
+        
+		if (sakaiProxy.isAdminUser() || sakaiProxy.getCurrentUserId().equals(uuid)) {
+			return new ActionReturn(messagingLogic.getAllUnreadMessagesCount(uuid));
+		} else {
+			throw new SecurityException("You can only view your own message count.");
+		}
+	}
 	
 	@EntityCustomAction(action="formatted",viewKey=EntityView.VIEW_SHOW)
-	public Object getFormattedProfile(EntityReference ref) {
+	public Object getFormattedProfile(EntityReference ref, EntityView view) {
 			
 		//this allows a normal full profile to be returned formatted in HTML
+		
+		final boolean wantsOfficial = StringUtils.equals("official", view.getPathSegment(3)) ? true : false;
 		
 		//get the full profile 
 		UserProfile userProfile = (UserProfile) getEntity(ref);
@@ -265,7 +287,7 @@ public class ProfileEntityProvider extends AbstractEntityProvider implements Cor
 		String siteId = requestGetter.getRequest().getParameter("siteId");
 		
 		//convert UserProfile to HTML object
-		String formattedProfile = getUserProfileAsHTML(userProfile, siteId);
+		String formattedProfile = getUserProfileAsHTML(userProfile, siteId, wantsOfficial);
 		
 		//ActionReturn actionReturn = new ActionReturn("UTF-8", "text/html", entity);
 		ActionReturn actionReturn = new ActionReturn(Formats.UTF_8, Formats.HTML_MIME_TYPE, formattedProfile);
@@ -364,6 +386,28 @@ public class ProfileEntityProvider extends AbstractEntityProvider implements Cor
 		else
 			return Messages.getString("Label.friend.add");
 	}
+
+    @EntityCustomAction(action="incomingConnectionRequests", viewKey=EntityView.VIEW_SHOW)
+	public Object getIncomingConnectionRequests(EntityView view, EntityReference ref) {
+		
+		if(!sakaiProxy.isLoggedIn()) {
+			throw new SecurityException("You must be logged in to get the incoming connection list.");
+		}
+		
+		//convert input to uuid
+		String uuid = sakaiProxy.ensureUuid(ref.getId());
+		if(StringUtils.isBlank(uuid)) {
+			throw new EntityNotFoundException("Invalid user.", ref.getId());
+		}
+		
+		//get list of connection requests
+		List<Person> requests = connectionsLogic.getConnectionRequestsForUser(uuid);
+		if(requests == null) {
+			throw new EntityException("Error retrieving connection requests for " + ref.getId(), ref.getReference());
+		}
+		ActionReturn actionReturn = new ActionReturn(requests);
+		return actionReturn;
+	}
 	
 	@EntityURLRedirect("/{prefix}/{id}/account")
 	public String redirectUserAccount(Map<String,String> vars) {
@@ -374,7 +418,7 @@ public class ProfileEntityProvider extends AbstractEntityProvider implements Cor
 	/**
 	 * {@inheritDoc}
 	 */
-	private String getUserProfileAsHTML(UserProfile userProfile, String siteId) {
+	private String getUserProfileAsHTML(UserProfile userProfile, String siteId, boolean official) {
 		
 		//note there is no birthday in this field. we need a good way to get the birthday without the year. 
 		//maybe it needs to be stored in a separate field and treated differently. Or returned as a localised string.
@@ -387,7 +431,11 @@ public class ProfileEntityProvider extends AbstractEntityProvider implements Cor
 		
 			sb.append("<div class=\"profile2-profile-image\">");
 			sb.append("<img src=\"");
-			sb.append(userProfile.getImageUrl());
+			if (official) {
+				sb.append(imageLogic.getOfficialProfileImage(userProfile.getUserUuid(), siteId).getUrl());
+			} else {
+				sb.append(userProfile.getImageUrl());
+			}
 			sb.append("\" />");
 			sb.append("</div>");
 		
@@ -683,5 +731,8 @@ public class ProfileEntityProvider extends AbstractEntityProvider implements Cor
 	
 	@Setter	
 	private ProfileLinkLogic linkLogic;
+
+	@Setter	
+	private ProfileMessagingLogic messagingLogic;
 	
 }

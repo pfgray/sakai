@@ -28,8 +28,9 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sakaiproject.api.app.messageforums.AnonymousManager;
 import org.sakaiproject.api.app.messageforums.Attachment;
 import org.sakaiproject.api.app.messageforums.BaseForum;
 import org.sakaiproject.api.app.messageforums.DBMembershipItem;
@@ -40,10 +41,11 @@ import org.sakaiproject.api.app.messageforums.PrivateForum;
 import org.sakaiproject.api.app.messageforums.Topic;
 import org.sakaiproject.component.app.messageforums.dao.hibernate.util.comparator.AttachmentByCreatedDateDesc;
 import org.sakaiproject.component.app.messageforums.dao.hibernate.util.comparator.MessageByCreatedDateDesc;
+import org.sakaiproject.component.cover.ComponentManager;
 
 public abstract class TopicImpl extends MutableEntityImpl implements Topic {
 
-    private static final Log LOG = LogFactory.getLog(TopicImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TopicImpl.class);
     
     private String title;
     private String shortDescription;
@@ -71,6 +73,8 @@ public abstract class TopicImpl extends MutableEntityImpl implements Topic {
     private Date closeDate;
     
     private Boolean postFirst;
+    private Boolean postAnonymous = Boolean.FALSE;
+    private Boolean revealIDsToRoles = Boolean.FALSE;
     
     /**
      * availabilityRestricted: this is the radio button the users turns on or off this feature with
@@ -394,6 +398,31 @@ public abstract class TopicImpl extends MutableEntityImpl implements Topic {
 
 	public void setPostFirst(Boolean postFirst) {
 		this.postFirst = postFirst;
+	}
+
+	public Boolean getPostAnonymous() {
+		return postAnonymous;
+	}
+
+	public boolean isAnonymousEnabled() {
+		return getAnonymousManager().isAnonymousEnabled();
+	}
+
+	private AnonymousManager getAnonymousManager()
+	{
+		return ComponentManager.get(AnonymousManager.class);
+	}
+
+	public void setPostAnonymous(Boolean postAnonymous) {
+		this.postAnonymous = postAnonymous;
+	}
+
+	public Boolean getRevealIDsToRoles() {
+		return revealIDsToRoles;
+	}
+
+	public void setRevealIDsToRoles(Boolean revealIDsToRoles) {
+		this.revealIDsToRoles = revealIDsToRoles;
 	}
 
 }

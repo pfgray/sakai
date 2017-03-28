@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.site.api.Group;
 import org.sakaiproject.site.tool.helper.managegroup.impl.SiteManageGroupHandler;
 import org.sakaiproject.authz.api.AuthzGroup;
@@ -18,8 +18,8 @@ import org.sakaiproject.tool.api.Tool;
 import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.util.Validator;
 
-import uk.ac.cam.caret.sakai.rsf.producers.FrameAdjustingProducer;
-import uk.ac.cam.caret.sakai.rsf.util.SakaiURLUtil;
+import org.sakaiproject.rsf.producers.FrameAdjustingProducer;
+import org.sakaiproject.rsf.util.SakaiURLUtil;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.messageutil.TargettedMessageList;
 import uk.org.ponder.rsf.components.UIBranchContainer;
@@ -54,7 +54,7 @@ public class GroupListProducer
         implements ViewComponentProducer, ActionResultInterceptor, DefaultView {
     
 	/** Our log (commons). */
-	private static final Log M_log = LogFactory.getLog(GroupListProducer.class);
+	private static final Logger M_log = LoggerFactory.getLogger(GroupListProducer.class);
 	
     public static final String VIEW_ID = "GroupList";
     public Map siteGroups;

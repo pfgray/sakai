@@ -24,6 +24,7 @@ package org.sakaiproject.emailtemplateservice.service;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.io.InputStream;
 
 import org.sakaiproject.emailtemplateservice.model.EmailTemplate;
 import org.sakaiproject.emailtemplateservice.model.EmailTemplateLocaleUsers;
@@ -172,7 +173,22 @@ public interface EmailTemplateService {
     * @return
     */
    public boolean templateExists(String key, Locale locale);
-	   
+   /**
+   * Utility to send message to user, also when user has changed the email address.
+   * @param userIds
+   * @param emailAddresses
+   * @param renderedTemplate
+   * @param from
+   * @param fromName
+   */
+   public void sendMessage(List<String> userIds, List<String> emailAddresses, RenderedTemplate renderedTemplate,  String from, String fromName );
    
+   /**
+   * Registers a new template with the service, defined by the given XML file
+   * @param templateResourceStream the resource stream for the XML file
+   * @param templateRegistrationKey the key (name) to register the template under
+   * @return true if template registration was successful
+   */
+   public boolean importTemplateFromXmlFile(InputStream templateResourceStream, String templateRegistrationKey);
    
 }

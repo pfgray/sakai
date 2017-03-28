@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.sakaiproject</groupId>
         <artifactId>master</artifactId>
-        <version>11-SNAPSHOT</version>
+        <version>12-SNAPSHOT</version>
         <relativePath>../master/pom.xml</relativePath>
     </parent>
 	
@@ -13,8 +13,7 @@
 	<groupId>org.sakaiproject.calendaring</groupId>
 	<artifactId>external-calendaring-service</artifactId>
 	<packaging>pom</packaging>
-	<version>11-SNAPSHOT</version>
-	
+
 	<developers>
 		<developer>
 			<name>Steve Swinsburg</name>
@@ -37,7 +36,6 @@
     <modules>
         <module>api</module>
         <module>impl</module>
-        <module>pack</module>
     </modules>
     
 	
@@ -66,14 +64,4 @@
 		</dependencies>
 	</dependencyManagement>	
 	
-	<!--  this is only currently setup for snapshot releases, no stable releases -->
-	<distributionManagement>
-        <site>
-            <id>sakai-site</id>
-            <name>Sakai release Site</name>
-            <url>scpexe://source.sakaiproject.org/var/www/html/release/external-calendaring-service/${project.version}</url>
-        </site>
-    </distributionManagement>
-    
-    <build/>
 </project>

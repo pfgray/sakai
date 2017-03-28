@@ -8,16 +8,16 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.site.api.Group;
 import org.sakaiproject.site.tool.helper.managegroupsectionrole.impl.ImportedGroup;
 import org.sakaiproject.site.tool.helper.managegroupsectionrole.impl.SiteManageGroupSectionRoleHandler;
 import org.sakaiproject.tool.api.SessionManager;
 import org.sakaiproject.tool.api.Tool;
 
-import uk.ac.cam.caret.sakai.rsf.producers.FrameAdjustingProducer;
-import uk.ac.cam.caret.sakai.rsf.util.SakaiURLUtil;
+import org.sakaiproject.rsf.producers.FrameAdjustingProducer;
+import org.sakaiproject.rsf.util.SakaiURLUtil;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.rsf.components.UIBranchContainer;
 import uk.org.ponder.rsf.components.UICommand;
@@ -43,7 +43,7 @@ import uk.org.ponder.rsf.viewstate.ViewParamsReporter;
  */
 public class GroupImportStep2Producer implements ViewComponentProducer, NavigationCaseReporter, ViewParamsReporter, ActionResultInterceptor {
 
-	private static Log M_log = LogFactory.getLog(GroupImportStep2Producer.class);
+	private static Logger M_log = LoggerFactory.getLogger(GroupImportStep2Producer.class);
     public SiteManageGroupSectionRoleHandler handler;
     public static final String VIEW_ID = "GroupImportStep2";
     public MessageLocator messageLocator;
@@ -89,19 +89,20 @@ public class GroupImportStep2Producer implements ViewComponentProducer, Navigati
             //if group already exists, get the users that are already in the group,
             //merge so we get one list, then display the new or merged ones appropriately.
             Set<String> userIds = importedGroup.getUserIds();
-            List<String> existingUserIds = new ArrayList<String>();
+            List<String> existingUserIds = new ArrayList<>();
             if(groupExists) {
-            	existingUserIds = handler.getGroupUserIds(existingGroup);
-            	userIds.addAll(existingUserIds);
-        	}
+                existingUserIds = handler.getGroupUserIds(existingGroup);
+                userIds.addAll(existingUserIds);
+            }
             
             //print each user
             for(String userId: importedGroup.getUserIds()) {
             	
             	UIOutput output = UIOutput.make(branch,"member:",userId);
             	
-            	//check user is valid
-            	if(handler.isValidSiteUser(userId)){
+                //check user is valid
+                String foundUserId = handler.lookupUser(userId);
+                if(foundUserId != null && handler.isValidSiteUser(foundUserId)){
             		//is user existing?
             		if(existingUserIds.contains(userId)) {
             			//highlight grey

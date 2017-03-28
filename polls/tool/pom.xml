@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.sakaiproject.polls</groupId>
         <artifactId>polls</artifactId>
-        <version>11-SNAPSHOT</version>
+        <version>12-SNAPSHOT</version>
     </parent>
     
     <name>Sakai Polls Tool Module (polls-tool)</name>
@@ -43,10 +43,6 @@
             <artifactId>sakai-component-manager</artifactId>
         </dependency>
         <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-        </dependency>
-        <dependency>
             <groupId>commons-lang</groupId>
             <artifactId>commons-lang</artifactId>
         </dependency>
@@ -62,31 +58,25 @@
             <groupId>javax.servlet</groupId>
             <artifactId>servlet-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-        </dependency>
 		<dependency>
 			<groupId>commons-beanutils</groupId>
 			<artifactId>commons-beanutils</artifactId>
-			<version>1.8.3</version>
 		</dependency>
         <!-- RSF dependencies -->
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>sakairsf</artifactId>
-            <version>${sakairsf.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-core</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>SakaiRSFComponents-evolvers</artifactId>
-            <version>${sakairsf.components.version}</version>
-            <type>jar</type>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-web-evolvers</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>SakaiRSFComponents-templates</artifactId>
-            <version>${sakairsf.components.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-web-templates</artifactId>
+            <version>${project.version}</version>
             <type>war</type>
         </dependency>
     </dependencies>

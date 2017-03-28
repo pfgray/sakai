@@ -42,10 +42,9 @@ import javax.faces.application.FacesMessage;
 import javax.faces.context.ExternalContext;
 import javax.faces.context.FacesContext;
 import javax.faces.event.ActionEvent;
-import org.apache.commons.lang.StringUtils;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.AuthzGroup;
 import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.authz.api.AuthzPermissionException;
@@ -83,7 +82,7 @@ public class SiteListBean {
 	private static final String			SORT_USER_STATUS	= "userStatus";
 	private static final String			SORT_SITE_TERM		= "siteTerm";
 	/** Our log (commons). */
-	private static Log					LOG					= LogFactory.getLog(SiteListBean.class);
+	private static Logger					LOG					= LoggerFactory.getLogger(SiteListBean.class);
 	/** Resource bundle */
 	private transient ResourceLoader	msgs				= new ResourceLoader("org.sakaiproject.umem.tool.bundle.Messages");
 	/** Controller fields */
@@ -668,6 +667,14 @@ public class SiteListBean {
 					catch( AuthzPermissionException ex )
 					{
 						LOG.warn( "permission exception updating realm, id=" + realmID, ex );
+					}
+					catch( NullPointerException ex )
+					{
+						LOG.warn( "could not retieve user (" + userId + ") or user's role from site (" + site.getId() + ")", ex );
+					}
+					catch( Exception ex )
+					{
+						LOG.error( "unexpected error occurred, user=" + userId + ", site=" + site.getId(), ex );
 					}
 				}
 			}

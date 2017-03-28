@@ -22,6 +22,7 @@ package org.sakaiproject.signup.tool.jsf;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 
@@ -35,8 +36,8 @@ import javax.faces.context.FacesContext;
 import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.PermissionException;
 import org.sakaiproject.signup.logic.SakaiFacade;
@@ -222,7 +223,7 @@ public class NewSignupMeetingBean implements MeetingTypes, SignupMessageTypes, S
 	
 	private int maxAttendeesPerSlot;
 
-	private Log logger = LogFactory.getLog(getClass());
+	private Logger logger = LoggerFactory.getLogger(getClass());
 
 	/* used for jsf parameter passing */
 	private final static String PARAM_NAME_FOR_ATTENDEE_USERID = "attendeeUserId";
@@ -301,7 +302,7 @@ public class NewSignupMeetingBean implements MeetingTypes, SignupMessageTypes, S
 		String toolProperty = sakaiFacade.getToolManager().getCurrentPlacement().getConfig().getProperty("signup.other.sites.availability", "default");
 		if (toolProperty.equals("default")) {
 			//If tool property is not set, then consider sakai property
-			String sakaiProperty= "false".equalsIgnoreCase(sakaiFacade.getServerConfigurationService().getString("signup.otherSitesAvailability", "true"))? "false" : "true" ;
+			String sakaiProperty = Boolean.valueOf(sakaiFacade.getServerConfigurationService().getBoolean("signup.otherSitesAvailability", true)).toString();
 			toolProperty = sakaiProperty;
 		}
 		//tool property would take precedence over sakai property
@@ -625,7 +626,18 @@ public class NewSignupMeetingBean implements MeetingTypes, SignupMessageTypes, S
 					this.signupMeeting.setCategory(selectedCategory);
 				}
 			}
-			
+
+			// Need to filter for bad HTML
+			StringBuilder descriptionErrors = new StringBuilder();
+			String filteredDescription = sakaiFacade.getFormattedText()
+					.processFormattedText(this.signupMeeting.getDescription(), descriptionErrors, true);
+			this.signupMeeting.setDescription(filteredDescription);
+			if (descriptionErrors.length() > 0) {
+				validationError = true;
+				Utilities.addErrorMessage(descriptionErrors.toString());
+				return;
+			}
+
 			//set instructor
 			this.signupMeeting.setCreatorUserId(creatorUserId);
 			
@@ -2141,7 +2153,7 @@ public class NewSignupMeetingBean implements MeetingTypes, SignupMessageTypes, S
 	 * @return	List<String> of eids.
 	 */
 	public List<String> getEidsForEmail(String email) {
-		List<User> users = sakaiFacade.getUsersByEmail(email);
+		Collection<User> users = sakaiFacade.getUsersByEmail(email);
 		
 		List<String> eids = new ArrayList<String>();
 		for(User u:users) {

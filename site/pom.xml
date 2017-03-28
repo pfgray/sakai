@@ -4,30 +4,19 @@
   <parent>
     <groupId>org.sakaiproject</groupId>
     <artifactId>master</artifactId>
-    <version>11-SNAPSHOT</version>
+    <version>12-SNAPSHOT</version>
     <relativePath>../master/pom.xml</relativePath>
   </parent>
 
   <name>sakai-site base pom</name>
   <groupId>org.sakaiproject.site</groupId>
   <artifactId>site</artifactId>
-  <version>11-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
     <module>admin-perms-tool</module>
-    <module>site-tool/tool</module>
     <module>sakai-message-bundle-manager-tool</module>
     <module>mergedlist-util/util</module>
   </modules>
-
-
-  <distributionManagement>
-    <site>
-      <id>sakai-site</id>
-      <name>Sakai release Site</name>
-      <url>scp://source.sakaiproject.org/var/www/html/release/site/${project.version}</url>
-    </site>
-  </distributionManagement>
 
 </project>

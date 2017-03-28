@@ -2,35 +2,16 @@
 
 <%@ page import="org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean" %><%
 %><%@ page import="java.net.URLEncoder" %><%
-%><%@ page import="org.sakaiproject.tool.cover.ToolManager" %><%
-%><%@ page import="org.sakaiproject.user.cover.UserDirectoryService" %><%
-%><%@ page import="org.sakaiproject.user.api.User" %><%
 %><%@ page import="org.sakaiproject.tool.api.Session" %><%
-%><%@ page import="org.sakaiproject.tool.api.Tool" %><%
-%><%@ page import="org.sakaiproject.tool.api.ToolSession" %><%
-%><%@ page import="org.sakaiproject.tool.api.ActiveTool" %><%
-%><%@ page import="org.sakaiproject.tool.cover.ToolManager" %><%
 %><%@ page import="org.sakaiproject.authz.cover.SecurityService" %><%
 %><%@ page import="org.sakaiproject.tool.cover.SessionManager" %><%
-%><%@ page import="org.sakaiproject.tool.cover.ActiveToolManager" %><%
-%><%@ page import="org.sakaiproject.id.cover.IdManager" %><%
-%><%@ page import="org.sakaiproject.authz.cover.AuthzGroupService" %><%
-%><%@ page import="org.sakaiproject.time.api.Time" %><%
-%><%@ page import="org.sakaiproject.time.api.TimeBreakdown" %><%
-%><%@ page import="org.sakaiproject.time.cover.TimeService" %><%
 %><%@ page import="org.sakaiproject.site.api.Site" %><%
 %><%@ page import="org.sakaiproject.site.api.SitePage" %><%
 %><%@ page import="org.sakaiproject.site.cover.SiteService" %><%
-%><%@ page import="org.sakaiproject.site.api.SiteService.SortType" %><%
-%><%@ page import="org.sakaiproject.site.api.SiteService.SelectionType" %><%
-%><%@ page import="org.sakaiproject.site.api.ToolConfiguration" %><%
-%><%@ page import="org.sakaiproject.authz.api.Member" %><%
-%><%@ page import="org.sakaiproject.event.api.NotificationService" %><%
-%><%@ page import="org.sakaiproject.authz.api.SecurityAdvisor" %><%
 %><%@ page import="org.sakaiproject.component.cover.ComponentManager" %><%
 %><%@ page import="org.sakaiproject.lessonbuildertool.model.SimplePageToolDao" %><%
 %><%@ page import="org.sakaiproject.event.cover.EventTrackingService" %><%
-%><%@ page import="org.sakaiproject.component.cover.ServerConfigurationService" %><%
+%><%@ page import="org.sakaiproject.lessonbuildertool.api.LessonBuilderEvents" %><%
 %><%@ page import="org.sakaiproject.lessonbuildertool.SimplePage" %><%
 %><%@ page import="org.apache.commons.lang.StringEscapeUtils" %>
 
@@ -98,7 +79,7 @@
 	return;
     }
 
-    if(simplePage.getOwner() != null) {
+    if(simplePage.getOwner()!=null && !simplePage.isOwned()) {
 	out.println("Can't remove student pages this way");
 	return;
     }
@@ -117,7 +98,7 @@
 	out.println(StringEscapeUtils.escapeHtml("removePage unable to save site " + e));
     }
 		
-    EventTrackingService.post(EventTrackingService.newEvent("lessonbuilder.remove", "/lessonbuilder/page/" + simplePage.getPageId(), true));
+    EventTrackingService.post(EventTrackingService.newEvent(LessonBuilderEvents.PAGE_REMOVE, "/lessonbuilder/page/" + simplePage.getPageId(), true));
 
    out.println("<script>parent.location.replace(\"/portal/site/" + URLEncoder.encode(site.getId(), "UTF-8") + "\")</script>");
 

@@ -41,7 +41,8 @@ import java.util.Collection;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.configuration.reloading.InvariantReloadingStrategy;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.dash.dao.DashboardDao;
 import org.sakaiproject.dash.dao.mapper.AvailabilityCheckMapper;
@@ -73,7 +74,6 @@ import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.support.JdbcDaoSupport;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implementation of ProjectDao 
@@ -83,7 +83,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 
-	private static final Logger log = Logger.getLogger(DashboardDaoImpl.class);
+	private static final Logger log = LoggerFactory.getLogger(DashboardDaoImpl.class);
 
 	private static final int MAX_LENGTH_SUBTYPE_FIELD = 255;
 
@@ -129,6 +129,22 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 	        return false;
 		}
 	}
+	
+	@Override
+	public boolean updateAvailabilityCheck(AvailabilityCheck availabilityCheck) {
+		if(log.isDebugEnabled()) {
+			log.debug("updateAvailabilityCheck( " + availabilityCheck.toString() + ")");
+		}
+		try {
+			getJdbcTemplate().update(getStatement("update.AvailabilityCheck"),
+					new Object[]{availabilityCheck.getScheduledTime(),availabilityCheck.getEntityReference()}
+					);
+			return true;
+		} catch (DataAccessException ex) {
+			log.warn("updateAvailabilityCheck: Error executing query: " + ex.getClass() + ":" + ex.getMessage());
+			return false;
+		}	
+	}
 
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.dash.dao.DashboardDao#addCalendarItem(org.sakaiproject.dash.model.CalendarItem)
@@ -148,7 +164,7 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 			buf.append(subtype);
 			buf.append(" for entity ");
 			buf.append(calendarItem.getEntityReference());
-			log.warn(buf);
+			log.warn(buf.toString());
 			subtype = subtype.substring(0, MAX_LENGTH_SUBTYPE_FIELD - 1);
 		}
 		try {
@@ -298,7 +314,7 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 			buf.append(subtype);
 			buf.append(" for entity ");
 			buf.append(newsItem.getEntityReference());
-			log.warn(buf);
+			log.warn(buf.toString());
 			subtype = subtype.substring(0, MAX_LENGTH_SUBTYPE_FIELD - 1);
 		}
 		
@@ -438,7 +454,7 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 			buf.append(subtype);
 			buf.append(" for entity ");
 			buf.append(repeatingCalendarItem.getEntityReference());
-			log.warn(buf);
+			log.warn(buf.toString());
 			subtype = subtype.substring(0, MAX_LENGTH_SUBTYPE_FIELD - 1);
 		}
 		Object[] params = new Object[]{
@@ -846,6 +862,22 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
            log.warn("getAvailabilityChecksBeforeTime: Error executing query: " + ex.getClass() + ":" + ex.getMessage());
            return new ArrayList<AvailabilityCheck>();
 		}
+	}
+	public boolean isScheduleAvailabilityCheckMade(String entityReference){
+		if (log.isDebugEnabled()) {
+			log.debug("isScheduleAvailabilityCheckMade");
+		}
+		String sql = getStatement("select.AvailabilityChecks.entry");
+		Object[] params = new Object[] { entityReference };
+		try {
+			List<AvailabilityCheck> ac = (List<AvailabilityCheck>) getJdbcTemplate().query(sql, params,
+					new AvailabilityCheckMapper());
+			return !ac.isEmpty();
+		} catch (DataAccessException ex) {
+			log.warn("isScheduleAvailabilityCheckMade: Error executing query: " + ex.getClass() + ":" + ex.getMessage());
+			return false;
+		}
+		
 	}
 	
 	/* (non-Javadoc)
@@ -1506,7 +1538,7 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 		String sql = getStatement("count.NewsLinks.by.sakaiId.groupId");
 		Object[] params = new Object[]{sakaiUserId, groupId};
 		try {
-			return getJdbcTemplate().queryForInt(sql,params);
+			return getJdbcTemplate().queryForObject(sql,Integer.class,params);
 		} catch (EmptyResultDataAccessException ex) {
 			log.debug("countNewsLinksByGroupId: Empty result executing query: " + ex.getClass() + ":" + ex.getMessage());
 	        return 0;
@@ -1778,7 +1810,7 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 			buf.append(subtype);
 			buf.append(" for entity ");
 			buf.append(calendarItem.getEntityReference());
-			log.warn(buf);
+			log.warn(buf.toString());
 			subtype = subtype.substring(0, MAX_LENGTH_SUBTYPE_FIELD - 1);
 		}
 		
@@ -2235,7 +2267,7 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 		
 		JdbcTemplate jdbcTemplate = getJdbcTemplate();
 		try {
-			value = jdbcTemplate.queryForInt(sql, params);
+			value = jdbcTemplate.queryForObject(sql, Integer.class, params);
 		} catch (EmptyResultDataAccessException ex) {
 			// do nothing.  This means no value is set for this property, an expected condition in some cases.
 			// log.warn("getConfigProperty: Error executing query: " + ex.getClass() + ":" + ex.getMessage());
@@ -2392,4 +2424,6 @@ public class DashboardDaoImpl extends JdbcDaoSupport implements DashboardDao {
 		
 		return dashboardUserMap;
 	}
+
+	
 }

@@ -46,8 +46,8 @@ import java.util.Vector;
 
 import javax.sql.DataSource;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.db.api.SqlReader;
 import org.sakaiproject.db.api.SqlReaderFinishedException;
 import org.sakaiproject.db.api.SqlService;
@@ -65,9 +65,9 @@ import org.sakaiproject.time.api.Time;
  */
 public abstract class BasicSqlService implements SqlService
 {
-	private static final Log LOG = LogFactory.getLog(BasicSqlService.class);
+	private static final Logger LOG = LoggerFactory.getLogger(BasicSqlService.class);
 
-	private static final Log SWC_LOG = LogFactory.getLog(StreamWithConnection.class);
+	private static final Logger SWC_LOG = LoggerFactory.getLogger(StreamWithConnection.class);
 
 	/** Key name in thread local to find the current transaction connection. */
 	protected static final String TRANSACTION_CONNECTION = "sqlService:transaction_connection";
@@ -979,6 +979,13 @@ public abstract class BasicSqlService implements SqlService
 		}
 		catch (SQLException e)
 		{
+			// On mysql unless you allow serverside prepared statements then the maximum size possible is configured
+			// by max_allowed_packet. The error codes below are:
+			// 1105 max_allowed_packet too small
+			// 1118 redo log size not at least 10 times max_allowed_packet
+			if ( "mysql".equals(m_vendor) && (e.getErrorCode() == 1105 || e.getErrorCode() == 1118) ) {
+				LOG.warn("SQL '{}' failed, consider useServerPrepStmts=true on JDBC connection.", sql, e);
+			}
 			// this is likely due to a key constraint problem...
 			return false;
 		}
@@ -1123,20 +1130,7 @@ public abstract class BasicSqlService implements SqlService
 	}
 
 	/**
-	 * Execute the "write" sql - no response, using a set of fields from an array plus one more as params and connection.
-	 * 
-	 * @param sql
-	 *        The sql statement.
-	 * @param fields
-	 *        The array of fields for parameters.
-	 * @param lastField
-	 *        The value to bind to the last parameter in the sql statement.
-	 * @param callerConnection
-	 *        The connection to use.
-	 * @param failQuiet
-	 *        If true, don't log errors from statement failure
-	 * @return true if successful, false if not due to unique constraint violation or duplicate key (i.e. the record already exists) OR we are
-	 *         instructed to fail quiet.
+	 * @see org.sakaiproject.db.api.SqlService#dbWriteCount(String, Object[], String, Connection, boolean)
 	 */
 	protected boolean dbWrite(String sql, Object[] fields, String lastField, Connection callerConnection, boolean failQuiet)
 	{
@@ -1144,22 +1138,24 @@ public abstract class BasicSqlService implements SqlService
 	}
 
 	/**
-	 * Execute the "write/update" sql - no response, using a set of fields from an array plus one more as params and connection.
-	 * 
-	 * @param sql
-	 *        The sql statement.
-	 * @param fields
-	 *        The array of fields for parameters.
-	 * @param lastField
-	 *        The value to bind to the last parameter in the sql statement.
-	 * @param callerConnection
-	 *        The connection to use.
-	 * @param failQuiet
-	 *        If true, don't log errors from statement failure
-	 * @return the number of records affected or -1 if something goes wrong if not due to unique constraint 
-	 * violation or duplicate key (i.e. the record already exists) OR we are instructed to fail quiet.
+	 * @see org.sakaiproject.db.api.SqlService#dbWriteCount(String, Object[], String, Connection, int)
 	 */
-	public int dbWriteCount(String sql, Object[] fields, String lastField, Connection callerConnection, boolean failQuiet)
+	protected boolean dbWrite(String sql, Object[] fields, String lastField, Connection callerConnection, int failQuiet)
+	{
+ 		return ( dbWriteCount(sql, fields, lastField, callerConnection, failQuiet) >= 0 ) ;
+	}
+
+	/**
+	 * @see org.sakaiproject.db.api.SqlService#dbWriteCount(String, Object[], String, Connection, boolean)
+	 */
+	public int dbWriteCount(String sql, Object[] fields, String lastField, Connection callerConnection,boolean failQuiet) {
+		return dbWriteCount(sql,fields,lastField,callerConnection,failQuiet ? 1 : 0);
+	}
+
+	/**
+	 * @see org.sakaiproject.db.api.SqlService#dbWriteCount(String, Object[], String, Connection, int)
+	 */
+	public int dbWriteCount(String sql, Object[] fields, String lastField, Connection callerConnection, int failQuiet)
 	{
 		int retval = -1;
 		// check for a transaction connection
@@ -1266,9 +1262,12 @@ public abstract class BasicSqlService implements SqlService
 			}
 
 			// if asked to fail quietly, just return -1 if we find this error.
-			if (recordAlreadyExists || failQuiet) {
-				LOG.warn("Sql.dbWrite(): recordAlreadyExists: " +  recordAlreadyExists + ", failQuiet: " + failQuiet + ", : error code: " 
+			if (recordAlreadyExists || failQuiet!=0) {
+				//If failQuiet is 1 then print this, otherwise it's in ddl mode so just ignore
+				if (failQuiet == 1) {
+					LOG.warn("Sql.dbWrite(): recordAlreadyExists: " +  recordAlreadyExists + ", failQuiet: " + failQuiet + ", : error code: " 
 					+ e.getErrorCode() + ", " + "sql: " + sql + ", binds: " + debugFields(fields) + ", error: " + e.toString());
+				}
 				return -1;
 			}
 
@@ -2058,7 +2057,7 @@ public abstract class BasicSqlService implements SqlService
 					if (firstLine)
 					{
 						firstLine = false;
-						if (!dbWriteFailQuiet(null, buf.toString(), null))
+						if (!dbWrite(buf.toString(),null,null,null,2))
 						{
 							return;
 						}

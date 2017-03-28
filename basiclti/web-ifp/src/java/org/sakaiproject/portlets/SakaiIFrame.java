@@ -34,8 +34,8 @@ import java.util.ResourceBundle;
 import java.util.List;
 import java.util.Enumeration;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.portlet.GenericPortlet;
 import javax.portlet.RenderRequest;
@@ -54,8 +54,8 @@ import javax.portlet.PortletSession;
 import javax.portlet.ReadOnlyException;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.sakaiproject.portlet.util.VelocityHelper;
 import org.sakaiproject.portlet.util.JSPHelper;
@@ -93,7 +93,7 @@ import org.sakaiproject.lti.api.LTIService;
  */
 public class SakaiIFrame extends GenericPortlet {
 
-	private static final Log M_log = LogFactory.getLog(SakaiIFrame.class);
+	private static final Logger M_log = LoggerFactory.getLogger(SakaiIFrame.class);
 	
 	private LTIService m_ltiService = (LTIService) ComponentManager.get("org.sakaiproject.lti.api.LTIService");
 
@@ -212,20 +212,20 @@ public class SakaiIFrame extends GenericPortlet {
 			}
 			try {
 				content = m_ltiService.getContent(key);
+				Long tool_id = getLongNull(content.get("tool_id"));
 				// If we are supposed to popup (per the content), do so and optionally
 				// copy the calue into the placement to communicate with the portal
-				popup = getLongNull(content.get("newpage")) == 1;
+				if (tool_id != null) {
+					tool = m_ltiService.getTool(tool_id);
+					m_ltiService.filterContent(content, tool);
+				}
+				Object popupValue = content.get("newpage");
+				popup = getLongNull(popupValue) == 1;
 				if ( oldPopup != popup ) {
 					placement.getPlacementConfig().setProperty(POPUP, popup ? "true" : "false");
 					placement.save();
 				}
 				String launch = (String) content.get("launch");
-				Long tool_id = getLongNull(content.get("tool_id"));
-				if ( launch == null && tool_id != null ) {
-					tool = m_ltiService.getTool(tool_id);
-					launch = (String) tool.get("launch");
-				}
-
 				// Force http:// to pop-up if we are https://
 				String serverUrl = ServerConfigurationService.getServerUrl();
 				if ( request.isSecure() || ( serverUrl != null && serverUrl.startsWith("https://") ) ) {

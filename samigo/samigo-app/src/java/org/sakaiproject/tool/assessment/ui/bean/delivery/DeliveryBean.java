@@ -1,15 +1,11 @@
-/**********************************************************************************
- * $URL$
- * $Id$
- ***********************************************************************************
- *
- * Copyright (c) 2004, 2005, 2006, 2007, 2008, 2009 The Sakai Foundation
+/*
+ * Copyright (c) 2016, The Apereo Foundation
  *
  * Licensed under the Educational Community License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *       http://www.opensource.org/licenses/ECL-2.0
+ *             http://opensource.org/licenses/ecl2
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- **********************************************************************************/
+ */
 
 
 
@@ -25,19 +21,13 @@ package org.sakaiproject.tool.assessment.ui.bean.delivery;
 
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ResourceBundle;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import javax.faces.application.FacesMessage;
 import javax.faces.context.ExternalContext;
@@ -45,12 +35,13 @@ import javax.faces.context.FacesContext;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.event.cover.EventTrackingService;
 import org.sakaiproject.event.cover.NotificationService;
 import org.sakaiproject.exception.IdUnusedException;
+import org.sakaiproject.samigo.util.SamigoConstants;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.SitePage;
 import org.sakaiproject.site.api.ToolConfiguration;
@@ -58,12 +49,13 @@ import org.sakaiproject.site.cover.SiteService;
 import org.sakaiproject.tool.api.Placement;
 import org.sakaiproject.tool.api.Session;
 import org.sakaiproject.tool.assessment.api.SamigoApiFactory;
+import org.sakaiproject.tool.assessment.data.dao.assessment.AssessmentAccessControl;
 import org.sakaiproject.tool.assessment.data.dao.assessment.EventLogData;
-import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedAssessmentData;
 import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedItemData;
 import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedItemText;
 import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedSectionData;
 import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedSecuredIPAddress;
+import org.sakaiproject.tool.assessment.data.dao.grading.AssessmentGradingAttachment;
 import org.sakaiproject.tool.assessment.data.dao.grading.AssessmentGradingData;
 import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingData;
 import org.sakaiproject.tool.assessment.data.dao.grading.MediaData;
@@ -81,6 +73,7 @@ import org.sakaiproject.tool.assessment.services.assessment.PublishedAssessmentS
 import org.sakaiproject.tool.assessment.shared.api.assessment.SecureDeliveryServiceAPI;
 import org.sakaiproject.tool.assessment.shared.api.assessment.SecureDeliveryServiceAPI.Phase;
 import org.sakaiproject.tool.assessment.shared.api.assessment.SecureDeliveryServiceAPI.PhaseStatus;
+import org.sakaiproject.tool.assessment.ui.bean.author.PublishedAssessmentSettingsBean;
 import org.sakaiproject.tool.assessment.ui.bean.shared.PersonBean;
 import org.sakaiproject.tool.assessment.ui.bean.util.Validator;
 import org.sakaiproject.tool.assessment.ui.listener.delivery.BeginDeliveryActionListener;
@@ -93,12 +86,12 @@ import org.sakaiproject.tool.assessment.ui.listener.util.TimeUtil;
 import org.sakaiproject.tool.assessment.ui.model.delivery.TimedAssessmentGradingModel;
 import org.sakaiproject.tool.assessment.ui.queue.delivery.TimedAssessmentQueue;
 import org.sakaiproject.tool.assessment.ui.web.session.SessionUtil;
+import org.sakaiproject.tool.assessment.util.ExtendedTimeDeliveryService;
 import org.sakaiproject.tool.assessment.util.MimeTypesLocator;
 import org.sakaiproject.tool.cover.SessionManager;
 import org.sakaiproject.tool.cover.ToolManager;
 import org.sakaiproject.util.ResourceLoader;
 
-import uk.org.ponder.rsf.state.support.TMLFixer;
 import org.apache.commons.lang.StringUtils;
 /**
  *
@@ -111,22 +104,22 @@ import org.apache.commons.lang.StringUtils;
 public class DeliveryBean
   implements Serializable
 {
-  private static Log log = LogFactory.getLog(DeliveryBean.class);
+  private static final Logger log = LoggerFactory.getLogger(DeliveryBean.class);
 
   //SAM-2517
   private ServerConfigurationService serverConfigurationService;
   
   private static final String MATHJAX_ENABLED = "mathJaxEnabled";
   private static final String MATHJAX_SRC_PATH_SAKAI_PROP = "portal.mathjax.src.path";
-  private static final String MATHJAX_SRC_PATH = ServerConfigurationService.getString(MATHJAX_SRC_PATH_SAKAI_PROP, "");
+  private static final String MATHJAX_SRC_PATH = ServerConfigurationService.getString(MATHJAX_SRC_PATH_SAKAI_PROP);
   
   private String assessmentId;
   private String assessmentTitle;
-  private Boolean honorPledge = Boolean.FALSE;
-  private ArrayList markedForReview;
-  private ArrayList blankItems;
-  private ArrayList markedForReviewIdents;
-  private ArrayList blankItemIdents;
+  private boolean honorPledge;
+  private List markedForReview;
+  private List blankItems;
+  private List markedForReviewIdents;
+  private List blankItemIdents;
   private boolean reviewMarked;
   private boolean reviewAll;
   private boolean reviewBlank;
@@ -141,13 +134,13 @@ public class DeliveryBean
   private String timeOutSubmission;
   private String submissionTicket;
   private String timeElapse;
-  private String username;
   private int sectionIndex;
   private boolean previous;
   private String duration;
   private String url;
   private String confirmation;
   private String outcome;
+  private String receiptEmailSetting;
 
   //Settings
   private String questionLayout;
@@ -170,6 +163,8 @@ public class DeliveryBean
   private boolean submitted;
   private boolean graded;
   private String graderComment;
+  private List<AssessmentGradingAttachment> assessmentGradingAttachmentList;
+  private boolean hasAssessmentGradingAttachment;
   private String rawScore;
   private String grade;
   private java.util.Date submissionDate;
@@ -193,7 +188,7 @@ public class DeliveryBean
   private String password;
   private int numberRetake;
   private int actualNumberRetake;
-  private HashMap itemContentsMap;
+  private Map itemContentsMap;
   
   // For paging
   private int partIndex;
@@ -221,7 +216,6 @@ public class DeliveryBean
   // publishedUrl
   private boolean anonymousLogin = false;
   private String contextPath;
-  private boolean initAgentAccessString = false;
 
   // daisyf added this for timed assessment for SAK-6990, to check if mutiple windows were open 
   // during timed assessment
@@ -239,7 +233,7 @@ public class DeliveryBean
   // esmiley added to track JavaScript
   private String javaScriptEnabledCheck;
 
-  //cwen
+  //cwent
   private String siteId;
 
   private boolean beginAssessment;
@@ -279,6 +273,8 @@ public class DeliveryBean
   private String secureDeliveryHTMLFragment; 
   
   private boolean isFromPrint;
+  
+  private ExtendedTimeDeliveryService extendedTimeDeliveryService = null;
 
   private boolean showTimeWarning;
   private boolean hasShowTimeWarning;
@@ -289,12 +285,17 @@ public class DeliveryBean
   private Date deadline;
   
   private boolean  firstTimeTaking;
+  boolean timeExpired = false;
   
   private static String ACCESSBASE = ServerConfigurationService.getAccessUrl();
   private static String RECPATH = ServerConfigurationService.getString("samigo.recommendations.path"); 
 
   private static ResourceBundle eventLogMessages = ResourceBundle.getBundle("org.sakaiproject.tool.assessment.bundle.EventLogMessages");
 
+  private static String questionProgressUnansweredPath = ServerConfigurationService.getString("samigo.questionprogress.unansweredpath", "/images/whiteBubble15.png");
+  private static String questionProgressAnsweredPath = ServerConfigurationService.getString("samigo.questionprogress.answeredpath", "/images/blackBubble15.png");
+  private static String questionProgressMardPath = ServerConfigurationService.getString("samigo.questionprogress.mardpath", "/images/questionMarkBubble15.png");
+  
   /**
    * Creates a new DeliveryBean object.
    */
@@ -364,11 +365,29 @@ public class DeliveryBean
   }
 
   /**
+   * 
+   * @return 
+   */
+  public String getReceiptEmailSetting()
+  {
+      return receiptEmailSetting;
+  }
+
+  /**
+   * 
+   * @param receiptEmailSetting 
+   */
+  public void setReceiptEmailSetting( String receiptEmailSetting )
+  {
+      this.receiptEmailSetting = receiptEmailSetting;
+  }
+
+  /**
    *
    *
    * @return
    */
-  public ArrayList getMarkedForReview()
+  public List getMarkedForReview()
   {
     return markedForReview;
   }
@@ -378,7 +397,7 @@ public class DeliveryBean
    *
    * @param markedForReview
    */
-  public void setMarkedForReview(ArrayList markedForReview)
+  public void setMarkedForReview(List markedForReview)
   {
     this.markedForReview = markedForReview;
   }
@@ -462,12 +481,11 @@ public class DeliveryBean
 
 	    try {
 	      TimeUtil tu = new TimeUtil();
-	      beginTimeString = tu.getDisplayDateTime(dayDisplayFormat, beginTime);
+	      beginTimeString = tu.getDisplayDateTime(dayDisplayFormat, beginTime, true);
 	    }
 	    catch (Exception ex) {
 	      // we will leave it as an empty string
-	      log.warn("Unable to format date.");
-	      ex.printStackTrace();
+	      log.warn("Unable to format date.", ex);
 	    }
 	    return beginTimeString;
   }
@@ -602,13 +620,13 @@ public class DeliveryBean
     try{
       if (timeElapse!=null && !("").equals(timeElapse)
           && getTimeLimit()!=null && !("").equals(getTimeLimit())){
-        double limit = (new Double(getTimeLimit())).doubleValue();
-        double elapsed = (new Double(timeElapse)).doubleValue();
+        double limit = (new Double(getTimeLimit()));
+        double elapsed = (new Double(timeElapse));
         if (limit > elapsed)
           this.timeElapse = timeElapse;
         else
           this.timeElapse = getTimeLimit();
-        setTimeElapseDouble((new Double(timeElapse)).doubleValue());
+        setTimeElapseDouble((new Double(timeElapse)));
       }
     }
     catch (Exception e){
@@ -651,26 +669,6 @@ public class DeliveryBean
    *
    * @return
    */
-  public String getUsername()
-  {
-    return username;
-  }
-
-  /**
-   *
-   *
-   * @param username
-   */
-  public void setUsername(String username)
-  {
-    this.username = username;
-  }
-
-  /**
-   *
-   *
-   * @return
-   */
   public String getAssessmentTitle()
   {
     return assessmentTitle;
@@ -691,7 +689,7 @@ public class DeliveryBean
    *
    * @return
    */
-  public ArrayList getBlankItems()
+  public List getBlankItems()
   {
     return this.blankItems;
   }
@@ -701,7 +699,7 @@ public class DeliveryBean
    *
    * @param blankItems
    */
-  public void setBlankItems(ArrayList blankItems)
+  public void setBlankItems(List blankItems)
   {
     this.blankItems = blankItems;
   }
@@ -731,7 +729,7 @@ public class DeliveryBean
    *
    * @return
    */
-  public ArrayList getMarkedForReviewIdents()
+  public List getMarkedForReviewIdents()
   {
     return markedForReviewIdents;
   }
@@ -741,7 +739,7 @@ public class DeliveryBean
    *
    * @param markedForReviewIdents
    */
-  public void setMarkedForReviewIdents(ArrayList markedForReviewIdents)
+  public void setMarkedForReviewIdents(List markedForReviewIdents)
   {
     this.markedForReviewIdents = markedForReviewIdents;
   }
@@ -751,7 +749,7 @@ public class DeliveryBean
    *
    * @return
    */
-  public ArrayList getBlankItemIdents()
+  public List getBlankItemIdents()
   {
     return blankItemIdents;
   }
@@ -761,7 +759,7 @@ public class DeliveryBean
    *
    * @param blankItemIdents
    */
-  public void setBlankItemIdents(ArrayList blankItemIdents)
+  public void setBlankItemIdents(List blankItemIdents)
   {
     this.blankItemIdents = blankItemIdents;
   }
@@ -809,6 +807,16 @@ public class DeliveryBean
   //Settings
   public String getQuestionLayout()
   {
+      if(getSettings().isFormatByQuestion()) {
+          questionLayout = "1";
+      }
+      else if (getSettings().isFormatByPart()) {
+          questionLayout = "2";
+      }
+      else if (getSettings().isFormatByAssessment()) {
+          questionLayout = "3";
+      }
+
     return questionLayout;
   }
 
@@ -952,7 +960,7 @@ public class DeliveryBean
     this.feedbackComponentOption = feedbackComponentOption;
   }
   
-  /**
+  /*
    * Types of feedback in FeedbackComponent:
    *
    * SHOW CORRECT SCORE
@@ -963,7 +971,7 @@ public class DeliveryBean
    * SHOW STATS
    * SHOW QUESTION
    * SHOW RESPONSE
-   **/
+   */
 
   /**
    * @return
@@ -1015,7 +1023,7 @@ public class DeliveryBean
   }
 
   /**
-   * @param bean
+   * @param settings
    */
   public void setSettings(SettingsDeliveryBean settings)
   {
@@ -1084,12 +1092,11 @@ public class DeliveryBean
 
     try {
       TimeUtil tu = new TimeUtil();
-      dateString = tu.getDisplayDateTime(displayFormat, dueDate);
+      dateString = tu.getDisplayDateTime(displayFormat, dueDate, true);
     }
     catch (Exception ex) {
       // we will leave it as an empty string
-      log.warn("Unable to format date.");
-      ex.printStackTrace();
+      log.warn("Unable to format date.", ex);
     }
     return dateString;
   }
@@ -1103,12 +1110,11 @@ public class DeliveryBean
 
     try {
       TimeUtil tu = new TimeUtil();
-      dateString = tu.getDisplayDateTime(dayDisplayFormat, dueDate);
+      dateString = tu.getDisplayDateTime(dayDisplayFormat, dueDate, true);
     }
     catch (Exception ex) {
       // we will leave it as an empty string
-      log.warn("Unable to format date.");
-      ex.printStackTrace();
+      log.warn("Unable to format date.", ex);
     }
     return dateString;
   }
@@ -1130,12 +1136,11 @@ public class DeliveryBean
 
 	    try {
 	      TimeUtil tu = new TimeUtil();
-	      adjustedTimedAssesmentDueDateString = tu.getDisplayDateTime(dayDisplayFormat, adjustedTimedAssesmentDueDate);
+	      adjustedTimedAssesmentDueDateString = tu.getDisplayDateTime(dayDisplayFormat, adjustedTimedAssesmentDueDate, true);
 	    }
 	    catch (Exception ex) {
 	      // we will leave it as an empty string
-	      log.warn("Unable to format date.");
-	      ex.printStackTrace();
+	      log.warn("Unable to format date.", ex);
 	    }
 	    return adjustedTimedAssesmentDueDateString;
   }
@@ -1158,12 +1163,11 @@ public class DeliveryBean
 
     try {
       TimeUtil tu = new TimeUtil();
-      dateString = tu.getDisplayDateTime(dayDisplayFormat, retractDate);
+      dateString = tu.getDisplayDateTime(dayDisplayFormat, retractDate, true);
     }
     catch (Exception ex) {
       // we will leave it as an empty string
-      log.warn("Unable to format date.");
-      ex.printStackTrace();
+      log.warn("Unable to format date.", ex);
     }
     return dateString;
   }
@@ -1225,6 +1229,23 @@ public class DeliveryBean
   public void setGraderComment(String newComment)
   {
     graderComment = newComment;
+  }
+  
+  public List<AssessmentGradingAttachment> getAssessmentGradingAttachmentList() {
+	return assessmentGradingAttachmentList;
+  }
+  
+  public void setAssessmentGradingAttachmentList(
+		List<AssessmentGradingAttachment> assessmentGradingAttachmentList) {
+	this.assessmentGradingAttachmentList = assessmentGradingAttachmentList;
+  }
+  
+  public boolean isHasAssessmentGradingAttachment() {
+	return hasAssessmentGradingAttachment;
+  }
+  
+  public void setHasAssessmentGradingAttachment(boolean hasAssessmentGradingAttachment) {
+	this.hasAssessmentGradingAttachment = hasAssessmentGradingAttachment;
   }
 
   public String getRawScore()
@@ -1302,12 +1323,11 @@ public class DeliveryBean
 
     try {
       TimeUtil tu = new TimeUtil();
-      dateString = tu.getDisplayDateTime(displayFormat, submissionDate);
+      dateString = tu.getDisplayDateTime(displayFormat, submissionDate, true);
     }
     catch (Exception ex) {
       // we will leave it as an empty string
-      log.warn("Unable to format date.");
-      ex.printStackTrace();
+      log.warn("Unable to format date.", ex);
     }
     return dateString;
   }
@@ -1541,6 +1561,8 @@ public class DeliveryBean
    
   private String submitForGrade(boolean isFromTimer, boolean submitFromTimeoutPopup) {
 	try{
+	  Map<String, Object> notificationValues = new HashMap<>();
+	  Long local_assessmentGradingID = adata.getAssessmentGradingId();
 	  if (this.actionMode == PREVIEW_ASSESSMENT) {
 		  return "editAssessment";
 	  }	  
@@ -1578,12 +1600,8 @@ public class DeliveryBean
 	  try {
 		  listener.processAction(null);
 	  }
-	  catch (FinFormatException e) {
+	  catch (FinFormatException | SaLengthException e) {
 		  log.debug(e.getMessage());
-		  return "takeAssessment";
-	  }
-	  catch (SaLengthException sae) {
-		  log.debug(sae.getMessage());
 		  return "takeAssessment";
 	  }
 	  
@@ -1595,28 +1613,28 @@ public class DeliveryBean
 	  }
 
 	  String returnValue="submitAssessment";
+	  PublishedAssessmentService publishedAssessmentService = new PublishedAssessmentService();
+	  String siteId = publishedAssessmentService.getPublishedAssessmentOwner(adata.getPublishedAssessmentId());
+	  String resource = "siteId=" + AgentFacade.getCurrentSiteId() + ", submissionId=" + local_assessmentGradingID;
+
 	  if (!isFromTimer) {
 		  if (this.actionMode == TAKE_ASSESSMENT_VIA_URL) // this is for accessing via published url
 		  {
 			  returnValue="anonymousThankYou";
-			  PublishedAssessmentService publishedAssessmentService = new PublishedAssessmentService();
-			  String siteId = publishedAssessmentService.getPublishedAssessmentOwner(adata.getPublishedAssessmentId());
-			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.submit.via_url", "siteId=" + AgentFacade.getCurrentSiteId() + ", submissionId=" + adata.getAssessmentGradingId(), siteId, true, NotificationService.NOTI_REQUIRED)); 
+			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.submit.via_url", resource, siteId, true, NotificationService.NOTI_REQUIRED)); 
 		  }
 		  else {
-			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.submit", "siteId=" + AgentFacade.getCurrentSiteId() + ", submissionId=" + adata.getAssessmentGradingId(), true));
+			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.submit", resource, true));
 		  }
 	  }
 	  else {
 		  if (this.actionMode == TAKE_ASSESSMENT_VIA_URL) // this is for accessing via published url
 		  {
 			  returnValue="anonymousThankYou";
-			  PublishedAssessmentService publishedAssessmentService = new PublishedAssessmentService();
-			  String siteId = publishedAssessmentService.getPublishedAssessmentOwner(adata.getPublishedAssessmentId());
-			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.timer_submit.url", "siteId=" + AgentFacade.getCurrentSiteId() + ", submissionId=" + adata.getAssessmentGradingId(), siteId, true, NotificationService.NOTI_REQUIRED));      
+			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.timer_submit.url", resource , siteId, true, NotificationService.NOTI_REQUIRED));
 		  }
 		  else {
-			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.timer_submit", "siteId=" + AgentFacade.getCurrentSiteId() + ", submissionId=" + adata.getAssessmentGradingId(), true));
+			  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.timer_submit", resource, true));
 		  }
 	  }
 	  forGrade = false;
@@ -1644,43 +1662,70 @@ public class DeliveryBean
 	  }
 	 
 	  EventLogService eventService = new EventLogService();
-	 	     EventLogFacade eventLogFacade = new EventLogFacade();
-	 	 
-	 	     List eventLogDataList = eventService.getEventLogData(adata.getAssessmentGradingId());
-	 	     EventLogData eventLogData= (EventLogData) eventLogDataList.get(0);
-	 	     eventLogData.setErrorMsg(eventLogMessages.getString("no_error"));
-	 	     Date endDate = new Date();
-	 	     eventLogData.setEndDate(endDate);
-	 	     if(endDate != null && eventLogData.getStartDate() != null) {
-	 	         double minute= 1000*60;
-	 	         int eclipseTime = (int)Math.ceil(((endDate.getTime() - eventLogData.getStartDate().getTime())/minute));
-	 	         eventLogData.setEclipseTime(Integer.valueOf(eclipseTime));
-	 	     } else {
-	 	         eventLogData.setEclipseTime(null);
-	 	         eventLogData.setErrorMsg(eventLogMessages.getString("error_take"));
-	 	     }
-	 	     eventLogFacade.setData(eventLogData);
-	 	 
-	 	     eventService.saveOrUpdateEventLog(eventLogFacade);
+ 	  EventLogFacade eventLogFacade = new EventLogFacade();
+ 	 
+ 	  List eventLogDataList = eventService.getEventLogData(adata.getAssessmentGradingId());
+	  if(eventLogDataList != null && eventLogDataList.size() > 0) {
+	 	  EventLogData eventLogData= (EventLogData) eventLogDataList.get(0);
+	 	  eventLogData.setErrorMsg(eventLogMessages.getString("no_error"));
+	 	  Date endDate = new Date();
+	 	  eventLogData.setEndDate(endDate);
+	 	  if(eventLogData.getStartDate() != null) {
+	 	      double minute= 1000*60;
+	 	      int eclipseTime = (int)Math.ceil(((endDate.getTime() - eventLogData.getStartDate().getTime())/minute));
+	 	      eventLogData.setEclipseTime(eclipseTime);
+	 	  } else {
+	 	      eventLogData.setEclipseTime(null);
+	 	      eventLogData.setErrorMsg(eventLogMessages.getString("error_take"));
+	 	  }
+	 	  eventLogFacade.setData(eventLogData);
+	 	  eventService.saveOrUpdateEventLog(eventLogFacade);
+	  }
+	  notificationValues.put("assessmentGradingID", local_assessmentGradingID);
+	  notificationValues.put("userID", adata.getAgentId());
+	  notificationValues.put("submissionDate", getSubmissionDateString());
+	  notificationValues.put("publishedAssessmentID", adata.getPublishedAssessmentId());
+	  notificationValues.put("confirmationNumber", confirmation);
+	  
+      String [] releaseToGroups = getReleaseToGroups();
+      if (releaseToGroups != null){
+          notificationValues.put("releaseToGroups", Arrays.stream(releaseToGroups)
+                                                          .collect(Collectors.joining(";")));
+      }	  
+
+	  EventTrackingService.post(EventTrackingService.newEvent(SamigoConstants.EVENT_ASSESSMENT_SUBMITTED, notificationValues.toString(), AgentFacade.getCurrentSiteId(), true, SamigoConstants.NOTI_EVENT_ASSESSMENT_SUBMITTED));
  
 	  return returnValue;
-	 }catch(Exception e) {
-		 EventLogService eventService = new EventLogService();
-		 EventLogFacade eventLogFacade = new EventLogFacade();
-		 EventLogData eventLogData = null;
+	  }
+	  catch(Exception e) {
+		  EventLogService eventService = new EventLogService();
+		  EventLogFacade eventLogFacade = new EventLogFacade();
+		  EventLogData eventLogData;
 
-		 List eventLogDataList = eventService.getEventLogData(adata.getAssessmentGradingId());
-		 if(eventLogDataList != null && eventLogDataList.size() > 0) {
-			 eventLogData= (EventLogData) eventLogDataList.get(0);
-			 eventLogData.setErrorMsg(eventLogMessages.getString("error_submit"));
-			 eventLogData.setEndDate(new Date());
-		 } 
-		 eventLogFacade.setData(eventLogData);
-		 eventService.saveOrUpdateEventLog(eventLogFacade);
-		 return null;
+		  List eventLogDataList = eventService.getEventLogData(adata.getAssessmentGradingId());
+		  if(eventLogDataList != null && eventLogDataList.size() > 0) {
+			  eventLogData= (EventLogData) eventLogDataList.get(0);
+			  eventLogData.setErrorMsg(eventLogMessages.getString("error_submit"));
+			  eventLogData.setEndDate(new Date());
+			  eventLogFacade.setData(eventLogData);
+			  eventService.saveOrUpdateEventLog(eventLogFacade);
+		  } 
+
+		  return null;
 	 }
   }
   
+  private String[] getReleaseToGroups(){
+      
+      String [] releaseToGroups = null;
+      
+      if (getPublishedAssessment().getAssessmentAccessControl().getReleaseTo().equals(AssessmentAccessControl.RELEASE_TO_SELECTED_GROUPS)) {
+          PublishedAssessmentSettingsBean publishedAssessmentSettings = (PublishedAssessmentSettingsBean) ContextUtil.lookupBean("publishedSettings");
+          releaseToGroups = publishedAssessmentSettings.getGroupsAuthorized(adata.getPublishedAssessmentId().toString());
+      }
+      
+      return releaseToGroups;
+  }
 
   public String confirmSubmit()
   {	  
@@ -1713,12 +1758,8 @@ public class DeliveryBean
 		  try {
 			  listener.processAction(null);
 		  }
-		  catch (FinFormatException fine) {
+		  catch (FinFormatException | SaLengthException fine) {
 			  log.debug(fine.getMessage());
-			  return "takeAssessment";
-		  }
-		  catch (SaLengthException sae) {
-			  log.debug(sae.getMessage());
 			  return "takeAssessment";
 		  }
 	  }
@@ -1759,12 +1800,8 @@ public class DeliveryBean
 		  try {
 			  listener.processAction(null);
 		  }
-		  catch (FinFormatException e) {
+		  catch (FinFormatException | SaLengthException e) {
 			  log.debug(e.getMessage());
-			  return "takeAssessment";
-		  }
-		  catch (SaLengthException sae) {
-			  log.debug(sae.getMessage());
 			  return "takeAssessment";
 		  }
 	  }
@@ -1809,17 +1846,13 @@ public class DeliveryBean
     	try {
     		listener.processAction(null);
     	}
-    	catch (FinFormatException e) {
+    	catch (FinFormatException | SaLengthException e) {
   		  log.debug(e.getMessage());
   		  return "takeAssessment";
     	}
-		  catch (SaLengthException sae) {
-			  log.debug(sae.getMessage());
-			  return "takeAssessment";
-		  }
     }
     
-    String returnValue = "saveForLaterWarning";
+    String returnValue;
     if (needToCheck) {
     	if (this.actionMode == TAKE_ASSESSMENT_VIA_URL) {
     		returnValue = "anonymousQuit";
@@ -1847,8 +1880,20 @@ public class DeliveryBean
     // removeTimedAssessmentFromQueue();
     return returnValue;
   }
-
+  
   public String next_page()
+  {
+
+   return next_helper(false);
+  }
+
+  public String goto_question()
+  {
+    return next_helper(true);
+  }
+
+
+  private String next_helper(boolean isGoToQuestion)
   {
     String nextAction = checkBeforeProceed();
     log.debug("***** next Action="+nextAction);
@@ -1859,41 +1904,54 @@ public class DeliveryBean
     forGrade = false;
 
     if (this.actionMode == TAKE_ASSESSMENT
-        || this.actionMode == TAKE_ASSESSMENT_VIA_URL)
+            || this.actionMode == TAKE_ASSESSMENT_VIA_URL)
     {
       syncTimeElapsedWithServer();
-	
+
       SubmitToGradingActionListener listener =
-        new SubmitToGradingActionListener();
+              new SubmitToGradingActionListener();
       try {
-    	  listener.processAction(null);
+        listener.processAction(null);
       }
-      catch (FinFormatException e) {
+      catch (FinFormatException | SaLengthException e) {
 		  log.debug(e.getMessage());
 		  return "takeAssessment";
 	  }
-	  catch (SaLengthException sae) {
-		  log.debug(sae.getMessage());
-		  return "takeAssessment";
-	  }
     }
-    
+
+    int oPartIndex = partIndex;
+    int oQuestionIndex = questionIndex;
+
     if (getSettings().isFormatByPart())
     {
-      partIndex++;
+      String partIndexString = (String) FacesContext.getCurrentInstance().getExternalContext().getRequestParameterMap().get("partnumber");
+      if(isGoToQuestion) {
+        partIndex = Integer.parseInt(partIndexString);
+      } else {
+        partIndex++;
+      }
     }
     if (getSettings().isFormatByQuestion())
     {
-      questionIndex++;
-
+      String questionIndexString = (String) FacesContext.getCurrentInstance().getExternalContext().getRequestParameterMap().get("questionnumber");
+      if(isGoToQuestion) {
+        questionIndex = Integer.parseInt(questionIndexString);
+      } else {
+        questionIndex++;
+      }
     }
-    
+
     DeliveryActionListener l2 = new DeliveryActionListener();
     l2.processAction(null);
 
+
     if ("1".equals(navigation) && this.actionMode != PREVIEW_ASSESSMENT) {
-    	LinearAccessDeliveryActionListener linearAccessDeliveryActionListener = new LinearAccessDeliveryActionListener();
-    	linearAccessDeliveryActionListener.saveLastVisitedPosition(this, partIndex, questionIndex);
+      LinearAccessDeliveryActionListener linearAccessDeliveryActionListener = new LinearAccessDeliveryActionListener();
+      if(isGoToQuestion) {
+        linearAccessDeliveryActionListener.saveLastVisitedPosition(this, oPartIndex, oQuestionIndex);
+      } else {
+        linearAccessDeliveryActionListener.saveLastVisitedPosition(this, partIndex, questionIndex);
+      }
     }
     reload = false;
     return "takeAssessment";
@@ -1919,12 +1977,8 @@ public class DeliveryBean
       try {
     	  listener.processAction(null);
       }
-	  catch (FinFormatException e) {
+	  catch (FinFormatException | SaLengthException e) {
 		  log.debug(e.getMessage());
-		  return "takeAssessment";
-	  }
-	  catch (SaLengthException sae) {
-		  log.debug(sae.getMessage());
 		  return "takeAssessment";
 	  }
     }
@@ -1962,12 +2016,8 @@ public class DeliveryBean
 		  try {
 			  listener.processAction(null);
 		  }
-		  catch (FinFormatException e) {
+		  catch (FinFormatException | SaLengthException e) {
 			  log.debug(e.getMessage());
-			  return "takeAssessment";
-		  }
-		  catch (SaLengthException sae) {
-			  log.debug(sae.getMessage());
 			  return "takeAssessment";
 		  }
 	  }
@@ -2008,12 +2058,8 @@ public class DeliveryBean
       try {
     	  listener.processAction(null);
       }
-	  catch (FinFormatException e) {
+	  catch (FinFormatException | SaLengthException e) {
 		  log.debug(e.getMessage());
-		  return "takeAssessment";
-	  }
-	  catch (SaLengthException sae) {
-		  log.debug(sae.getMessage());
 		  return "takeAssessment";
 	  }
     }
@@ -2084,25 +2130,16 @@ public class DeliveryBean
 
   public String validatePassword()
   {
-    log.debug("**** username=" + username);
     log.debug("**** password=" + password);
-    log.debug("**** setting username=" + getSettings().getUsername());
     log.debug("**** setting password=" + getSettings().getPassword());
     
-    if (password == null && username == null)
+    if (StringUtils.isBlank(password))
     {
     	return "passwordAccessError";
     }
-    if(!"".equals(getSettings().getUsername()))
+    if(StringUtils.isNotBlank(getSettings().getPassword()))
     {
-    	if (username != null && !username.equals(getSettings().getUsername()))
-    	{
-    		return "passwordAccessError";
-    	}
-    }
-    if(!"".equals(getSettings().getPassword()))
-    {
-    	if (password != null && !password.equals(getSettings().getPassword()))
+    	if (!StringUtils.equals(StringUtils.trim(password), StringUtils.trim(getSettings().getPassword())))
     	{
     		return "passwordAccessError";
     	}
@@ -2125,7 +2162,7 @@ public class DeliveryBean
     {
       String next = ( (PublishedSecuredIPAddress) addresses.next()).
         getIpAddress();
-      if (next != null && next.indexOf("*") > -1)
+      if (next != null && next.contains( "*" ))
       {
         next = next.substring(0, next.indexOf("*"));
       }
@@ -2151,7 +2188,7 @@ public class DeliveryBean
       EventLogData eventLogData = new EventLogData();
       
       // #1. check password
-      if (!getSettings().getUsername().equals("") || !getSettings().getPassword().equals(""))
+      if (!getSettings().getPassword().equals(""))
       {
         results = validatePassword();
         log.debug("*** checked password="+results);
@@ -2344,58 +2381,19 @@ public class DeliveryBean
 
   private byte[] getMediaStream(String mediaLocation)
   {
-    FileInputStream mediaStream = null;
-    FileInputStream mediaStream2 = null;
     byte[] mediaByte = new byte[0];
     try
     {
-      int i;
-      int size = 0;
-      mediaStream = new FileInputStream(mediaLocation);
-      if (mediaStream != null)
-      {
-        while ( (i = mediaStream.read()) != -1)
-        {
-          size++;
-        }
-      }
-      mediaStream2 = new FileInputStream(mediaLocation);
-      mediaByte = new byte[size];
-      if (mediaStream2 != null) {
-    	  mediaStream2.read(mediaByte, 0, size);
-      }
+      mediaByte = Files.readAllBytes(new File(mediaLocation).toPath());
     }
     catch (FileNotFoundException ex)
     {
-      log.error("file not found=" + ex.getMessage());
+      log.error("File not found in DeliveryBean.getMediaStream(): " + ex.getMessage());
     }
     catch (IOException ex)
     {
-      log.error("io exception=" + ex.getMessage());
+      log.error("IO Exception in DeliveryBean.getMediaStream(): " + ex.getMessage());
     }
-    finally
-    {
-      if (mediaStream != null) {
-    	  try
-    	  {
-    		  mediaStream.close();
-    	  }
-    	  catch (IOException ex1)
-    	  {
-    		  log.warn(ex1.getMessage());
-    	  }
-      }
-    if (mediaStream2 != null) {
-  	  try
-  	  {
-  		  mediaStream2.close();
-  	  }
-  	  catch (IOException ex1)
-  	  {
-  		  log.warn(ex1.getMessage());
-  	  }
-    }
-  }
     return mediaByte;
   }
 
@@ -2405,10 +2403,11 @@ public class DeliveryBean
    *     target="/jsf/upload_tmp/assessment#{delivery.assessmentId}/
    *             question#{question.itemData.itemId}/admin"
    *     valueChangeListener="#{delivery.addMediaToItemGrading}" />
+     * @param e
    */
   public void addMediaToItemGrading(javax.faces.event.ValueChangeEvent e)
   {
-    if (isTimeRunning() && timeExpired())
+    if (isTimeRunning() && getTimeExpired())
       setOutcome("timeExpired");
 
     String mediaLocation = (String) e.getNewValue();
@@ -2437,7 +2436,7 @@ public class DeliveryBean
     
     GradingService gradingService = new GradingService();
     //PublishedAssessmentService publishedService = new PublishedAssessmentService();
-    HashMap itemHash = getPublishedItemHash();
+    Map itemHash = getPublishedItemHash();
     PersonBean person = (PersonBean) ContextUtil.lookupBean("person");
     String agent = person.getId();
 
@@ -2516,7 +2515,7 @@ public class DeliveryBean
     String mimeType = MimeTypesLocator.getInstance().getContentType(media);
     boolean SAVETODB = getSaveToDb();
     log.debug("**** SAVETODB=" + SAVETODB);
-    MediaData mediaData = null;
+    MediaData mediaData;
     log.debug("***6a. addMediaToItemGrading, itemGradinDataId=" +
               itemGradingData.getItemGradingId());
     // 1b. get filename
@@ -2539,7 +2538,7 @@ public class DeliveryBean
       mediaData = new MediaData(itemGradingData, mediaByte,
                                 Long.valueOf(mediaByte.length + ""),
                                 mimeType, "description", null,
-                                updatedFilename, false, false,  Integer.valueOf(1),
+                                updatedFilename, false, false, 1,
                                 agent, new Date(),
                                 agent, new Date(), null);
     }
@@ -2548,7 +2547,7 @@ public class DeliveryBean
       mediaData = new MediaData(itemGradingData, null,
     		  					Long.valueOf(mediaByte.length + ""),
                                 mimeType, "description", mediaLocation,
-                                updatedFilename, false, false, Integer.valueOf(1),
+                                updatedFilename, false, false, 1,
                                 agent, new Date(),
                                 agent, new Date(), null);
 
@@ -2667,10 +2666,14 @@ public class DeliveryBean
     return publishedAssessment;
   }
 
-  public void setPublishedAssessment(PublishedAssessmentFacade
-                                     publishedAssessment)
+  public void setPublishedAssessment(PublishedAssessmentFacade publishedAssessment)
   {
-    this.publishedAssessment = publishedAssessment;
+	  this.publishedAssessment = publishedAssessment;
+	  //Setup extendedTimeDeliveryService
+	  if (extendedTimeDeliveryService == null && 
+			  (publishedAssessment != null && publishedAssessment.getPublishedAssessmentId() != null)) {
+		  extendedTimeDeliveryService = new ExtendedTimeDeliveryService(publishedAssessment);
+	  }
   }
 
   public java.util.Date getFeedbackDate()
@@ -2687,12 +2690,11 @@ public class DeliveryBean
 
     try {
       TimeUtil tu = new TimeUtil();
-      dateString = tu.getDisplayDateTime(displayFormat, feedbackDate);
+      dateString = tu.getDisplayDateTime(displayFormat, feedbackDate, true);
     }
     catch (Exception ex) {
       // we will leave it as an empty string
-      log.warn("Unable to format date.");
-      ex.printStackTrace();
+      log.warn("Unable to format date.", ex);
     }
     return dateString;
   }
@@ -2837,6 +2839,7 @@ public class DeliveryBean
 
   /**
    * Used for a JavaScript enable check.
+   * @return 
    */
   public String getJavaScriptEnabledCheck()
   {
@@ -2845,6 +2848,7 @@ public class DeliveryBean
 
   /**
    * Used for a JavaScript enable check.
+   * @param javaScriptEnabledCheck
    */
   public void setJavaScriptEnabledCheck(String javaScriptEnabledCheck)
   {
@@ -2878,14 +2882,11 @@ public class DeliveryBean
     FacesContext context = FacesContext.getCurrentInstance();
     ExternalContext external = context.getExternalContext();
     String saveToDb = (String)((ServletContext)external.getContext()).getAttribute("FILEUPLOAD_SAVE_MEDIA_TO_DB");
-    if (("true").equals(saveToDb))
-      return true;
-    else
-      return false;
+    return ("true").equals(saveToDb);
   }
 
   public void attachToItemContentBean(ItemGradingData itemGradingData, String questionId){
-    ArrayList list = new ArrayList();
+    List list = new ArrayList();
     list.add(itemGradingData);
     //find out sectionId from questionId
     log.debug("**** attachToItemContentBean, questionId="+questionId);
@@ -2901,7 +2902,7 @@ public class DeliveryBean
     SectionContentsBean partSelected = null;
 
     //get all partContents
-    ArrayList parts = getPageContents().getPartsContents();
+    List parts = getPageContents().getPartsContents();
     for (int i=0; i<parts.size(); i++){
       SectionContentsBean part = (SectionContentsBean)parts.get(i);
       log.debug("**** question's sectionId"+sectionId);
@@ -2912,7 +2913,7 @@ public class DeliveryBean
       }
     }
     //locate the itemContentBean - the hard way, sigh...
-    ArrayList items = new ArrayList();
+    List items = new ArrayList();
     if (partSelected!=null)
       items = partSelected.getItemContents();
     for (int j=0; j<items.size(); j++){
@@ -2940,22 +2941,28 @@ public class DeliveryBean
     setFeedback("false");
     setNoFeedback("true");
 
-    if (("previewAssessment").equals(actionString)){
-      setActionMode(PREVIEW_ASSESSMENT);
-    }
-    else if (("reviewAssessment").equals(actionString)){
-      setActionMode(REVIEW_ASSESSMENT);
-    }
-    else if (("gradeAssessment").equals(actionString)){
-      setFeedback("true");
-      setNoFeedback("false");
-      setActionMode(GRADE_ASSESSMENT);
-    }
-    else if (("takeAssessment").equals(actionString)){
-      setActionMode(TAKE_ASSESSMENT);
-    }
-    else if (("takeAssessmentViaUrl").equals(actionString)){
-      setActionMode(TAKE_ASSESSMENT_VIA_URL);
+    if (null != actionString)
+    {
+        switch( actionString )
+        {
+          case "previewAssessment":
+              setActionMode(PREVIEW_ASSESSMENT);
+              break;
+          case "reviewAssessment":
+              setActionMode(REVIEW_ASSESSMENT);
+              break;
+          case "gradeAssessment":
+              setFeedback("true");
+              setNoFeedback("false");
+              setActionMode(GRADE_ASSESSMENT);
+              break;
+          case "takeAssessment":
+              setActionMode(TAKE_ASSESSMENT);
+              break;
+          case "takeAssessmentViaUrl":
+              setActionMode(TAKE_ASSESSMENT_VIA_URL);
+              break;
+        }
     }
   }
 
@@ -2988,32 +2995,21 @@ public class DeliveryBean
     this.beginAssessment = beginAssessment;
   }
 
-  public boolean timeExpired(){
+  public boolean getTimeExpired(){
     if (adata == null) {
     	return false;
     }
-    boolean timeExpired = false;
-    TimedAssessmentQueue queue = TimedAssessmentQueue.getInstance();
-    TimedAssessmentGradingModel timedAG = (TimedAssessmentGradingModel)queue.
-                                             get(adata.getAssessmentGradingId());
-    if (timedAG != null){ 
-      // if server already submit the assessment, this happen if JScript latency is very long
-      // and assessment passed the time left + latency buffer
-      // in this case, we will display the time expired message.
-      if (timedAG.getSubmittedForGrade()){
-        timeExpired = true;
-        queue.remove(timedAG);
-      } 
-    }
-    else{ 
-      // null => not only does the assessment miss the latency buffer, it also missed the
-      // transaction buffer
-      timeExpired = true;
-    }
     return timeExpired;
+  }
+  
+  public void setTimeExpired(Boolean timeExpired) {
+	  this.timeExpired = timeExpired;
   }
 
   private void removeTimedAssessmentFromQueue(){
+    if (adata==null) {
+      return;
+    }
     TimedAssessmentQueue queue = TimedAssessmentQueue.getInstance();
     TimedAssessmentGradingModel timedAG = (TimedAssessmentGradingModel)queue.
                                              get(adata.getAssessmentGradingId());
@@ -3025,12 +3021,18 @@ public class DeliveryBean
 
   public void syncTimeElapsedWithServer(){
 	    if (("takeAssessment").equals(actionString) || ("takeAssessmentViaUrl").equals(actionString)){
+	      if (adata==null) {
+	         if (log.isDebugEnabled()) {
+	            log.debug("aData is null for actionString"+actionString);
+	         }
+	         return;
+	      }
 	      TimedAssessmentQueue queue = TimedAssessmentQueue.getInstance();
 	      TimedAssessmentGradingModel timedAG = queue.get(adata.getAssessmentGradingId());
 	      if (timedAG != null){
 	        int timeElapsed  = Math.round((new Date().getTime() - adata.getAttemptDate().getTime())/1000.0f);
 	        log.debug("***setTimeElapsed="+timeElapsed);
-		    adata.setTimeElapsed( Integer.valueOf(timeElapsed));
+		    adata.setTimeElapsed(timeElapsed);
 	        GradingService gradingService = new GradingService();
 	        gradingService.saveOrUpdateAssessmentGrading(adata);
 	        setTimeElapse(adata.getTimeElapsed().toString());
@@ -3044,11 +3046,17 @@ public class DeliveryBean
 	  
 	  public void syncTimeElapsedWithServerLinear(){
 		    if (("takeAssessment").equals(actionString) || ("takeAssessmentViaUrl").equals(actionString)){
+		      if (adata==null) {
+		          if (log.isDebugEnabled()) {
+		              log.debug("aData is null for actionString"+actionString);
+		          }
+		          return;
+		      }
 		      TimedAssessmentQueue queue = TimedAssessmentQueue.getInstance();
 		      TimedAssessmentGradingModel timedAG = queue.get(adata.getAssessmentGradingId());
 		      if (timedAG != null){
 		    	int timeElapsed  = Math.round((new Date().getTime() - adata.getAttemptDate().getTime())/1000.0f);
-		        adata.setTimeElapsed(Integer.valueOf(timeElapsed));
+		        adata.setTimeElapsed(timeElapsed);
 		        GradingService gradingService = new GradingService();
 		        gradingService.saveOrUpdateAssessmentGradingOnly(adata);
 		        setTimeElapse(adata.getTimeElapsed().toString());
@@ -3069,7 +3077,7 @@ public class DeliveryBean
   {
     this.timeElapseAfterFileUpload = timeElapseAfterFileUpload;
     if (timeElapseAfterFileUpload!=null && !("").equals(timeElapseAfterFileUpload))
-      setTimeElapseAfterFileUploadDouble(( Double.valueOf(timeElapseAfterFileUpload)).doubleValue());
+      setTimeElapseAfterFileUploadDouble(( Double.valueOf(timeElapseAfterFileUpload)));
   }
 
   private double timeElapseDouble=0;
@@ -3109,48 +3117,48 @@ public class DeliveryBean
     this.timeStamp=timeStamp;
   }
 
-  private HashMap publishedItemHash = new HashMap();
-  public HashMap getPublishedItemHash(){
-    if (this.publishedItemHash.size() ==0){
+  private Map publishedItemHash = new HashMap();
+  public Map getPublishedItemHash(){
+    if (this.publishedItemHash.isEmpty()){
       PublishedAssessmentService pubService = new PublishedAssessmentService();
       this.publishedItemHash = pubService.preparePublishedItemHash(getPublishedAssessment());
     }
     return this.publishedItemHash;
   }
 
-  public void setPublishedItemHash(HashMap publishedItemHash){
+  public void setPublishedItemHash(Map publishedItemHash){
     this.publishedItemHash = publishedItemHash;
   }
 
-  private HashMap publishedItemTextHash = new HashMap();
-  public HashMap getPublishedItemTextHash(){
-    if (this.publishedItemTextHash.size() == 0){
+  private Map publishedItemTextHash = new HashMap();
+  public Map getPublishedItemTextHash(){
+    if (this.publishedItemTextHash.isEmpty()){
       PublishedAssessmentService pubService = new PublishedAssessmentService();
       this.publishedItemTextHash = pubService.preparePublishedItemTextHash(getPublishedAssessment());
     }
     return this.publishedItemTextHash;
   }
 
-  public void setPublishedItemTextHash(HashMap publishedItemTextHash){
+  public void setPublishedItemTextHash(Map publishedItemTextHash){
     this.publishedItemTextHash = publishedItemTextHash;
   }
 
-  private HashMap publishedAnswerHash = new HashMap();
-  public HashMap getPublishedAnswerHash(){
-    if (this.publishedAnswerHash.size() == 0){
+  private Map publishedAnswerHash = new HashMap();
+  public Map getPublishedAnswerHash(){
+    if (this.publishedAnswerHash.isEmpty()){
       PublishedAssessmentService pubService = new PublishedAssessmentService();
       this.publishedAnswerHash = pubService.preparePublishedAnswerHash(getPublishedAssessment());
     }
     return this.publishedAnswerHash;
   }
 
-   public void setPublishedAnswerHash(HashMap publishedAnswerHash){
+   public void setPublishedAnswerHash(Map publishedAnswerHash){
     this.publishedAnswerHash = publishedAnswerHash;
   }
    
    public boolean getIsMoreThanOneQuestion() {
 	   log.debug("getIsMoreThanOneQuestion() starts");
-	   ArrayList partsContents = this.pageContents.getPartsContents();
+	   List partsContents = this.pageContents.getPartsContents();
 	   if (partsContents.size() == 1) {
 		   String size = ((SectionContentsBean) partsContents.get(0)).getItemContentsSize();
 		   log.debug("ItemContentsSize = " + size);
@@ -3201,8 +3209,7 @@ public class DeliveryBean
       return "error";
     }
 
-    boolean acceptLateSubmission = AssessmentAccessControlIfc.
-            ACCEPT_LATE_SUBMISSION.equals(publishedAssessment.getAssessmentAccessControl().getLateHandling());
+    boolean acceptLateSubmission = isAcceptLateSubmission();
 
     if (this.actionMode == PREVIEW_ASSESSMENT) {
 		  return "safeToProceed";
@@ -3334,7 +3341,7 @@ public class DeliveryBean
     
     log.debug("check9");
     // check 9: is timed assessment? and time has expired?
-    if (isTimeRunning() && timeExpired() && !turnIntoTimedAssessment){ 
+    if (isTimeRunning() && getTimeExpired() && !turnIntoTimedAssessment){ 
       return "timeExpired";
     }
     
@@ -3357,7 +3364,7 @@ public class DeliveryBean
     boolean hasSubmissionLeft = false;
     int maxSubmissionsAllowed = 9999;
     if ( (Boolean.FALSE).equals(publishedAssessment.getAssessmentAccessControl().getUnlimitedSubmissions())){
-      maxSubmissionsAllowed = publishedAssessment.getAssessmentAccessControl().getSubmissionsAllowed().intValue();
+      maxSubmissionsAllowed = publishedAssessment.getAssessmentAccessControl().getSubmissionsAllowed();
       if ("takeAssessmentViaUrl".equals(actionString) && !anonymousLogin && settings == null) {
     	  SettingsDeliveryBean settingsDeliveryBean = new SettingsDeliveryBean();
     	  settingsDeliveryBean.setAssessmentAccessControl(publishedAssessment);
@@ -3374,7 +3381,12 @@ public class DeliveryBean
   private boolean isAvailable(){
 	  boolean isAvailable = true;
 	  Date currentDate = new Date();
-	  Date startDate = publishedAssessment.getAssessmentAccessControl().getStartDate();
+		Date startDate;
+		if (extendedTimeDeliveryService.hasExtendedTime()) {
+			startDate = extendedTimeDeliveryService.getStartDate();
+		} else {
+			startDate = publishedAssessment.getAssessmentAccessControl().getStartDate();
+		}
 	  if (startDate != null && startDate.after(currentDate)){
 		  isAvailable = false;
 	  }
@@ -3384,21 +3396,34 @@ public class DeliveryBean
   private boolean pastDueDate(){
     boolean pastDue = true;
     Date currentDate = new Date();
-    Date dueDate = publishedAssessment.getAssessmentAccessControl().getDueDate();
+		Date dueDate;
+		if (extendedTimeDeliveryService.hasExtendedTime()) {
+			dueDate = extendedTimeDeliveryService.getDueDate();
+		} else {
+			dueDate = publishedAssessment.getAssessmentAccessControl().getDueDate();
+		}
     if (dueDate == null || dueDate.after(currentDate)){
         pastDue = false;
     }
     return pastDue;
   }
 
+  private boolean isAcceptLateSubmission() {
+	  boolean acceptLateSubmission = AssessmentAccessControlIfc.ACCEPT_LATE_SUBMISSION.equals(publishedAssessment.getAssessmentAccessControl().getLateHandling());
+	  //If using extended Time Delivery, the late submission setting is based on retracted
+	  if (extendedTimeDeliveryService.hasExtendedTime()) {
+		  //Accept it if it's not retracted on the extended time entry
+		  acceptLateSubmission = !isRetracted(false);
+	  }
+	  return acceptLateSubmission;
+  }
+
   private boolean isRetracted(boolean isSubmitForGrade){
     boolean isRetracted = true;
     Date currentDate = new Date();
-    Date retractDate = null;
-    if (isSubmitForGrade) {
-    	PublishedAssessmentService pubService = new PublishedAssessmentService();
-    	PublishedAssessmentData publishedAssessmentData = pubService.getBasicInfoOfPublishedAssessment(getPublishedAssessment().getPublishedAssessmentId().toString());
-    	retractDate = publishedAssessmentData.getRetractDate();
+    Date retractDate;
+    if (extendedTimeDeliveryService.hasExtendedTime()) {
+    	retractDate = extendedTimeDeliveryService.getRetractDate();
     }
     else {
     	retractDate = publishedAssessment.getAssessmentAccessControl().getRetractDate();
@@ -3411,18 +3436,12 @@ public class DeliveryBean
 
   private boolean isRemoved(){
 	  Integer status = publishedAssessment.getStatus();
-	  if (status.equals(AssessmentBaseIfc.DEAD_STATUS)) {
-		  return true;
-	  }
-	  return false;
+	  return status.equals(AssessmentBaseIfc.DEAD_STATUS);
   }
   
   private boolean isRetractedForEdit(){
 	  Integer status = publishedAssessment.getStatus();
-	  if (status.equals(AssessmentBaseIfc.RETRACT_FOR_EDIT_STATUS)) {
-		  return true;
-	  }
-	  return false;
+	  return status.equals(AssessmentBaseIfc.RETRACT_FOR_EDIT_STATUS);
   }
   
   private boolean isNeedResubmit(){
@@ -3430,10 +3449,7 @@ public class DeliveryBean
 		  return false;
 	  }
 	  Integer status = adata.getStatus();
-	  if (status.equals(AssessmentGradingData.ASSESSMENT_UPDATED_NEED_RESUBMIT)) {
-		  return true;
-	  }
-	  return false;
+	  return status.equals(AssessmentGradingData.ASSESSMENT_UPDATED_NEED_RESUBMIT);
   }
   
   private boolean checkDataIntegrity(AssessmentGradingData assessmentGrading){
@@ -3476,7 +3492,7 @@ public class DeliveryBean
     // get assessmentGrading from DB, this is to avoid same assessment being
     // opened in the differnt browser
     if (assessmentGrading !=null){
-      return assessmentGrading.getForGrade().booleanValue();
+      return assessmentGrading.getForGrade();
     }
     else return false;
   }
@@ -3517,8 +3533,7 @@ public class DeliveryBean
 		try {
 			site = SiteService.getSite(id);
 		} catch (IdUnusedException e) {
-			log.error(e.getMessage());
-			e.printStackTrace();
+			log.error(e.getMessage(), e);
 		}
 		return site;
 	}
@@ -3528,8 +3543,8 @@ public class DeliveryBean
 		if (currentSite == null) {
 			return "";
 		}
-		SitePage page = null;
-		String toolId = null;
+		SitePage page;
+		String toolId;
 		try {
 			// get page
 			List pageList = currentSite.getPages();
@@ -3575,7 +3590,7 @@ public class DeliveryBean
 	    this.assessmentGradingId = assessmentGradingId;
 	  }
 
-	  public String updateTimeLimit(String timeLimit, String timeBeforeDueRetract) {  
+	  public String updateTimeLimit(String timeLimit) {  
   	    if (numberRetake == -1 || actualNumberRetake == -1) {
 		    	GradingService gradingService = new GradingService();
 		    	numberRetake = gradingService.getNumberRetake(publishedAssessment.getPublishedAssessmentId(), AgentFacade.getAgentString());
@@ -3585,7 +3600,7 @@ public class DeliveryBean
 		 }
 		
 		if (!("previewAssessment").equals(actionString) && actualNumberRetake >= numberRetake && beginTime != null) { 
-			timeLimit = timeBeforeDueRetract;
+			timeLimit = getTimeBeforeDueRetract(timeLimit);
 		}
 		
 		return timeLimit;
@@ -3599,12 +3614,11 @@ public class DeliveryBean
 
 		    try {
 		      TimeUtil tu = new TimeUtil();
-		      deadlineString = tu.getDisplayDateTime(dayDisplayFormat, deadline);
+		      deadlineString = tu.getDisplayDateTime(dayDisplayFormat, deadline, true);
 		    }
 		    catch (Exception ex) {
 		      // we will leave it as an empty string
-		      log.warn("Unable to format date.");
-		      ex.printStackTrace();
+		      log.warn("Unable to format date.", ex);
 		    }
 		    return deadlineString;
 	  }
@@ -3615,8 +3629,7 @@ public class DeliveryBean
 	  
 	  public void setDeadline() {
 		  if (this.firstTimeTaking) {
-			  boolean acceptLateSubmission = AssessmentAccessControlIfc.
-					  ACCEPT_LATE_SUBMISSION.equals(publishedAssessment.getAssessmentAccessControl().getLateHandling());
+			  boolean acceptLateSubmission = isAcceptLateSubmission();
 
 			  if (dueDate != null) {
 				  if (!acceptLateSubmission) {
@@ -3656,8 +3669,7 @@ public class DeliveryBean
 
 	  
 	  public String getTimeBeforeDueRetract(String timeLimit) {
-		  boolean acceptLateSubmission = AssessmentAccessControlIfc.
-				  ACCEPT_LATE_SUBMISSION.equals(publishedAssessment.getAssessmentAccessControl().getLateHandling());
+		  boolean acceptLateSubmission = isAcceptLateSubmission();
 		  
 		  String finalTimeLimit = timeLimit;
 		  if (dueDate != null) {
@@ -3702,6 +3714,7 @@ public class DeliveryBean
 	  }
 	  
 	  private String getTimeBeforeRetract(String timeLimit) {
+		  
 		  if (timeLimit != null && Integer.parseInt(timeLimit) > 0) {
 			  int timeBeforeRetract  = Math.round((retractDate.getTime() - beginTime.getTime())/1000.0f);
 			  if (timeBeforeRetract < Integer.parseInt(timeLimit)) {
@@ -3717,10 +3730,7 @@ public class DeliveryBean
 	  
 	  
 	  private boolean isTimedAssessment() {
-		  if (this.getPublishedAssessment().getAssessmentAccessControl().getTimeLimit().equals(Integer.valueOf(0))) {
-			  return false;
-		  }
-		  return true;
+		  return !this.getPublishedAssessment().getAssessmentAccessControl().getTimeLimit().equals(0);
 	  }
 	  
 	  public String cleanRadioButton() {
@@ -3729,13 +3739,13 @@ public class DeliveryBean
 		  String radioId = (String) FacesContext.getCurrentInstance().getExternalContext().getRequestParameterMap().get("radioId");
 		  StringBuffer redrawAnchorName = new StringBuffer("p");
 		  String tmpAnchorName = "";
-		  ArrayList parts = this.pageContents.getPartsContents();
+		  List parts = this.pageContents.getPartsContents();
 
 		  for (int i=0; i<parts.size(); i++) {
 			  SectionContentsBean sectionContentsBean = (SectionContentsBean) parts.get(i);
 			  String partSeq = sectionContentsBean.getNumber();
 			  
-			  ArrayList items = sectionContentsBean.getItemContents();
+			  List items = sectionContentsBean.getItemContents();
 			  for (int j=0; j<items.size(); j++) {
 				  ItemContentsBean item = (ItemContentsBean)items.get(j);
 				  
@@ -3768,16 +3778,11 @@ public class DeliveryBean
 						  }
 					  }
 					  
-					  ArrayList itemGradingData = new ArrayList();
-					  Iterator iter = item.getItemGradingDataArray().iterator();
-					  while (iter.hasNext())
-					  {
-						  ItemGradingData itemgrading = (ItemGradingData) iter.next();
-						  if (itemgrading.getItemGradingId() != null
-									&& itemgrading.getItemGradingId().intValue() > 0) {
+					  List itemGradingData = new ArrayList();
+					  for( ItemGradingData itemgrading : item.getItemGradingDataArray() ){
+						  if (itemgrading.getItemGradingId() != null && itemgrading.getItemGradingId().intValue() > 0) {
 							  itemGradingData.add(itemgrading);
 							  itemgrading.setPublishedAnswerId(null);
-
 						  }
 					  }
 					  item.setItemGradingDataArray(itemGradingData);
@@ -3800,9 +3805,14 @@ public class DeliveryBean
 		  syncTimeElapsedWithServer();
 		  
 		  // Set the anchor
-		  setRedrawAnchorName(tmpAnchorName.toString());
+		  setRedrawAnchorName(tmpAnchorName);
 		  
 		  return "takeAssessment";
+	  }
+	  
+	  public String cleanAndSaveRadioButton(){
+		  cleanRadioButton();
+		  return save_work();
 	  }
 
 	  /**
@@ -3817,20 +3827,19 @@ public class DeliveryBean
 
 	  /**
 	   *
-	   *
-	   * @param reviewMarked
+	   * @param displayMardForReview
 	   */
 	  public void setDisplayMardForReview(boolean displayMardForReview)
 	  {
 	    this.displayMardForReview = displayMardForReview;
 	  }
 
-	  public HashMap getItemContentsMap()
+	  public Map getItemContentsMap()
 	  {
 	    return this.itemContentsMap;
 	  }
 
-	  public void setItemContentsMap(HashMap itemContentsMap)
+	  public void setItemContentsMap(Map itemContentsMap)
 	  {
 	    this.itemContentsMap = itemContentsMap;
 	  }
@@ -3925,11 +3934,11 @@ public class DeliveryBean
 	    this.redrawAnchorName = redrawAnchorName;
 	  }
 
-	public Boolean getHonorPledge() {
+	public boolean isHonorPledge() {
 		return honorPledge;
 	}
 
-	public void setHonorPledge(Boolean honorPledge) {
+	public void setHonorPledge(boolean honorPledge) {
 		this.honorPledge = honorPledge;
 	}
 	 
@@ -3942,7 +3951,38 @@ public class DeliveryBean
 	    return recURL;
 	  }
 
-	  
+	/**
+	 * Return the time limit as a String
+	 * 
+	 * @param pubAssessment
+	 * @param fromBeginAssessment
+	 * @param extTimeVal
+	 * @return
+	 */
+	public int evaluateTimeLimit(PublishedAssessmentFacade pubAssessment, Boolean fromBeginAssessment, int extTimeVal) {
+		publishedAssessment = pubAssessment; // synchronize the passed in values
+		Integer timeLimit = 0;
+		Integer originalTimeLimit = publishedAssessment.getAssessmentAccessControl().getTimeLimit();
+		int extTimeAdjust = 0;
+
+		// Calcuate the adjustment due to extended time if necessary
+		if (extTimeVal > 0) {
+			extTimeAdjust = extTimeVal - originalTimeLimit; // adjustment to add
+															// to time remaining
+		}
+
+		if (fromBeginAssessment) {
+			timeLimit = Integer.parseInt(this.updateTimeLimit(originalTimeLimit.toString())) + extTimeAdjust;
+		} else {
+			if (this.getTimeLimit() != null) {
+				timeLimit = Integer.parseInt(this.getTimeLimit());
+			}
+		}
+		this.setTimeLimit(timeLimit.toString());
+
+		return timeLimit;
+	}
+
 	  public void setNumberRetake(int numberRetake) {
 		  this.numberRetake = numberRetake;
 	  }
@@ -4034,6 +4074,16 @@ public class DeliveryBean
 		  headMJ.append("<script src=\"").append(MATHJAX_SRC_PATH).append("\"  language=\"JavaScript\" type=\"text/javascript\"></script>\n");
 		  return headMJ.toString();
 	  }
-	  
-}
 
+    public String getQuestionProgressUnansweredPath () {
+      return questionProgressUnansweredPath;
+    }
+
+    public String getQuestionProgressAnsweredPath () {
+      return questionProgressAnsweredPath;
+    }
+
+    public String getQuestionProgressMardPath () {
+      return questionProgressMardPath;
+    }
+}

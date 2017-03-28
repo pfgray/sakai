@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.sakaiproject.samigo</groupId>
 		<artifactId>samigo</artifactId>
-		<version>11-SNAPSHOT</version>
+		<version>12-SNAPSHOT</version>
 	</parent>
     
 	<name>Sakai Samigo Tool (samigo-app)</name>
@@ -94,11 +94,6 @@
                <version>1.2_15</version>
         </dependency>
 		<!-- end of JSF related version issue -->
-		        
-        <dependency>
-            <groupId>org.sakaiproject.kernel</groupId>
-            <artifactId>sakai-kernel-api</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.sakaiproject.kernel</groupId>
             <artifactId>sakai-component-manager</artifactId>
@@ -110,6 +105,21 @@
         <dependency>
             <groupId>org.sakaiproject.portal</groupId>
             <artifactId>sakai-portal-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.sakaiproject.search</groupId>
+            <artifactId>search-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <scope>provided</scope>
+            <version>${sakai.elasticsearch.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.htmlparser.jericho</groupId>
+            <artifactId>jericho-html</artifactId>
+            <version>3.1</version>
         </dependency>
         <dependency>
             <groupId>com.lowagie</groupId>
@@ -133,7 +143,6 @@
         <dependency>
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>
-            <version>1.7.0</version>
         </dependency>
         <dependency>
             <groupId>commons-fileupload</groupId>
@@ -144,12 +153,8 @@
             <artifactId>commons-lang</artifactId>
         </dependency>
         <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.apache.commons</groupId>
-            <artifactId>commons-math</artifactId>
+            <artifactId>commons-math3</artifactId>
         </dependency>
         <dependency>
             <groupId>dom4j</groupId>
@@ -162,8 +167,8 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>javax.mail</groupId>
-            <artifactId>mail</artifactId>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>javax.mail</artifactId>
         </dependency>
 	<dependency>
             <groupId>javax.servlet.jsp</groupId>
@@ -200,8 +205,8 @@
         </dependency>
         <dependency>
             <groupId>org.apache.myfaces.tomahawk</groupId>
-            <artifactId>tomahawk</artifactId>
-            <version>1.1.10</version>
+            <artifactId>tomahawk12</artifactId>
+            <version>1.1.14</version>
         </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
@@ -228,48 +233,31 @@
             <version>1.1</version>
         </dependency>
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>SakaiRSFComponents-templates</artifactId>
-            <version>${sakairsf.components.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-web-templates</artifactId>
+            <version>${project.version}</version>
             <type>war</type>
         </dependency>
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>SakaiRSFComponents-evolvers</artifactId>
-            <version>${sakairsf.components.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-web-evolvers</artifactId>
+            <version>${project.version}</version>
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>sakairsf</artifactId>
-            <version>${sakairsf.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-core</artifactId>
+            <version>${project.version}</version>
             <type>jar</type>
-        </dependency>
-        <dependency>
-            <groupId>uk.org.ponder.rsfutil</groupId>
-            <artifactId>RSFComponents-templates</artifactId>
-            <version>${rsfutil.version}</version>
-            <type>war</type>
         </dependency>
         <dependency>
             <groupId>xml-apis</groupId>
             <artifactId>xml-apis</artifactId>
-            <version>2.0.2</version>
         </dependency>
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-		</dependency>
         <!-- test -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>3.8.2</version>
         </dependency>
         <dependency>
         	<groupId>joda-time</groupId>
@@ -278,7 +266,15 @@
         	<type>jar</type>
         	<scope>compile</scope>
         </dependency>
-	</dependencies>
+        <dependency>
+            <groupId>org.sakaiproject.samigo</groupId>
+            <artifactId>samigo-impl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.sakaiproject.tags</groupId>
+            <artifactId>tags-api</artifactId>
+        </dependency>
+    </dependencies>
     
 	<build>
 		<plugins>

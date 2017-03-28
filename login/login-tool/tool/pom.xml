@@ -4,7 +4,7 @@
   <parent>
     <artifactId>login</artifactId>
     <groupId>org.sakaiproject.login</groupId>
-    <version>11-SNAPSHOT</version>
+    <version>12-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <name>sakai-login-tool</name>
@@ -33,25 +33,6 @@
       <groupId>org.sakaiproject.kernel</groupId>
       <artifactId>sakai-component-manager</artifactId>
     </dependency>
-<!--
-      This has been relocated to sakai-kernel-util
-      org.sakaiproject.kernel.utilsakai-user-util-->
-<!--
-      This has been relocated to sakai-kernel-util
-      org.sakaiproject.kernel.utilsakai-util-->
-<!--org.sakaiprojectsakai-authz-api${sakai.version}-->
-<!--org.sakaiprojectsakai-tool-api${sakai.version}-->
-<!--org.sakaiprojectsakai-component-api${sakai.version}-->
-<!--org.sakaiprojectsakai-event-api${sakai.version}-->
-<!--org.sakaiprojectsakai-user-api${sakai.version}-->
-<!--org.sakaiprojectsakai-util${sakai.version}-->
-<!--org.sakaiprojectsakai-user-util${sakai.version}-->
-<!--javax.servletservlet-api${sakai.servletapi.version}-->
-    <dependency>
-      <groupId>commons-logging</groupId>
-      <artifactId>commons-logging</artifactId>
-      <version>${sakai.commons-logging.version}</version>
-    </dependency>
     <dependency>
       <groupId>org.sakaiproject.login</groupId>
       <artifactId>login-api</artifactId>
@@ -72,30 +53,19 @@
         <scope>provided</scope>
     </dependency>
     <dependency>
-    	<groupId>junit</groupId>
-    	<artifactId>junit</artifactId>
-    	<version>4.8.2</version>
-    	<type>jar</type>
-    	<scope>test</scope>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
     </dependency>
-    <dependency>
-    	<groupId>org.mockito</groupId>
-    	<artifactId>mockito-all</artifactId>
-    	<version>1.8.5</version>
-    	<type>jar</type>
-    	<scope>test</scope>
-    </dependency>
-    <dependency>
-    	<groupId>log4j</groupId>
-    	<artifactId>log4j</artifactId>
-    	<version>1.2.16</version>
-    	<type>jar</type>
-    	<scope>test</scope>
-    </dependency>
+	<dependency>
+	    <groupId>org.springframework.security.extensions</groupId>
+	    <artifactId>spring-security-saml2-core</artifactId>
+	    <version>1.0.2.RELEASE</version>
+	</dependency>
       <dependency>
           <groupId>org.jasig.cas.client</groupId>
           <artifactId>cas-client-core</artifactId>
-          <version>3.3.3</version>
+          <version>3.4.1</version>
       </dependency>
       <dependency>
           <groupId>org.springframework</groupId>
@@ -145,6 +115,12 @@
           <groupId>org.springframework.security</groupId>
           <artifactId>spring-security-web</artifactId>
           <version>${sakai.spring.security.version}</version>
+      </dependency>
+      <dependency>
+	      <groupId>aopalliance</groupId>
+	      <artifactId>aopalliance</artifactId>
+	      <version>1.0</version>
+	      <scope>provided</scope>
       </dependency>
 
   </dependencies>

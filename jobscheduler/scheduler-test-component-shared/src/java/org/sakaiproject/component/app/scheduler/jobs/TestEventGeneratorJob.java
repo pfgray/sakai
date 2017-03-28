@@ -1,8 +1,10 @@
 package org.sakaiproject.component.app.scheduler.jobs;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.quartz.JobExecutionException;
+import org.quartz.JobKey;
+import org.quartz.TriggerKey;
 import org.sakaiproject.api.app.scheduler.events.TriggerEvent;
 import org.sakaiproject.api.app.scheduler.events.TriggerEventManager;
 
@@ -21,8 +23,8 @@ import java.util.List;
  */
 public class TestEventGeneratorJob extends AbstractConfigurableJob
 {
-    private static final Log
-        LOG = LogFactory.getLog(TestEventGeneratorJob.class);
+    private static final Logger
+        LOG = LoggerFactory.getLogger(TestEventGeneratorJob.class);
 
     public static final String
         STARTDATE_PROPERTY          = "startDate.property",
@@ -152,9 +154,8 @@ public class TestEventGeneratorJob extends AbstractConfigurableJob
         final TriggerEvent.TRIGGER_EVENT_TYPE
             evtTypes[] = TriggerEvent.TRIGGER_EVENT_TYPE.values();
 
-        final String
-            jobName = getJobExecutionContext().getJobDetail().getName(),
-            triggerName = getJobExecutionContext().getTrigger().getName();
+        JobKey jobKey = getJobExecutionContext().getJobDetail().getKey();
+        TriggerKey triggerKey = getJobExecutionContext().getTrigger().getKey();
 
         cal.setTime(getStartDate());
         cal.set(Calendar.MILLISECOND, 0);
@@ -166,7 +167,7 @@ public class TestEventGeneratorJob extends AbstractConfigurableJob
 
             cal.add(Calendar.MINUTE, interval);
 
-            tem.createTriggerEvent(evtTypes[i % evtTypes.length], jobName, triggerName, evtTime, "Bogus data created by " + this.getClass().getName(), "bogusServer");
+            tem.createTriggerEvent(evtTypes[i % evtTypes.length], jobKey, triggerKey, evtTime, "Bogus data created by " + this.getClass().getName(), "bogusServer");
         }
     }
 }

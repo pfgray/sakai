@@ -19,7 +19,7 @@
 
 package org.sakaiproject.portlets;
 
-import org.imsglobal.basiclti.BasicLTIUtil;
+import org.tsugi.basiclti.BasicLTIUtil;
 
 import java.lang.Integer;
 
@@ -54,8 +54,8 @@ import javax.portlet.ReadOnlyException;
 import javax.servlet.ServletRequest;
 import org.sakaiproject.thread_local.cover.ThreadLocalManager;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.sakaiproject.portlet.util.PortletHelper;
 
@@ -103,7 +103,7 @@ public class IMSBLTIPortlet extends GenericPortlet {
 	private ArrayList<String> fieldList = new ArrayList<String>();
 
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(IMSBLTIPortlet.class);
+	private static Logger M_log = LoggerFactory.getLogger(IMSBLTIPortlet.class);
 
 	public static final String EVENT_BASICLTI_CONFIG = "basiclti.config";
 
@@ -212,7 +212,7 @@ public class IMSBLTIPortlet extends GenericPortlet {
 				String frameHeight =  getCorrectProperty(request, "frameheight", null);
 				dPrint("fh="+frameHeight);
 				String newPage =  getCorrectProperty(request, "newpage", null);
-				String serverUrl = ServerConfigurationService.getServerUrl();
+				String serverUrl = SakaiBLTIUtil.getOurServerUrl();
 				boolean forcePopup = false;
 				if ( request.isSecure() || ( serverUrl != null && serverUrl.startsWith("https://") ) ) {
 					if ( launch != null && launch.startsWith("http://") ) {
@@ -253,9 +253,13 @@ public class IMSBLTIPortlet extends GenericPortlet {
 						text.append("try { portalMaximizeTool(); } catch (err) { }\n");
 						text.append("</script>\n");
 					}
-					text.append("<iframe ");
+			                String submit_uuid = UUID.randomUUID().toString().replace("-","_");
+					text.append("<iframe id=\"LtiLaunchFrame_");
+					text.append(submit_uuid);
+					text.append("\" height=\"");
 					if ( frameHeight == null ) frameHeight = "1200";
-					text.append("height=\""+frameHeight+"\" \n");
+					text.append(frameHeight);
+					text.append("\" \n");
 					text.append("width=\"100%\" frameborder=\"0\" marginwidth=\"0\"\n");
 					text.append("marginheight=\"0\" scrolling=\"auto\"\n");
 					text.append("src=\""+iframeUrl+"\">\n");
@@ -264,7 +268,27 @@ public class IMSBLTIPortlet extends GenericPortlet {
 					text.append("<a href=\""+iframeUrl+"\">");
 					text.append(rb.getString("noiframe.press.here"));
 					text.append("</a>\n");
-					text.append("</iframe>");
+					text.append("</iframe>\n");
+
+					// Add support for lti resize messages
+					text.append("<script>\n");
+					text.append("window.addEventListener('message', function(e) {\n");
+					text.append("  try {\n");
+					text.append("    var message = JSON.parse(e.data);\n");
+					text.append("    var idval = 'LtiLaunchFrame_");
+					text.append(submit_uuid);
+					text.append("';\n");
+					text.append("    if ( message.subject == 'lti.frameResize' ) {\n");
+					text.append("      var height = message.height;\n");
+					text.append("      document.getElementById(idval).height = height;\n");
+					text.append("      console.log('Reveived lti.frameResize height='+height);\n");
+					text.append("    }\n");
+					text.append("  } catch (error) {\n");
+					text.append("   console.log('lti.frameResize of '+idval+' failed height='+height);\n");
+					text.append("   console.log(e.data);\n");
+					text.append("  }\n");
+					text.append("});\n");
+					text.append("</script>\n");
 				}
 				out.println(text);
 				dPrint("==== doView complete ====");
@@ -359,7 +383,7 @@ public class IMSBLTIPortlet extends GenericPortlet {
 				for(ToolConfiguration tool : (List<ToolConfiguration>) page.getTools()) {
 					String tid = tool.getToolId();
 					if ( "sakai.lessonbuildertool".equals(tid) ) foundLessons = true;
-					if ( "sakai.gradebook.tool".equals(tid) || "sakai.gradebook.gwt.rpc".equals(tid) ) foundGradebook = true;
+					if ( tid != null && tid.startsWith("sakai.gradebook") ) foundGradebook = true;
 				}
 			}
 		} catch (IdUnusedException ex) {

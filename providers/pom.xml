@@ -4,13 +4,12 @@
     <parent>
       <groupId>org.sakaiproject</groupId>
       <artifactId>master</artifactId>
-      <version>11-SNAPSHOT</version>
+      <version>12-SNAPSHOT</version>
       <relativePath>../master/pom.xml</relativePath>
     </parent>
   <name>Sakai Providers Project</name>
   <groupId>org.sakaiproject</groupId>
   <artifactId>providers-base</artifactId>
-  <version>11-SNAPSHOT</version>
   <packaging>pom</packaging>
   <modules>
     <module>allhands</module>
@@ -20,6 +19,7 @@
     <module>imsent</module>
     <module>jldap</module>
     <module>jldap-mock</module>
+    <module>userdetail</module>
     <module>kerberos</module>
     <module>openldap</module>
     <module>sample</module>
@@ -41,6 +41,11 @@
       <dependency>
         <groupId>org.sakaiproject</groupId>
         <artifactId>sakai-jldap-provider</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.sakaiproject</groupId>
+        <artifactId>sakai-userdetail-provider</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

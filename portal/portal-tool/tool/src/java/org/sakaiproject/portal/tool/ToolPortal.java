@@ -31,13 +31,15 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.PermissionException;
+import org.sakaiproject.portal.util.CSSUtils;
 import org.sakaiproject.portal.util.ErrorReporter;
 import org.sakaiproject.portal.util.ToolURLManagerImpl;
+import org.sakaiproject.portal.util.ToolUtils;
 import org.sakaiproject.portal.util.URLUtils;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.ToolConfiguration;
@@ -63,14 +65,15 @@ import org.sakaiproject.util.Web;
 public class ToolPortal extends HttpServlet
 {
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(ToolPortal.class);
+	private static Logger M_log = LoggerFactory.getLogger(ToolPortal.class);
 
     // SAK-22384
     private static final String MATHJAX_ENABLED = "mathJaxEnabled";
     private static final String MATHJAX_SRC_PATH_SAKAI_PROP = "portal.mathjax.src.path";
-    private static final String MATHJAX_SRC_PATH = ServerConfigurationService.getString(MATHJAX_SRC_PATH_SAKAI_PROP, "");
     private static final String MATHJAX_ENABLED_SAKAI_PROP = "portal.mathjax.enabled";
-    private static final boolean MATHJAX_ENABLED_AT_SYSTEM_LEVEL = ServerConfigurationService.getBoolean(MATHJAX_ENABLED_SAKAI_PROP, false) && !MATHJAX_SRC_PATH.trim().isEmpty();
+    private static final boolean ENABLED_SAKAI_PROP_DEFAULT = true;
+    private static final String MATHJAX_SRC_PATH = ServerConfigurationService.getString(MATHJAX_SRC_PATH_SAKAI_PROP);
+    private static final boolean MATHJAX_ENABLED_AT_SYSTEM_LEVEL = ServerConfigurationService.getBoolean(MATHJAX_ENABLED_SAKAI_PROP, ENABLED_SAKAI_PROP_DEFAULT) && !MATHJAX_SRC_PATH.trim().isEmpty();
     
 	/**
 	 * Access the Servlet's information display.
@@ -280,26 +283,19 @@ public class ToolPortal extends HttpServlet
 	protected void setupForward(HttpServletRequest req, HttpServletResponse res,
 			Placement p, String skin) throws ToolException
 	{
+		boolean isInlineReq = ToolUtils.isInlineRequest(req);
 		// setup html information that the tool might need (skin, body on load,
 		// js includes, etc).
-		if (skin == null || skin.length() == 0)
-			skin = ServerConfigurationService.getString("skin.default");
-		String skinRepo = ServerConfigurationService.getString("skin.repo");
-		String headCssToolBase = "<link href=\""
-				+ skinRepo
-				+ "/tool_base.css\" type=\"text/css\" rel=\"stylesheet\" media=\"all\" />\n";
-		String headCssToolSkin = "<link href=\"" + skinRepo + "/" + skin
-				+ "/tool.css\" type=\"text/css\" rel=\"stylesheet\" media=\"all\" />\n";
-		String headCss = headCssToolBase + headCssToolSkin;
+		String headCss = CSSUtils.getCssHead(skin, isInlineReq);
 		String headJs = "<script type=\"text/javascript\" src=\"/library/js/headscripts.js\"></script>\n";
         
+        Site site=null;
         // SAK-22384
         if (p != null && MATHJAX_ENABLED_AT_SYSTEM_LEVEL)
         {  
             ToolConfiguration toolConfig = SiteService.findTool(p.getId());
             if (toolConfig != null) {
                 String siteId = toolConfig.getSiteId();
-                Site site;
                 try {
                     site = SiteService.getSiteVisit(siteId);
                 }
@@ -343,8 +339,8 @@ public class ToolPortal extends HttpServlet
 
 		req.setAttribute("sakai.html.head", head);
 		req.setAttribute("sakai.html.head.css", headCss);
-		req.setAttribute("sakai.html.head.css.base", headCssToolBase);
-		req.setAttribute("sakai.html.head.css.skin", headCssToolSkin);
+		req.setAttribute("sakai.html.head.css.base", CSSUtils.getCssToolBaseLink(CSSUtils.getSkinFromSite(site), isInlineReq));
+		req.setAttribute("sakai.html.head.css.skin", CSSUtils.getCssToolSkinLink(CSSUtils.getSkinFromSite(site), isInlineReq));
 		req.setAttribute("sakai.html.head.js", headJs);
 		req.setAttribute("sakai.html.body.onload", bodyonload.toString());
 	}

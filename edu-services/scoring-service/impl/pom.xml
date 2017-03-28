@@ -5,24 +5,22 @@
     <parent>
         <artifactId>scoring-service</artifactId>
         <groupId>org.sakaiproject.edu-services.scoringservice</groupId>
-        <version>11-SNAPSHOT</version>
+        <version>12-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>scoring-service-impl</artifactId>
     <groupId>org.sakaiproject.edu-services.scoringservice</groupId>
-    <packaging>jar</packaging>
+    <packaging>sakai-component</packaging>
+    <properties>
+        <deploy.target>components</deploy.target>
+    </properties>
     <dependencies>
         <dependency>
             <artifactId>scoring-service-api</artifactId>
             <groupId>org.sakaiproject.edu-services.scoringservice</groupId>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-            <version>1.0.4</version>
         </dependency>
         <dependency>
             <groupId>${sakai.spring.groupId}</groupId>

@@ -4,21 +4,19 @@
   <parent>
     <groupId>org.sakaiproject</groupId>
     <artifactId>master</artifactId>
-    <version>11-SNAPSHOT</version>
+    <version>12-SNAPSHOT</version>
     <relativePath>../master/pom.xml</relativePath>
   </parent>
 
   <name>Sakai Search Project</name>
   <groupId>org.sakaiproject.search</groupId>
   <artifactId>search</artifactId>
-  <version>11-SNAPSHOT</version><!-- ProjectVersion -->
   <packaging>pom</packaging>
 
   <modules>
     <module>search-api/api</module>
     <module>search-test</module>
     <module>search-impl/impl</module>
-    <module>search-impl/pack</module>
     <module>search-model</module>
     <module>search-util</module>
     <module>search-tool/tool</module>
@@ -48,13 +46,5 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
-
-  <distributionManagement>
-    <site>
-      <id>sakai-site</id>
-      <name>Sakai release Site</name>
-      <url>scpexe://source.sakaiproject.org/var/www/html/release/search/${project.version}</url>
-    </site>
-  </distributionManagement>
 
 </project>

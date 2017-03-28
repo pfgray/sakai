@@ -7,7 +7,7 @@
     lang="${language}">
     <head>
         <link rel="stylesheet" type="text/css" href="/feedback-tool/css/feedback.css" />
-        <script type="text/javascript" src="/library/js/jquery/jquery-1.11.3.min.js"></script>
+        <script type="text/javascript" src="/library/webjars/jquery/1.11.3/jquery.min.js"></script>
         <script type="text/javascript" src="/feedback-tool/lib/jquery.form.min.js"></script>
         <script type="text/javascript" src="/feedback-tool/lib/jquery.MultiFile.pack.js"></script>
         <script type="text/javascript" src="//www.google.com/recaptcha/api/js/recaptcha_ajax.js"></script>
@@ -18,15 +18,28 @@
 
             var feedback = {
                 state: 'home',
+                previousState: '',
                 userId: '${userId}',
                 siteId: '${siteId}',
                 siteExists: '${siteExists}',
                 language: '${language}',
                 featureSuggestionUrl: '${featureSuggestionUrl}',
                 technicalToAddress: '${technicalToAddress}',
+                helpToAddress: '${helpToAddress}',
+                suggestionsToAddress: '${suggestionsToAddress}',
+                supplementalAToAddress: '${supplementalAToAddress}',
+                supplementalBToAddress: '${supplementalBToAddress}',
                 contactName: '${contactName}',
                 enableTechnical: ${enableTechnical},
+                enableHelp: ${enableHelp},
+                enableSuggestions: ${enableSuggestions},
+                enableSupplementalA: ${enableSupplementalA},
+                enableSupplementalB: ${enableSupplementalB},
                 helpPagesUrl: '${helpPagesUrl}',
+                helpdeskUrl: '${helpdeskUrl}',
+                technicalUrl: '${technicalUrl}',
+                supplementalAUrl: '${supplementalAUrl}',
+                supplementalBUrl: '${supplementalBUrl}',
                 helpPagesTarget: '${helpPagesTarget}',
                 supplementaryInfo: '${supplementaryInfo}',
                 recaptchaPublicKey: '${recaptchaPublicKey}',
@@ -35,6 +48,13 @@
                 showHelpPanel: ${showHelpPanel},
                 showTechnicalPanel: ${showTechnicalPanel},
                 showSuggestionsPanel: ${showSuggestionsPanel},
+                showSupplementalAPanel: ${showSupplementalAPanel},
+                showSupplementalBPanel: ${showSupplementalBPanel},
+                helpPanelAsLink: ${helpPanelAsLink},
+                technicalPanelAsLink: ${technicalPanelAsLink},
+                suggestionsPanelAsLink: ${suggestionsPanelAsLink},
+                supplementalAPanelAsLink: ${supplementalAPanelAsLink},
+                supplementalBPanelAsLink: ${supplementalBPanelAsLink},
                 siteUpdaters: [
                     <c:forEach items="${siteUpdaters}" var="su" varStatus="sus">
                     {id: '${su.key}', displayName: '${su.value}'}<c:if test="${!sus.last}">,</c:if>

@@ -28,8 +28,8 @@ import java.util.Comparator;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A GradableObject is a component of a Gradebook for which students can be
@@ -37,14 +37,15 @@ import org.apache.commons.logging.LogFactory;
  *
  * @author <a href="mailto:jholtzman@berkeley.edu">Josh Holtzman</a>
  */
+@Slf4j
 public abstract class GradableObject implements Serializable {
-    protected static final Log log = LogFactory.getLog(GradableObject.class);
 
     protected Long id;
     protected int version;
     protected Gradebook gradebook;
     protected String name;
     protected Integer sortOrder;
+    protected Integer categorizedSortOrder;
 
     protected Double mean;	// not persisted; not used in all contexts (in Overview & Assignment Grading,
     	                    // not in Roster or Student View)
@@ -339,6 +340,14 @@ public abstract class GradableObject implements Serializable {
     
     public void setSortOrder(Integer sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public Integer getCategorizedSortOrder() {
+        return categorizedSortOrder;
+    }
+
+    public void setCategorizedSortOrder(Integer value) {
+        this.categorizedSortOrder = value;
     }
 
 }

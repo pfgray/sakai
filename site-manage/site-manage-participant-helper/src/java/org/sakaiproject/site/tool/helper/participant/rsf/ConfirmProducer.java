@@ -3,8 +3,8 @@ package org.sakaiproject.site.tool.helper.participant.rsf;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.tool.api.SessionManager;
 import org.sakaiproject.tool.api.Tool;
 import org.sakaiproject.entitybroker.DeveloperHelperService;
@@ -17,8 +17,8 @@ import org.sakaiproject.site.tool.helper.participant.impl.SiteAddParticipantHand
 import org.sakaiproject.user.api.User;
 import org.sakaiproject.user.api.UserDirectoryService;
 
-import uk.ac.cam.caret.sakai.rsf.producers.FrameAdjustingProducer;
-import uk.ac.cam.caret.sakai.rsf.util.SakaiURLUtil;
+import org.sakaiproject.rsf.producers.FrameAdjustingProducer;
+import org.sakaiproject.rsf.util.SakaiURLUtil;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.messageutil.TargettedMessage;
 import uk.org.ponder.messageutil.TargettedMessageList;
@@ -47,7 +47,7 @@ import uk.org.ponder.rsf.viewstate.ViewParameters;
 public class ConfirmProducer implements ViewComponentProducer, NavigationCaseReporter, ActionResultInterceptor {
 
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(ConfirmProducer.class);
+	private static Logger M_log = LoggerFactory.getLogger(ConfirmProducer.class);
 	
     public SiteAddParticipantHandler handler;
     public static final String VIEW_ID = "Confirm";

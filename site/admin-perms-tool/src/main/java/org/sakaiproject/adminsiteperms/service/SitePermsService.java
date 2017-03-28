@@ -21,8 +21,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.sakaiproject.authz.api.AuthzGroup;
 import org.sakaiproject.authz.api.AuthzGroupService;
@@ -49,7 +49,7 @@ import org.springframework.context.NoSuchMessageException;
  */
 public class SitePermsService {
 
-    final protected Log log = LogFactory.getLog(getClass());
+    final protected Logger log = LoggerFactory.getLogger(getClass());
 
     private static final String STATUS_COMPLETE = "COMPLETE";
 
@@ -327,6 +327,22 @@ public class SitePermsService {
         Collections.sort(roles);
         return roles;
     }
+    
+    /**
+     * @return a list of additional valid roles
+     */
+    public List<AdditionalRole> getAdditionalRoles() {
+    	HashSet<AdditionalRole> roleSet = new HashSet<AdditionalRole>();
+    	roleSet.add(new AdditionalRole(".anon", authzGroupService.getRoleName(".anon")));
+    	roleSet.add(new AdditionalRole(".auth", authzGroupService.getRoleName(".auth")));
+    	
+    	for(String roleId : authzGroupService.getAdditionalRoles())
+    		roleSet.add(new AdditionalRole(roleId, authzGroupService.getRoleName(roleId)));
+    	
+    	List<AdditionalRole> ret = new ArrayList<AdditionalRole>(roleSet);
+    	Collections.sort(ret);
+        return ret;
+    }
 
     /**
      * @return true if current user is super admin
@@ -362,6 +378,50 @@ public class SitePermsService {
             sb.append(array[i]);
         }
         return sb.toString();
+    }
+    
+    public class AdditionalRole implements Comparable<AdditionalRole> {
+    	private String id;
+    	private String name;
+    	private String groupId;
+    	
+    	public AdditionalRole(String id, String name) {
+    		this.id = id;
+    		this.name = name;
+    		
+    		int index = id.lastIndexOf(".");
+    		this.groupId = (index >= 0) ? id.substring(0, index) : "";
+    	}
+
+		public String getId() {
+			return id;
+		}
+
+		public String getName() {
+			return name;
+		}
+		
+		public String getGroupId() {
+			return groupId;
+		}
+		
+		public boolean equals(Object obj) {
+			if (!(obj instanceof AdditionalRole))
+				return false;	
+			if (obj == this)
+				return true;
+			return this.id.equals(((AdditionalRole) obj).id);
+		}
+		
+		public int hashCode(){
+			return id.hashCode();
+		}
+
+		@Override
+		public int compareTo(AdditionalRole arg0) {
+			if(arg0 == null) return 1;
+			return (this.groupId+"_"+this.name).compareTo(arg0.groupId+"_"+arg0.name);
+		}
     }
 
 

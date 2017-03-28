@@ -43,7 +43,7 @@ import org.sakaiproject.authz.api.PermissionsHelper;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.localeutil.LocaleGetter;                                                                                          
 
-import uk.ac.cam.caret.sakai.rsf.helper.HelperViewParameters;
+import org.sakaiproject.rsf.helper.HelperViewParameters;
 import uk.org.ponder.rsf.components.UICommand;
 import uk.org.ponder.rsf.components.UIContainer;
 import uk.org.ponder.rsf.components.UIOutput;
@@ -134,7 +134,8 @@ public class PermissionsHelperProducer implements ViewComponentProducer, ViewPar
                 }
 
 		session.setAttribute(PermissionsHelper.TARGET_REF, site.getReference());
-		session.setAttribute(PermissionsHelper.DESCRIPTION, messageLocator.getMessage("simplepage.editpermissions") + " " +  site.getTitle());
+		session.setAttribute(PermissionsHelper.DESCRIPTION, messageLocator.getMessage("simplepage.editpermissions")
+				+ " " +  site.getTitle() + ". " + messageLocator.getMessage("simplepage.ownerpermissions"));
 		session.setAttribute(PermissionsHelper.PREFIX, "lessonbuilder.");
 
 		HashMap<String, String> pRbValues = new HashMap<String, String>();

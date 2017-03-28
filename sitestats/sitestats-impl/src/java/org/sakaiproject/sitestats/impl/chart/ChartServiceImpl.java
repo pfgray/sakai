@@ -37,8 +37,9 @@ import java.util.Set;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.PeriodAxis;
@@ -72,6 +73,7 @@ import org.jfree.util.SortOrder;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.site.api.SiteService;
 import org.sakaiproject.sitestats.api.EventStat;
+import org.sakaiproject.sitestats.api.LessonBuilderStat;
 import org.sakaiproject.sitestats.api.ResourceStat;
 import org.sakaiproject.sitestats.api.SiteActivityByTool;
 import org.sakaiproject.sitestats.api.SitePresence;
@@ -94,7 +96,7 @@ import org.sakaiproject.util.ResourceLoader;
 
 public class ChartServiceImpl implements ChartService {
 	/** Static fields */
-	private static Log				LOG									= LogFactory.getLog(EventRegistryServiceImpl.class);
+	private static Logger				LOG									= LoggerFactory.getLogger(EventRegistryServiceImpl.class);
 	private static ResourceLoader	msgs								= new ResourceLoader("Messages");
 	private static final int		MIN_CHART_WIDTH_TO_DRAW_ALL_DAYS	= 640;
 
@@ -884,7 +886,7 @@ public class ChartServiceImpl implements ChartService {
 	}
 	
 	private AbstractDataset getCategoryDataset(Report report) {
-		List<Stat> reportData = report.getReportData();
+		List<? extends Stat> reportData = report.getReportData();
 		
 		// fill dataset
 		DefaultCategoryDataset dataSet = new DefaultCategoryDataset();
@@ -937,7 +939,7 @@ public class ChartServiceImpl implements ChartService {
 	}
 	
 	private AbstractDataset getPieDataset(Report report) {
-		List<Stat> reportData = report.getReportData();
+		List<? extends Stat> reportData = report.getReportData();
 		
 		// fill dataset
 		DefaultPieDataset dataSet = new DefaultPieDataset();
@@ -1008,7 +1010,7 @@ public class ChartServiceImpl implements ChartService {
 	}
 	
 	private AbstractDataset getTimeSeriesCollectionDataset(Report report) {
-		List<Stat> reportData = report.getReportData();
+		List<? extends Stat> reportData = report.getReportData();
 		
 		// fill dataset
 		TimeSeriesCollection dataSet = new TimeSeriesCollection();
@@ -1292,6 +1294,25 @@ public class ChartServiceImpl implements ChartService {
 					}
 				}
 				return action;
+			}else if(fieldCode.equals(StatsManager.T_PAGE)) {
+				if(s instanceof LessonBuilderStat) {
+					return M_sm.getLessonPageTitle(((LessonBuilderStat)s).getPageId());
+				}else{
+					return "";
+				}
+            }else if(fieldCode.equals(StatsManager.T_PAGE_ACTION)) {
+				String action = "";
+				if(s instanceof LessonBuilderStat) {
+					String refAction = ((LessonBuilderStat) s).getPageAction();
+					if(refAction == null){
+						action = "";
+					}else{
+						if(!"".equals(refAction.trim()))
+							action = msgs.getString("action_"+refAction);
+					}
+				}
+				return action;
+
 			}else if(fieldCode.equals(StatsManager.T_DATE) || fieldCode.equals(StatsManager.T_LASTDATE)
 					|| fieldCode.equals(StatsManager.T_DATEMONTH) || fieldCode.equals(StatsManager.T_DATEYEAR)) {
 				Date d = s.getDate();

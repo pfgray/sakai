@@ -22,7 +22,6 @@ package org.sakaiproject.roster.api;
 import java.util.List;
 import java.util.Map;
 
-import org.sakaiproject.memory.api.Cache;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.sitestats.api.SitePresenceTotal;
 import org.sakaiproject.user.api.User;
@@ -46,6 +45,7 @@ public interface SakaiProxy {
 	public final static Boolean DEFAULT_FIRST_NAME_LAST_NAME = false;
 	public final static Boolean DEFAULT_HIDE_SINGLE_GROUP_FILTER = false;
 	public final static Boolean DEFAULT_VIEW_EMAIL = true;
+	public final static Boolean DEFAULT_VIEW_CONNECTIONS = true;
 	public final static Boolean DEFAULT_VIEW_USER_DISPLAY_ID = true;
 	public final static Integer DEFAULT_ROSTER_STATE = 0;
 	
@@ -128,6 +128,14 @@ public interface SakaiProxy {
 	 * @return the value of the <code>roster_view_email</code> Sakai property.
 	 */
 	public Boolean getViewEmail(String siteId);
+
+	/**
+	 * Returns the value of the <code>roster_view_connections</code> Sakai property.
+	 * Note: if Profile2 connections (profile2.connections.enabled) is false, this
+	 * will also be automatically false.
+	 * @return the value of the <code>roster_view_connections</code> Sakai property.
+	 */
+	public Boolean getViewConnections();
 	
 	/**
 	 * Returns the value of the <code>roster.display.userDisplayId</code> Sakai property.
@@ -207,7 +215,7 @@ public interface SakaiProxy {
 	 * Returns whether or not the current user is a super user.
 	 * 
 	 * @return <code>true</code> if the current user is a super user, else
-	 *         returns <code>false</code.
+	 *         returns <code>false</code>.
 	 */
 	public boolean isSuperUser();
 	

@@ -29,9 +29,12 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.text.Format;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -40,12 +43,13 @@ import java.util.Properties;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
 import java.io.PrintWriter;
 
 import org.apache.commons.fileupload.disk.DiskFileItem;
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.cheftool.Context;
 import org.sakaiproject.cheftool.JetspeedRunData;
 import org.sakaiproject.cheftool.RunData;
@@ -88,12 +92,13 @@ import org.sakaiproject.event.api.NotificationEdit;
 public class ResourcesHelperAction extends VelocityPortletPaneledAction 
 {
 	/** the logger for this class */
-	 private static final Log logger = LogFactory.getLog(ResourcesHelperAction.class);
+	 private static final Logger logger = LoggerFactory.getLogger(ResourcesHelperAction.class);
 	 
 	 private static final ResourceConditionsHelper conditionsHelper = new ResourceConditionsHelper();
 	 
 	/** Resource bundle using current language locale */
 	private static ResourceLoader rb = new ResourceLoader("types");
+	private static ResourceLoader metaLang = new ResourceLoader("metadata");
 	private static ResourceLoader contentResourceBundle = new ResourceLoader("content");
 	
 	protected  static final String ACCESS_HTML_TEMPLATE = "resources/sakai_access_html";
@@ -163,12 +168,9 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 	/** The title of the new page to be created in the site */
 	protected static final String STATE_PAGE_TITLE = PREFIX + "page_title";
 	
-	/** Tool property to enable Drag and Drop uploads in a per-tool basis */
-	private static final String TOOL_PROP_DRAGNDROP_ENABLED = "content.upload.dragndrop";
-	
 	/** We need to send a single email with every D&D upload reported in it */
-	
 	private static final String DRAGNDROP_FILENAME_REFERENCE_LIST = "dragndrop_filename_reference_list";	
+
 	private NotificationService notificationService = (NotificationService) ComponentManager.get(NotificationService.class);	
 	private EventTrackingService eventTrackingService = (EventTrackingService) ComponentManager.get(EventTrackingService.class);
 
@@ -239,7 +241,8 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 		logger.debug(this + ".buildMainPanelContext()");
 		// context.put("sysout", System.out);
 		context.put("tlang", rb);
-		
+		context.put("metaLang", metaLang);
+
 		context.put("validator", new Validator());
 		context.put("copyright_alert_url", COPYRIGHT_ALERT_URL);
 		context.put("DOT", ListItem.DOT);
@@ -384,6 +387,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 	protected String buildNewUrlsContext(VelocityPortlet portlet, Context context, RunData data, SessionState state)
 	 {
 		logger.debug(this + ".buildNewUrlsContext()");
+		context.put("site_id", ToolManager.getCurrentPlacement().getContext());
 		ToolSession toolSession = SessionManager.getCurrentToolSession();
 
 		MultiFileUploadPipe pipe = (MultiFileUploadPipe) toolSession.getAttribute(ResourceToolAction.ACTION_PIPE);
@@ -409,7 +413,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 		ListItem parent = new ListItem(pipe.getContentEntity());
 		parent.setPubviewPossible(! preventPublicDisplay);
 		ListItem model = new ListItem(pipe, parent, defaultRetractDate);
-		model.metadataGroupsIntoContext(context);
+		model.initMetadataGroups();
 		// model.setPubviewPossible(! preventPublicDisplay);
 				
 		context.put("model", model);
@@ -458,6 +462,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 	private String buildNewFoldersContext(VelocityPortlet portlet, Context context, RunData data, SessionState state)
 	{
 		logger.debug(this + ".buildNewFoldersContext()");
+		context.put("site_id", ToolManager.getCurrentPlacement().getContext());
 		ToolSession toolSession = SessionManager.getCurrentToolSession();
 
 		MultiFileUploadPipe pipe = (MultiFileUploadPipe) toolSession.getAttribute(ResourceToolAction.ACTION_PIPE);
@@ -483,7 +488,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 		ListItem parent = new ListItem(pipe.getContentEntity());
 		parent.setPubviewPossible(! preventPublicDisplay);
 		ListItem model = new ListItem(pipe, parent, defaultRetractDate);
-		model.metadataGroupsIntoContext(context);
+		model.initMetadataGroups();
 		// model.setPubviewPossible(! preventPublicDisplay);
 		
 		context.put("model", model);
@@ -636,6 +641,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 	{
 		logger.debug(this + ".buildUploadFilesContext()");
 		ToolSession toolSession = SessionManager.getCurrentToolSession();
+		context.put("site_id", ToolManager.getCurrentPlacement().getContext());
 		
 		String max_file_size_mb = (String) state.getAttribute(STATE_FILE_UPLOAD_MAX_SIZE);
 		if(max_file_size_mb == null)
@@ -648,18 +654,10 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 		String instr_uploads = rb.getFormattedMessage("instr.uploads", new String[]{ uploadMax });
 		context.put("instr_uploads", instr_uploads);
 
+		String uploadWarning = rb.getFormattedMessage("label.overwrite.warning");
+		context.put("label_overwrite_warning",uploadWarning);
 		String instr_dnd_uploads = rb.getFormattedMessage("instr.dnd.uploads", new String[]{ uploadMax });
 		context.put("instr_dnd_uploads", instr_dnd_uploads);
-
-		Boolean dragAndDrop = ServerConfigurationService.getBoolean("content.upload.dragndrop", true);
-		String strDragAndDropEnabled = ToolManager.getCurrentPlacement().getConfig().getProperty(TOOL_PROP_DRAGNDROP_ENABLED);
-
-		if (StringUtils.isNotBlank(strDragAndDropEnabled))
-		{
-			dragAndDrop = dragAndDrop || (new Boolean(strDragAndDropEnabled));
-		}
-
-		context.put("dragAndDrop", dragAndDrop);
 
 //		int max_bytes = 1024 * 1024;
 //		try
@@ -698,7 +696,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 		ListItem parent = new ListItem(pipe.getContentEntity());
 		parent.setPubviewPossible(! preventPublicDisplay);
 		ListItem model = new ListItem(pipe, parent, defaultRetractDate);
-		model.metadataGroupsIntoContext(context);
+		model.initMetadataGroups();
 		// model.setPubviewPossible(! preventPublicDisplay);
 				
 		context.put("model", model);
@@ -709,6 +707,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 		if(ContentHostingService.isAvailabilityEnabled())
 		{
 			context.put("availability_is_enabled", Boolean.TRUE);
+			context.put("upload_visibility_hidden", ServerConfigurationService.getBoolean("content.dnd.visibility.hidden", false));
 		}
 		
 		if(model.isDropbox)
@@ -1016,7 +1015,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			}
 			if(ListItem.isOptionalPropertiesEnabled())
 			{
-				newFolder.initMetadataGroups(null);
+				newFolder.initMetadataGroups();
 			}
 
 			// capture properties
@@ -1027,6 +1026,10 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			}
 			if (newFolder.numberFieldIsOutOfRange) {
 				addAlert(state, rb.getFormattedMessage("conditions.condition.argument.outofrange", new String[] { newFolder.getConditionAssignmentPoints() }));
+				return;
+			}
+			if(!"".equals(newFolder.metadataValidationFails)) {
+				addAlert(state, metaLang.getFormattedMessage("metadata.validation.error", newFolder.metadataValidationFails));
 				return;
 			}
 			//Control if groups are selected
@@ -1236,31 +1239,48 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			ResourceToolActionPipe pipe = pipes.get(actualCount);
 			
 			String url = params.getString("content" + ListItem.DOT + i );
-				if(url == null)
-				{
-					continue;
-				}
-				else
-				{
-					try
-					 {
-						 url = ResourcesAction.validateURL(url);
-					 }
-					 catch (MalformedURLException e)
-					 {
-						addAlert(state, rb.getFormattedMessage("url.invalid", new String[]{url}));
-						 continue;
-					 }
-					
-					 try {
-						 pipe.setRevisedContent(url.getBytes(ResourcesAction.UTF_8_ENCODING));
-					 } catch (UnsupportedEncodingException e) {
-						 pipe.setRevisedContent(url.getBytes());
-					 }
-				}
+			if(url == null)
+			{
+				continue;
+			}
+			else
+			{
+				try
+				 {
+					 url = ResourcesAction.validateURL(url);
+				 }
+				 catch (MalformedURLException e)
+				 {
+					 addAlert(state, rb.getFormattedMessage("url.invalid", new String[]{url}));
+					 continue;
+				 }
 				
-				pipe.setFileName(Validator.escapeResourceName(url));
-				pipe.setRevisedMimeType(ResourceType.MIME_TYPE_URL);
+				 try {
+					 pipe.setRevisedContent(url.getBytes(ResourcesAction.UTF_8_ENCODING));
+				 } catch (UnsupportedEncodingException e) {
+					 pipe.setRevisedContent(url.getBytes());
+				 }
+			}
+			// SAK-11816 - allow much longer URLs by correcting a long basename, make sure no URL resource id exceeds 36 chars
+			// Make the URL a length of 32 chars. This is because the basename registered in CR has to be the same than the basename in resources 
+			if (url != null) {
+			    // url with a mininum of 18 chars.
+                while (url.length() < 18) {
+                	url = url.concat(ListItem.DOT);
+                }
+                
+                // max of 18 chars from the URL itself
+                url = url.substring(0, 18);
+                
+                // add a timestamp to differentiate it (+14 chars)
+                Format f= new SimpleDateFormat("yyyyMMddHHmmss");
+                url += f.format(new Date());
+                // total new length of 32 chars
+            }
+            // SAK-11816 - END
+			
+			pipe.setFileName(Validator.escapeResourceName(url));
+			pipe.setRevisedMimeType(ResourceType.MIME_TYPE_URL);
 				
 			ListItem newFile = (ListItem) pipe.getRevisedListItem();
 			if(newFile == null)
@@ -1286,7 +1306,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			
 			if(ListItem.isOptionalPropertiesEnabled())
 			{
-				newFile.initMetadataGroups(null);
+				newFile.initMetadataGroups();
 			}
 			
 			// capture properties
@@ -1297,6 +1317,10 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			}
 			if (newFile.numberFieldIsOutOfRange) {
 				addAlert(state, rb.getFormattedMessage("conditions.condition.argument.outofrange", new String[] { newFile.getConditionAssignmentPoints() }));
+				return;
+			}
+			if(!"".equals(newFile.metadataValidationFails)) {
+				addAlert(state, metaLang.getFormattedMessage("metadata.validation.error", newFile.metadataValidationFails));
 				return;
 			}
 			//Control if groups are selected
@@ -1321,6 +1345,10 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			}
 			if (newFile.numberFieldIsOutOfRange) {
 			    addAlert(state, contentResourceBundle.getFormattedMessage("conditions.condition.argument.outofrange", new String[] { newFile.getConditionAssignmentPoints() }));
+				return;
+			}
+			if(!"".equals(newFile.metadataValidationFails)) {
+				addAlert(state, metaLang.getFormattedMessage("metadata.validation.error", newFile.metadataValidationFails));
 				return;
 			}
 			ResourceConditionsHelper.saveCondition(newFile, params, state, i);
@@ -1577,7 +1605,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 
 				if(ListItem.isOptionalPropertiesEnabled())
 				{
-					newFile.initMetadataGroups(null);
+					newFile.initMetadataGroups();
 				}
 
 				// capture properties
@@ -1598,6 +1626,10 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 				}
 				if (newFile.numberFieldIsOutOfRange) {
 				    addAlert(state, contentResourceBundle.getFormattedMessage("conditions.condition.argument.outofrange", new String[] { newFile.getConditionAssignmentPoints() }));
+					return;
+				}
+				if(!"".equals(newFile.metadataValidationFails)) {
+					addAlert(state, metaLang.getFormattedMessage("metadata.validation.error", newFile.metadataValidationFails));
 					return;
 				}
 				//Control if groups are selected
@@ -1868,8 +1900,12 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 	{
 		String fullPath = request.getParameter("fullPath");
 		String action = request.getParameter("sakai_action");
-		logger.debug("Received action: "+action+" for file: "+fullPath);
+		boolean hidden = Boolean.valueOf(request.getParameter("hidden"));
+		logger.debug("Received action: "+action+" for file: "+fullPath+" with visibilty "+Boolean.toString(!hidden));
 		
+		// set up rundata, in case we're called from RSF
+		checkRunData(request);
+
 		if(fullPath != null)
 		{
 			Long fileSize = Long.parseLong(request.getHeader("content-length"));
@@ -1926,14 +1962,14 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			boolean siteQuotaUnlimited = siteQuota == 0;
 			
 			// If the file size exceeds the max uploaded file size, post error message
+			Long fileSizeKB = fileSize / 1024L;
 			Long fileSizeMB = fileSize / 1024L / 1024L;
 			if( fileSizeMB > uploadMax )
 			{
 				addAlert(getState(request), rb.getFormattedMessage("alert.over-per-upload-quota", new Object[]{uploadMax}));
 			}
-			
 			// If the file size exceeds the max quota for the site, post error message
-			else if( !siteQuotaUnlimited && fileSizeMB > siteQuota )
+			else if( !siteQuotaUnlimited && fileSizeKB > siteQuota )
 			{
 				addAlert(getState(request), rb.getFormattedMessage("alert.over-site-upload-quota", new Object[]{siteQuota}));
 			}
@@ -1942,7 +1978,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 			{
 				JetspeedRunData rundata = (JetspeedRunData) request.getAttribute(ATTR_RUNDATA);
 				if (checkCSRFToken(request,rundata,action)) {
-					doDragDropUpload(request, response, fullPath);
+					doDragDropUpload(request, response, fullPath, hidden);
 				}
 			}
 		}
@@ -1950,11 +1986,14 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 		{
 			if (action!=null)
 			{
+			    JetspeedRunData rundata = (JetspeedRunData) request.getAttribute(ATTR_RUNDATA);
+			    if (checkCSRFToken(request,rundata,action)) {
 				if (action.equals("doFinishUpload"))
 				{
 					notifyDragAndDropCompleted(request);
 				}
 				super.doPost(request, response);
+			    }
 			}
 			else
 			{
@@ -1972,7 +2011,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 	}
 
 
-	private synchronized void doDragDropUpload(HttpServletRequest request, HttpServletResponse response, String fullPath)
+	private synchronized void doDragDropUpload(HttpServletRequest request, HttpServletResponse response, String fullPath, boolean hidden)
 	{
 		//Feel free to sent comments/warnings/advices to me at daniel.merino AT unavarra.es
 		
@@ -1988,6 +2027,8 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 
 		String uploadFileName=null;
 		String collectionName=null;
+		String resourceId = null;
+		String overwrite = request.getParameter("overwrite");
 		
 		String resourceGroup = toolSession.getAttribute("resources.request.create_wizard_collection_id").toString();
 
@@ -2037,8 +2078,25 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 
 				if (collection!=null)
 				{
-					logger.debug("Adding resource "+uploadFileName+" in collection "+collection.getId());
-					resource = ContentHostingService.addResource(collection.getId(), Validator.escapeResourceName(basename),Validator.escapeResourceName(extension),5);
+					//get the resourceId by using collectionName and uploadFileName
+					resourceId = collectionName +"/"+ uploadFileName;
+					try{
+						//check if resource in collection exists
+						ContentHostingService.getResource(resourceId);
+						//if user has chosen to overwrite existing resource save the new copy
+						if(overwrite != null && overwrite.equals("true")){
+							resource = ContentHostingService.editResource(resourceId);
+						}
+						//if no overwrite then create a new resource in the collection
+						else{
+							resource = ContentHostingService.addResource(collection.getId(), Validator.escapeResourceName(basename),Validator.escapeResourceName(extension), ResourcesAction.MAXIMUM_ATTEMPTS_FOR_UNIQUENESS);
+						}
+					}
+					//if this is a new resource add to the collection.
+					catch(IdUnusedException idUnusedException) {
+						logger.debug("Adding resource "+uploadFileName+" in collection "+collection.getId());
+						resource = ContentHostingService.addResource(collection.getId(), Validator.escapeResourceName(basename),Validator.escapeResourceName(extension), ResourcesAction.MAXIMUM_ATTEMPTS_FOR_UNIQUENESS);
+					}
 				}
 				else
 				{
@@ -2047,9 +2105,24 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 					//So I disable this method call, though it can be enabled again if desired.
 					
 					//String resourceName = getUniqueFileName(uploadFileName, resourceGroup);
-					
-					logger.debug("Adding resource "+uploadFileName+" in current folder ("+resourceGroup+")");
-					resource = ContentHostingService.addResource(resourceGroup, Validator.escapeResourceName(basename), Validator.escapeResourceName(extension),5);
+					resourceId = resourceGroup + uploadFileName;
+					try{
+						//check if resource exists
+						ContentHostingService.getResource(resourceId);
+						//if it does and overwrite is true save the latest copy
+						if(overwrite != null && overwrite.equals("true")){
+							resource = ContentHostingService.editResource(resourceId);
+						}
+						// if no overwrite then simply create a new resource
+						else{
+							resource = ContentHostingService.addResource(resourceGroup, Validator.escapeResourceName(basename), Validator.escapeResourceName(extension), ResourcesAction.MAXIMUM_ATTEMPTS_FOR_UNIQUENESS);
+						}
+					}
+					// if new resource then save
+					catch(IdUnusedException idUnusedException) {
+						logger.debug("Adding resource "+uploadFileName+" in current folder ("+resourceGroup+")");
+						resource = ContentHostingService.addResource(resourceGroup, Validator.escapeResourceName(basename), Validator.escapeResourceName(extension), ResourcesAction.MAXIMUM_ATTEMPTS_FOR_UNIQUENESS);
+					}
 				}
 
 				if (resource != null)
@@ -2060,9 +2133,11 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 					resourceProps.addProperty(ResourcePropertiesEdit.PROP_DISPLAY_NAME, uploadFileName);
 					resource.setContent(uploadFile.getInputStream());
 					resource.setContentType(contentType);
+					resource.setAvailability(hidden, null, null);
 					ContentHostingService.commitResource(resource, NotificationService.NOTI_NONE);
 					
 					if (collection != null){
+						collection.setAvailability(hidden, null, null);
 						ContentHostingService.commitCollection(collection);
 						logger.debug("Collection commited: "+collection.getId());
 					}
@@ -2233,6 +2308,7 @@ public class ResourcesHelperAction extends VelocityPortletPaneledAction
 				sendnd.notify(ne,eventTrackingService.newEvent(eventResource, ContentHostingService.REFERENCE_ROOT+item.getId(), true, notificationPriority));			
 			}
 			state.setAttribute(DRAGNDROP_FILENAME_REFERENCE_LIST, null);
+			sendnd.setFileList(null);
 		} catch (IdUnusedException e) {
 			logger.warn("Somehow we couldn't find the site.", e);
 		}

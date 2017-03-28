@@ -23,14 +23,18 @@
 
 package org.sakaiproject.tool.assessment.ui.bean.questionpool;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Serializable;
+import java.text.Collator;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.RuleBasedCollator;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.text.Collator;
-import java.text.ParseException;
-import java.text.RuleBasedCollator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -40,22 +44,35 @@ import java.util.Set;
 
 import javax.faces.application.FacesMessage;
 import javax.faces.context.FacesContext;
-import javax.faces.event.ActionEvent;
 import javax.faces.model.ListDataModel;
 import javax.faces.model.SelectItem;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.struts.upload.FormFile;
 import org.osid.shared.SharedException;
+import org.sakaiproject.event.cover.EventTrackingService;
+import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.tool.assessment.business.questionpool.QuestionPoolTreeImpl;
 import org.sakaiproject.tool.assessment.data.dao.assessment.ItemMetaData;
 import org.sakaiproject.tool.assessment.data.dao.questionpool.QuestionPoolData;
+import org.sakaiproject.tool.assessment.data.dao.questionpool.QuestionPoolItemData;
+import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemDataIfc;
+import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTextIfc;
 import org.sakaiproject.tool.assessment.data.ifc.questionpool.QuestionPoolDataIfc;
+import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 import org.sakaiproject.tool.assessment.data.model.Tree;
 import org.sakaiproject.tool.assessment.facade.AgentFacade;
+import org.sakaiproject.tool.assessment.facade.AssessmentFacade;
 import org.sakaiproject.tool.assessment.facade.ItemFacade;
 import org.sakaiproject.tool.assessment.facade.QuestionPoolFacade;
 import org.sakaiproject.tool.assessment.facade.QuestionPoolIteratorFacade;
@@ -64,18 +81,21 @@ import org.sakaiproject.tool.assessment.osid.shared.impl.IdImpl;
 import org.sakaiproject.tool.assessment.services.ItemService;
 import org.sakaiproject.tool.assessment.services.QuestionPoolService;
 import org.sakaiproject.tool.assessment.services.SectionService;
-import org.sakaiproject.tool.assessment.ui.bean.author.ItemAuthorBean;
+import org.sakaiproject.tool.assessment.services.assessment.AssessmentService;
 import org.sakaiproject.tool.assessment.ui.bean.author.AssessmentBean;
+import org.sakaiproject.tool.assessment.ui.bean.author.ItemAuthorBean;
+import org.sakaiproject.tool.assessment.ui.bean.authz.AuthorizationBean;
+import org.sakaiproject.tool.assessment.ui.bean.delivery.ItemContentsBean;
+import org.sakaiproject.tool.assessment.ui.bean.evaluation.ExportResponsesBean;
 import org.sakaiproject.tool.assessment.ui.listener.util.ContextUtil;
 import org.sakaiproject.tool.assessment.util.BeanSort;
 import org.sakaiproject.user.api.User;
 import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.user.cover.UserDirectoryService;
+import org.sakaiproject.util.FormattedText;
 import org.sakaiproject.util.ResourceLoader;
-import org.sakaiproject.event.cover.EventTrackingService;
-import org.sakaiproject.tool.assessment.facade.AssessmentFacade;
-import org.sakaiproject.tool.assessment.services.assessment.AssessmentService;
-import org.sakaiproject.tool.assessment.ui.bean.authz.AuthorizationBean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -97,8 +117,8 @@ public class QuestionPoolBean implements Serializable
   private QuestionPoolDataBean currentPool;
   private QuestionPoolDataBean parentPool;
 
-  private ArrayList currentItemIds;
-  private ArrayList currentItems;
+  private List currentItemIds;
+  private List currentItems;
 
   private boolean allPoolsSelected;
   private boolean allItemsSelected;
@@ -114,12 +134,12 @@ public class QuestionPoolBean implements Serializable
   private String[] destPools = {  }; // for multibox
   private String[] destItems = {  }; // items to delete
   private String sourcePart = null; // copy all questions from part
-  private String destPool=""; // for Move Pool Destination
+  private String destPool="0"; // for Move Pool Destination
   private FormFile filename; // for import /export
   private int htmlIdLevel; // pass this to javascript:collapseAll()
   private String questionType; // the question type to add
   private int parentPoolSize= 0; // the question type to add
-  private ArrayList allItems;
+  private List allItems;
 
   // for search Question
   private String[] searchByTypes = {  }; // for multibox
@@ -145,12 +165,14 @@ public class QuestionPoolBean implements Serializable
   private String sortQuestionProperty = "text";
   private boolean sortQuestionAscending = true;
   
-  private ArrayList addedPools;
-  private ArrayList addedQuestions;
+  private List addedPools;
+  private List addedQuestions;
   
   private ItemFacade itemToPreview;
+  private boolean showTags;
+  private List<ItemContentsBean> itemsBean;
 
-  private static Log log = LogFactory.getLog(QuestionPoolBean.class);
+  private static Logger log = LoggerFactory.getLogger(QuestionPoolBean.class);
 
 
   // for JSF
@@ -181,6 +203,10 @@ public class QuestionPoolBean implements Serializable
   private String deletePoolSource;  // either from poolList.jsp , or from editPool.jsp
   private String addPoolSource;  // either from poolList.jsp , or from editPool.jsp
 
+  //SAM-3049
+  private boolean notCurrentPool;
+  private String displayNameNotCPool;
+
   private ResourceLoader rb = new ResourceLoader("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages");
   /**
    * Creates a new QuestionPoolBean object.
@@ -188,6 +214,10 @@ public class QuestionPoolBean implements Serializable
   public QuestionPoolBean()
   {
     resetFields();
+  }
+
+  public int getRowIndex() {
+      return qpDataModel.getRowIndex();
   }
 
   public QuestionPoolDataModel getQpools()
@@ -226,7 +256,7 @@ public class QuestionPoolBean implements Serializable
       return subQpDataModel;
   }
 
-  public void sortSubqpoolsByProperty(ArrayList sortedList, String sortProperty, boolean sortAscending)
+  public void sortSubqpoolsByProperty(List sortedList, String sortProperty, boolean sortAscending)
   {
         BeanSort sort = new BeanSort(sortedList, sortProperty);
 
@@ -295,7 +325,7 @@ public class QuestionPoolBean implements Serializable
 	  }
   }
 
-  public void sortQpoolsByProperty(ArrayList sortedList, String sortProperty, boolean sortAscending)
+  public void sortQpoolsByProperty(List sortedList, String sortProperty, boolean sortAscending)
   {
 	  BeanSort sort = new BeanSort(sortedList, sortProperty);
 
@@ -318,7 +348,7 @@ public class QuestionPoolBean implements Serializable
 			  sort.toStringSort();
 		  }
 
-		  sortedList = (ArrayList)sort.sort();
+		  sortedList = (List)sort.sort();
 
 	  }
 	  if (!sortAscending)
@@ -327,13 +357,13 @@ public class QuestionPoolBean implements Serializable
 	  }
   }
 
-  public void setAllItems(ArrayList list) {
+  public void setAllItems(List list) {
       allItems = list;
 
   }
 
 
-  public ArrayList getAllItems()
+  public List getAllItems()
   {
       return allItems;
   }
@@ -423,6 +453,24 @@ public class QuestionPoolBean implements Serializable
   return poolListSelectItems;
 
 }
+
+
+  public boolean isNotCurrentPool() {
+	  return notCurrentPool;
+  }
+
+  public void setNotCurrentPool(boolean notCurrentPool) {
+	  this.notCurrentPool = notCurrentPool;
+  }
+
+  public String getDisplayNameNotCPool() {
+	  return displayNameNotCPool;
+  }
+
+  public void setDisplayNameNotCPool(String displayNameNotCPool) {
+	  this.displayNameNotCPool = displayNameNotCPool;
+  }
+
 
   /**
    * DOCUMENTATION PENDING
@@ -664,19 +712,19 @@ public class QuestionPoolBean implements Serializable
 		sourcePart = s;
 	}
 
-	public ArrayList getCurrentItemIds() {
+	public List getCurrentItemIds() {
 		return currentItemIds;
 	}
 
-	public void setCurrentItemIds(ArrayList pstr) {
+	public void setCurrentItemIds(List pstr) {
 		currentItemIds = pstr;
 	}
 
-	public ArrayList getCurrentItems() {
+	public List getCurrentItems() {
 		return currentItems;
 	}
 
-	public void setCurrentItems(ArrayList param) {
+	public void setCurrentItems(List param) {
 		currentItems = param;
 	}
 
@@ -980,16 +1028,6 @@ public class QuestionPoolBean implements Serializable
   {
     sortSubPoolAscending = pstr;
   }
-
-  public boolean getSortQuestionAscending()
-  {
-    return sortQuestionAscending;
-  }
-
-  public void setSortQuestionAscending(boolean pstr)
-  {
-    sortQuestionAscending = pstr;
-  }
   
   public String getActionType()
   {
@@ -1039,16 +1077,6 @@ public class QuestionPoolBean implements Serializable
   public void setSortSubPoolProperty(String newProperty)
   {
     sortSubPoolProperty= newProperty;
-  }
-
-  public String getSortQuestionProperty()
-  {
-    return sortQuestionProperty;
-  }
-
-  public void setSortQuestionProperty(String newProperty)
-  {
-    sortQuestionProperty= newProperty;
   }
   
 public String getAddOrEdit()
@@ -1129,6 +1157,16 @@ public String getAddOrEdit()
   {
     this.addPoolSource= param;
   }
+
+    public boolean getShowTags()
+    {
+        return ServerConfigurationService.getBoolean("samigo.author.usetags", Boolean.FALSE);
+    }
+
+    public void setShowTags(boolean showTags)
+    {
+        this.showTags = showTags;
+    }
 
   /**
    * DOCUMENTATION PENDING
@@ -1253,7 +1291,7 @@ public String getAddOrEdit()
 		String sourceId = "";
 		String destId = "";
 		sourceId = this.getCurrentPool().getId().toString();
-		ArrayList sourceItemIds = this.getCurrentItemIds();
+		List sourceItemIds = this.getCurrentItemIds();
 		String originId = Long.toString(ORIGIN_TOP.equals(getOutcome())?0:getOutcomePool());
 
 		destId = ContextUtil.lookupParam("movePool:selectedRadioBtn");
@@ -1274,6 +1312,7 @@ public String getAddOrEdit()
 						delegate.moveItemToPool(new Long(sourceItemId),
 								new Long(sourceId), new Long(destId));
 					}
+					EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.saveitem", "/sam/" + AgentFacade.getCurrentSiteId() + "/moved, itemId=" + sourceItemId, true));
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -1284,19 +1323,18 @@ public String getAddOrEdit()
 		//Questionpool has been revised
 		EventTrackingService.post(EventTrackingService.newEvent("sam.questionpool.questionmoved", "/sam/" +AgentFacade.getCurrentSiteId() + "/sourceId=" + sourceId + " destId=" + destId, true));
 
-
 		setOutComeTree(originId);
 		
-	return getOutcome();
+		return getOutcome();
 	}
 
-    // This is the link in edit assessment to copy all questions to a pool
+	// This is the link in edit assessment to copy all questions to a pool
 	// in order to use copyPool, we need to set up a valid pool context.
 	// that's what most of this is. The only actual work is setting sourcePart
 	public String startCopyFromAssessment() {
 		// find the first pool, and set it up
 		QuestionPoolService delegate = new QuestionPoolService();
-		ArrayList pools = delegate.getBasicInfoOfAllPools(AgentFacade
+		List pools = delegate.getBasicInfoOfAllPools(AgentFacade
 				.getAgentString());
 		Iterator iter = pools.iterator();
 
@@ -1375,9 +1413,9 @@ public String getAddOrEdit()
 
 		// Long sourceId = new Long(0);
 		String destId = "";
-		ArrayList sourceItems = this.getCurrentItems();
+		List sourceItems = this.getCurrentItems();
 
-		ArrayList destpools = ContextUtil.paramArrayValueLike("checkboxes");
+		List destpools = ContextUtil.paramArrayValueLike("checkboxes");
 		// sourceId = this.getCurrentPool().getId();
 		String originId = Long.toString(ORIGIN_TOP.equals(getOutcome())?0:getOutcomePool());
 		Iterator iter = destpools.iterator();
@@ -1405,7 +1443,7 @@ public String getAddOrEdit()
 							delegate.addItemToPool(copyItemFacadeId, new Long(
 									destId));
 						}
-
+						EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.saveitem", "/sam/" + AgentFacade.getCurrentSiteId() + "/copied, itemId=" + sourceItemId, true));
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -1413,10 +1451,8 @@ public String getAddOrEdit()
 				}
 			}
 		}
-
-	setOutComeTree(originId);
-	
-	return getOutcome();
+		setOutComeTree(originId);
+		return getOutcome();
 	}
 
   public String copyQuestionsFromPart() {
@@ -1428,7 +1464,7 @@ public String getAddOrEdit()
 
 		Set itemSet = section.getItemSet();
 
-		ArrayList destpools = ContextUtil.paramArrayValueLike("checkboxes");
+		List destpools = ContextUtil.paramArrayValueLike("checkboxes");
 		// sourceId = this.getCurrentPool().getId();
 
 		Iterator iter = destpools.iterator();
@@ -1518,11 +1554,11 @@ public String getAddOrEdit()
 	String itemId= ContextUtil.lookupParam("itemid");
 	ItemService delegate = new ItemService();
 	ItemFacade itemfacade= delegate.getItem(new Long(itemId), AgentFacade.getAgentString());
-	ArrayList itemIds = new ArrayList();
+	List itemIds = new ArrayList();
 	itemIds.add(itemId);
 	setCurrentItemIds(itemIds);
 	 
-	ArrayList itemFacades = new ArrayList();
+	List itemFacades = new ArrayList();
 	itemFacades.add(itemfacade);
 	setCurrentItems(itemFacades);
 	setActionType("item");
@@ -1531,9 +1567,9 @@ public String getAddOrEdit()
   public void getCheckedQuestions() {
 		// String itemId= ContextUtil.lookupParam("itemid");
 
-		ArrayList destItems = ContextUtil.paramArrayValueLike("removeCheckbox");
-		ArrayList itemIds = new ArrayList();
-		ArrayList itemFacades = new ArrayList();
+		List destItems = ContextUtil.paramArrayValueLike("removeCheckbox");
+		List itemIds = new ArrayList();
+		List itemFacades = new ArrayList();
 
 		ItemService delegate = new ItemService();
 		Iterator iter = destItems.iterator();
@@ -1640,7 +1676,7 @@ public String getAddOrEdit()
       String destId= "";
       boolean isUnique=true;
 
-	ArrayList destpools= ContextUtil.paramArrayValueLike("checkboxes");
+	List destpools= ContextUtil.paramArrayValueLike("checkboxes");
  	sourceId = this.getCurrentPool().getId();
         String currentName=this.getCurrentPool().getDisplayName();
     String originId = Long.toString(ORIGIN_TOP.equals(getOutcome())?0:getOutcomePool());
@@ -1835,7 +1871,7 @@ String poolId = ContextUtil.lookupParam("qpid");
 	this.setDeletePoolSource("poollist");
       String poolId= "";
 
-        ArrayList destpools= ContextUtil.paramArrayValueLike("removeCheckbox");
+        List destpools= ContextUtil.paramArrayValueLike("removeCheckbox");
 
     	List qpools = new ArrayList();
         Iterator iter = destpools.iterator();
@@ -1865,11 +1901,19 @@ String poolId = ContextUtil.lookupParam("qpid");
 
         QuestionPoolFacade pool = (QuestionPoolFacade) iter.next();
 	Long poolId= pool.getQuestionPoolId();
-
+          Set<QuestionPoolItemData> qpItems = pool.getQuestionPoolItems();
         delegate.deletePool(poolId, AgentFacade.getAgentString(), tree);
 
           //Questionpool has been deleted
           EventTrackingService.post(EventTrackingService.newEvent("sam.questionpool.delete", "/sam/" +AgentFacade.getCurrentSiteId() + "/removed poolId=" + poolId, true));
+
+          //Update the question index
+          Iterator<QuestionPoolItemData> qpItemsIterator = qpItems.iterator();
+          while (qpItemsIterator.hasNext()){
+              QuestionPoolItemData qpItem = qpItemsIterator.next();
+              EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.unindexitem", "/sam/" + AgentFacade.getCurrentSiteId() + "/unindexed, itemId=" + qpItem.getItemId(), true));
+          }
+
 
         }
 	buildTree();
@@ -1916,10 +1960,6 @@ String poolId = ContextUtil.lookupParam("qpid");
 	return "importQuestion";
   }
 
-  public String exportPool(){
-	return "exportPool";
-  }
-
   public String exportQuestion(){
 	return "exportQuestion";
   }
@@ -1929,6 +1969,11 @@ String poolId = ContextUtil.lookupParam("qpid");
   }
 
   public String editPool(){
+	if(notCurrentPool){
+		notCurrentPool = false;
+		displayNameNotCPool = "";
+	}
+
  	startEditPool();
     this.setAddOrEdit("edit");
     setSubQpDataModelByLevel();
@@ -1950,7 +1995,7 @@ String poolId = ContextUtil.lookupParam("qpid");
    try{
 	QuestionPoolDataBean pool = new QuestionPoolDataBean();
 	int htmlIdLevel = 0;
-	ArrayList allparentPools = new ArrayList();
+	List allparentPools = new ArrayList();
 
           if(qpid != null)
           {
@@ -1963,16 +2008,13 @@ String poolId = ContextUtil.lookupParam("qpid");
 
           // Get all data from the database
           QuestionPoolService delegate = new QuestionPoolService();
-          QuestionPoolFacade thepool =
-            delegate.getPool(
-              new Long(qpid),
-              AgentFacade.getAgentString());
+          // The call to getPool will retrieve all questions/answers/metadata/etc via Hibernate
+          QuestionPoolFacade thepool = delegate.getPool(new Long(qpid), AgentFacade.getAgentString());
           tree.setCurrentId(thepool.getQuestionPoolId());
 
           Long ppoolid = thepool.getParentPoolId();
-
-	 pool.setParentPools(allparentPools);
-	 pool.setParentPoolsArray(allparentPools);
+          pool.setParentPools(allparentPools);
+          pool.setParentPoolsArray(allparentPools);
           while(! ppoolid.toString().equals("0"))
           {
             QuestionPoolFacade ppool =
@@ -2005,10 +2047,6 @@ String poolId = ContextUtil.lookupParam("qpid");
           pool.setObjectives(thepool.getObjectives());
           pool.setOrganizationName(thepool.getOrganizationName());
           pool.setKeywords(thepool.getKeywords());
-
-      //    pool.setProperties((QuestionPoolData) thepool.getData());
-//          pool.setNumberOfSubpools(
-//            new Integer(tree.getChildList(thepool.getQuestionPoolId()).size()).toString());
           pool.setNumberOfSubpools(thepool.getSubPoolSize().toString());
           pool.setNumberOfQuestions(thepool.getQuestionSize().toString());
           pool.setDateCreated(thepool.getDateCreated());
@@ -2020,13 +2058,12 @@ String poolId = ContextUtil.lookupParam("qpid");
       this.setCurrentPool(pool);
       this.setHtmlIdLevel(htmlIdLevel);
 
-      ArrayList list = delegate.getAllItemsSorted(this.getCurrentPool().getId(), this.getSortQuestionProperty(), String.valueOf(this.getSortQuestionAscending()));
-      this.setAllItems(list);
-
+      // SAM-3024 the former call to delegate.getAllItems retrieved all questions/answers/etc again
+      this.setAllItems(new ArrayList(thepool.getQuestions()));
     }
     catch(Exception e)
     {
-      e.printStackTrace();
+      log.error("Error in startEditPoolAgain", e);
       throw new RuntimeException(e);
     }
   }
@@ -2111,29 +2148,26 @@ String poolId = ContextUtil.lookupParam("qpid");
 
   public boolean getSelfOrDescendant(){
   // check if currentPool is ancester of tree.getCurrentObject
-    boolean isDescendant  = false;
-    boolean isSelf= false;
 
-    isDescendant = tree.isDescendantOf(tree.getCurrentId(), this.getCurrentPool().getId());
-    if (tree.getCurrentId().equals(this.getCurrentPool().getId())){
-      isSelf= true;
-    }
-    if (isSelf || isDescendant) {
-      return true ;
-    }
-    else {
-      return false;
+    QuestionPoolDataBean curPool = getCurrentPool();
+    if (tree == null || tree.getCurrentId() == null || curPool == null)
+    {
+        return false;
     }
 
+    boolean isDescendant = tree.isDescendantOf(tree.getCurrentId(), curPool.getId());
+    boolean isSelf = tree.getCurrentId().equals(curPool.getId());
+
+    return isSelf || isDescendant;
   }
 
-  private HashMap buildHash(Collection objects){
-    HashMap map = new HashMap();
+  private Map buildHash(Collection objects){
+    Map map = new HashMap();
     Iterator iter = objects.iterator();
     while(iter.hasNext()){
       QuestionPoolDataIfc pool = (QuestionPoolDataIfc) iter.next();
       Long parentPoolId = pool.getParentPoolId();
-      ArrayList poolList = (ArrayList)map.get(parentPoolId);
+      List poolList = (ArrayList)map.get(parentPoolId);
       if (poolList == null){
         poolList = new ArrayList();
         map.put(parentPoolId, poolList);
@@ -2143,27 +2177,27 @@ String poolId = ContextUtil.lookupParam("qpid");
     return map;
   }
 
-  public ArrayList sortPoolByLevel(Long level, Collection objects, String sortProperty, boolean sortAscending){
-    HashMap map = buildHash(objects);
+  public List sortPoolByLevel(Long level, Collection objects, String sortProperty, boolean sortAscending){
+    Map map = buildHash(objects);
  
     for (Iterator it = map.entrySet().iterator(); it.hasNext();) {
     	Map.Entry entry = (Map.Entry) it.next();
-    	ArrayList poolList = (ArrayList) entry.getValue();
+    	List poolList = (ArrayList) entry.getValue();
     	sortQpoolsByProperty(poolList, sortProperty, sortAscending);
     }
     // poolList in each level has been sorted, now we would put them in the right order
-    ArrayList sortedList = new ArrayList();
-    ArrayList firstLevelPoolList = (ArrayList) map.get(level);
+    List sortedList = new ArrayList();
+    List firstLevelPoolList = (ArrayList) map.get(level);
     if (firstLevelPoolList != null)
       addPoolByLevel(sortedList, map, firstLevelPoolList);
     return sortedList;
   }
 
-  private void addPoolByLevel(ArrayList sortedList, HashMap map, ArrayList poolList){
+  private void addPoolByLevel(List sortedList, Map map, List poolList){
     for (int i=0; i<poolList.size();i++){
       QuestionPoolDataIfc pool = (QuestionPoolDataIfc) poolList.get(i); 
       sortedList.add(pool);
-      ArrayList nextLevelPoolList = (ArrayList) map.get(pool.getQuestionPoolId());
+      List nextLevelPoolList = (List) map.get(pool.getQuestionPoolId());
       if (nextLevelPoolList !=null)
         addPoolByLevel(sortedList, map, nextLevelPoolList);
     }
@@ -2188,7 +2222,7 @@ String poolId = ContextUtil.lookupParam("qpid");
    *
    * @return DOCUMENTATION PENDING
    */
-  public ArrayList getAddedPools()
+  public List getAddedPools()
   {
     return addedPools;
   }
@@ -2199,7 +2233,7 @@ String poolId = ContextUtil.lookupParam("qpid");
    *
    * @param pPool DOCUMENTATION PENDING
    */
-  public void setAddedPools(ArrayList addedPools)
+  public void setAddedPools(List addedPools)
   {
     this.addedPools = addedPools;
   }
@@ -2209,7 +2243,7 @@ String poolId = ContextUtil.lookupParam("qpid");
    *
    * @return DOCUMENTATION PENDING
    */
-  public ArrayList getAddedQuestions()
+  public List getAddedQuestions()
   {
     return addedQuestions;
   }
@@ -2220,7 +2254,7 @@ String poolId = ContextUtil.lookupParam("qpid");
    *
    * @param pPool DOCUMENTATION PENDING
    */
-  public void setAddedQuestions(ArrayList addedQuestions)
+  public void setAddedQuestions(List addedQuestions)
   {
     this.addedQuestions = addedQuestions;
   }
@@ -2249,7 +2283,7 @@ String poolId = ContextUtil.lookupParam("qpid");
 		Collection objects = tree.getSortedObjects();
 
 		if (objects != null) {
-			ArrayList sortedList = sortPoolByLevel(poolId, objects,
+			List sortedList = sortPoolByLevel(poolId, objects,
 					getSortProperty(), getSortAscending());
 			ListDataModel model = new ListDataModel((List) sortedList);
 			QuestionPoolDataModel qpDataModel = new QuestionPoolDataModel(tree,
@@ -2274,7 +2308,7 @@ String poolId = ContextUtil.lookupParam("qpid");
   		// construct the sortedList, pools need to be sorted one level at a time
   		// so the hierachical structure can be maintained. Here, we start from root = 0,
   		if (objects != null) {
-  			ArrayList sortedList = sortPoolByLevel(new Long("0"), objects,
+  			List sortedList = sortPoolByLevel(new Long("0"), objects,
   					sortProperty, sortAscending);
   			ListDataModel model = new ListDataModel((List) sortedList);
   			QuestionPoolDataModel qpDataModel = new QuestionPoolDataModel(tree,
@@ -2294,10 +2328,10 @@ String poolId = ContextUtil.lookupParam("qpid");
   	}
   	
   	public void setSubQpDataModelByLevel() {
-		ArrayList subpools = (ArrayList) tree.getSortedObjects(getCurrentPool()
+		List subpools = (List) tree.getSortedObjects(getCurrentPool()
 				.getId());
 		if (subpools != null) {
-			ArrayList sortedList = sortPoolByLevel(getCurrentPool().getId(),
+			List sortedList = sortPoolByLevel(getCurrentPool().getId(),
 					subpools, getSortSubPoolProperty(),
 					getSortSubPoolAscending());
 
@@ -2307,6 +2341,47 @@ String poolId = ContextUtil.lookupParam("qpid");
 			this.subQpDataModel = subQpDataModel;
 		}
 	}
+	
+  	public String startPreviewPool()
+	{
+		String qpid = (String) FacesContext.getCurrentInstance().getExternalContext().getRequestParameterMap().get("qpid");
+		if(qpid!=null) {
+			Long qpidL = new Long(qpid);
+
+	        QuestionPoolService delegate = new QuestionPoolService();
+	        QuestionPoolFacade thepool = delegate.getPool(qpidL, AgentFacade.getAgentString());
+
+	        if(qpidL.compareTo(getCurrentPool().getId())!=0){
+	        	notCurrentPool = true;
+	        	displayNameNotCPool = thepool.getDisplayName();
+			}
+
+			List<ItemFacade> listAllItems = new ArrayList<>(thepool.getQuestions());
+
+			// Creating the itemContentsBean
+			List<ItemContentsBean> list = new ArrayList<>();
+			int number=0;
+			for (ItemDataIfc item : listAllItems) {
+				ItemContentsBean itemBean = new ItemContentsBean(item);
+				itemBean.setNumber(++number);
+				list.add(itemBean);
+			}
+			setItemsBean(list);
+
+			return "previewPool";
+		}
+		else {
+			return "";
+		}
+	}
+
+  	public List<ItemContentsBean> getItemsBean() {
+  		return this.itemsBean;
+  	}
+  	
+  	public void setItemsBean(List<ItemContentsBean> itemsBean) {
+  		this.itemsBean = itemsBean;
+  	}
   	
   	public String getAgentId()
   	{
@@ -2318,14 +2393,624 @@ String poolId = ContextUtil.lookupParam("qpid");
   		return owner;
   	}
   	
-  	// **********************************************
-  	// ****************** SAM-2049 ******************
-  	// **********************************************
-  	
-  	public boolean getSortTransferPoolAscending() {
-  		return sortTransferPoolAscending;
-  	}
-  	
+
+	public String exportPool() {
+		String poolId= ContextUtil.lookupParam("poolId");
+		log.debug("exporting as Excel: poolid = {}", poolId);
+
+		QuestionPoolService delegate = new QuestionPoolService();
+		QuestionPoolFacade qPool =
+				delegate.getPool(new Long(poolId), AgentFacade.getAgentString());
+
+		// changed from above by gopalrc - Jan 2008
+		// to allow local customization of spreadsheet output
+		FacesContext faces = FacesContext.getCurrentInstance();
+		HttpServletResponse response = (HttpServletResponse)faces.getExternalContext().getResponse();
+		response.reset();	// Eliminate the added-on stuff
+		response.setHeader("Pragma", "public");	// Override old-style cache control
+		response.setHeader("Cache-Control", "public, must-revalidate, post-check=0, pre-check=0, max-age=0");	// New-style
+		writeDataToResponse(getSpreadsheetData(poolId), getDownloadFileName(qPool.getDisplayName()), response);
+		faces.responseComplete();
+	
+		return "";
+	}
+	
+	private List<List<Object>> getSpreadsheetData(String poolId) {
+		List exportResponsesDataList = getExportResponsesData(poolId);
+		List<List<Object>> list = (List<List<Object>>) exportResponsesDataList.get(0);
+
+		// Now insert the header line
+		List<Object> headerList = new ArrayList<>();
+		headerList.add(ExportResponsesBean.HEADER_MARKER);
+		
+		headerList.addAll((List) exportResponsesDataList.get(1));
+		
+		list.add(0,headerList);
+		
+		// gopalrc - Jan 2008 - New Sheet Marker
+		List<Object> newSheetList = new ArrayList<>();
+		newSheetList.add(ExportResponsesBean.NEW_SHEET_MARKER);
+		newSheetList.add(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.EvaluationMessages","responses"));
+		list.add(0, newSheetList);
+		
+		return list;
+	}
+
+	/**
+	 * Generates a default filename (minus the extension) for a download from this Gradebook. 
+	 *
+	 * @param   prefix for filename
+	 * @return The appropriate filename for the export
+	 */
+	public String getDownloadFileName(String name) {
+		Date now = new Date();
+		String dateFormat = "yyyyMMddHHmmss";
+		DateFormat df = new SimpleDateFormat(dateFormat);
+		StringBuilder fileName = new StringBuilder();
+		if(StringUtils.isNotEmpty(name)) {
+			name = name.replaceAll("\\s", "_"); // replace whitespace with '_'
+			fileName.append(name);
+		}
+		fileName.append("-");
+		fileName.append(df.format(now));
+		return fileName.toString();
+	}
+    
+    
+	public void writeDataToResponse(List<List<Object>> spreadsheetData, String fileName, HttpServletResponse response) {
+		String mimetype = "application/vnd.ms-excel;charset=UTF-8";
+		String extension = ".xls";
+		int columns = findColumnSize(spreadsheetData);
+		if (columns >= 255) {
+			// allows for greater than 255 columns - SAK-16560
+			mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+			extension = ".xlsx";
+			log.info("Samigo export ("+columns+" columns): Using xlsx mimetype: " + mimetype);
+		}
+		response.setContentType(mimetype);
+		
+		String escapedFilename = org.sakaiproject.util.Validator.escapeUrl(fileName);
+		HttpServletRequest request = (HttpServletRequest) FacesContext.getCurrentInstance().getExternalContext().getRequest();
+		String userAgent = request.getHeader("User-Agent"); 
+		if (StringUtils.contains(userAgent, "MSIE")) { 
+			response.setHeader("Content-disposition", "attachment; filename=" + escapedFilename + extension);
+		}
+		else {
+			response.setHeader("Content-disposition", "attachment; filename*=utf-8''" + escapedFilename + extension);
+		}
+		
+		OutputStream out = null;
+		try {
+			out = response.getOutputStream();
+			getAsWorkbook(spreadsheetData).write(out);
+			out.flush();
+		} catch (IOException e) {
+			if (log.isErrorEnabled()) {
+				log.error(e.getMessage());
+			}
+		} finally {
+			try {
+				if (out != null) {
+					out.close();
+				}
+			} catch (IOException e) {
+				if (log.isErrorEnabled()) {
+					log.error(e.getMessage());
+				}
+			}
+		}
+	}
+	
+	/**
+	 * 
+	 * @param spreadsheetData
+	 * @return
+	 */
+	protected Workbook getAsWorkbookTest(List<List<Object>> spreadsheetData) {
+		Workbook wb = new HSSFWorkbook();
+		Sheet sheet = wb.createSheet();
+		
+		short rowPos = 0;
+		for( List<Object> rowData: spreadsheetData ) {
+			short cellPos = 0;
+			if (rowPos == 0) {
+				// By convention, the first list in the list contains column headers.
+				Row headerRow = sheet.createRow(rowPos++);
+				for( Object header: rowData ) {
+					createCell(headerRow, cellPos++, null).setCellValue(header.toString());
+				}
+			}
+			else {
+				Row row = sheet.createRow(rowPos++);
+				for ( Object data : rowData ) {
+					Cell cell = createCell(row, cellPos++, null);
+					if (data != null) {
+						if (data instanceof Double) {
+							cell.setCellValue(((Double)data).doubleValue());
+						} 
+						else {
+							cell.setCellValue(data.toString());
+						}
+					}
+				}
+			}
+		}
+
+		return wb;
+	}
+	
+	/**
+	 * 
+	 * @param spreadsheetData
+	 * @return
+	 */
+	public Workbook getAsWorkbook(List<List<Object>> spreadsheetData) {
+		// outer list is rows, inner list is columns (cells in the row)
+		int columns = findColumnSize(spreadsheetData);
+		Workbook wb = new HSSFWorkbook();
+		if (columns < 255) {
+			log.info("Samigo export ("+columns+" columns): Using xsl format");
+		} else {
+			// allows for greater than 255 columns - SAK-16560
+			log.info("Samigo export ("+columns+" columns): Using xslx format");
+		}
+
+		CellStyle boldStyle = wb.createCellStyle();
+		Font font = wb.createFont();
+		font.setBoldweight(Font.BOLDWEIGHT_BOLD);
+		boldStyle.setFont(font);
+		CellStyle headerStyle = boldStyle;
+		
+		Sheet sheet = null;
+
+		short rowPos = 0;
+		for ( List<Object>rowData : spreadsheetData ) {
+			
+			if (ExportResponsesBean.NEW_SHEET_MARKER.equals(rowData.get(0).toString())) {
+				sheet = wb.createSheet(rowData.get(1).toString());
+				rowPos = 0;
+			}
+			// By convention, the first list in the list contains column headers.
+			// This should only happen once and usually only in a single-sheet workbook
+			else if (ExportResponsesBean.HEADER_MARKER.equals(rowData.get(0).toString())) {
+				if (sheet == null) {
+					sheet = wb.createSheet("responses"); // avoid NPE
+				}
+				Row headerRow = sheet.createRow(rowPos++);
+				short colPos = 0;
+				for (Object data : rowData) {
+					createCell(headerRow, colPos++, headerStyle).setCellValue(data.toString());
+				}
+			}
+			else {
+				if (sheet == null) {
+					sheet = wb.createSheet("responses"); // avoid NPE
+				}
+				Row row = sheet.createRow(rowPos++);
+				short colPos = 0;
+				for ( Object data : rowData ) {
+					Cell cell = null;
+					
+					if (data != null) {
+						if (StringUtils.startsWith(data.toString(), ExportResponsesBean.FORMAT)) {
+							if (ExportResponsesBean.FORMAT_BOLD.equals(data)) {
+								cell = createCell(row, colPos++, boldStyle);
+							}
+						}
+						else {
+							cell = createCell(row, colPos++, null);
+						}
+						if (data != null) {
+							if (data instanceof Double) {
+								cell.setCellValue(((Double)data).doubleValue());
+							} else {
+								// stripping html for export, SAK-17021
+								cell.setCellValue(data.toString());
+							}
+						}
+					}
+				}
+			}
+			
+		}
+		
+		return wb;
+	}
+
+	private int findColumnSize(List<List<Object>> spreadsheetData) {
+		int columns = 0; // the largest number of columns required for a row
+		for (List<Object> list : spreadsheetData) {
+			if (list != null && list.size() > columns) {
+				columns = list.size();
+			}
+		}
+		return columns;
+	}
+	
+	private Cell createCell(Row row, short column, CellStyle cellStyle) {
+		Cell cell = row.createCell(column);
+		if (cellStyle != null) {
+			cell.setCellStyle(cellStyle);
+		}
+		
+		return cell;
+	}
+	
+	public List<Object> getExportResponsesData(String poolId) {
+		List<List<Object>> dataList = new ArrayList<>();
+		List<Object> headerList = new ArrayList<>();
+		List<Object> finalList = new ArrayList<>(2);
+	
+		Float itemScore = null;
+		
+		String questionString = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_question");
+		String responseString = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_response");
+		String feedbackString = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_feedback");
+		String keyString = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_key");
+
+		// Create Header List
+		headerList.add(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_text"));
+		headerList.add(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_type"));
+		headerList.add(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_points"));
+		headerList.add(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_discount"));
+		headerList.add(responseString.concat(" A"));
+		headerList.add(feedbackString.concat(" A"));
+		headerList.add(responseString.concat(" B"));
+		headerList.add(feedbackString.concat(" B"));
+		headerList.add(responseString.concat(" C"));
+		headerList.add(feedbackString.concat(" C"));
+		headerList.add(responseString.concat(" D"));
+		headerList.add(feedbackString.concat(" D"));
+		headerList.add(keyString);
+		headerList.add(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_feedbackCorrect"));
+		headerList.add(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","q_feedbackIncorrect"));
+
+		// There are 4 answers by default in a multiple choice question 
+		final int DEFAULT_MAX_ANSWERS = 4;
+		int maxAnswers = DEFAULT_MAX_ANSWERS;
+		
+		// Get the items of questionpool
+		List<ItemContentsBean>itemBeans = this.getItemsBean();
+		
+		int questionNumber = 1;
+		for ( ItemContentsBean itemBean : itemBeans) {
+			ItemFacade item = new ItemFacade(itemBean.getItemData());
+				
+			List<Object> row = new ArrayList<>();
+			List<String> answerList = new ArrayList<>();
+			List<String> feedbackList = new ArrayList<>();
+			List<String> feedbackAnswerList = new ArrayList<>();
+		
+			// Get the question string
+			row.add(questionString + " " + questionNumber++);
+			
+			// Get the question text
+			row.add(FormattedText.convertFormattedTextToPlaintext(item.getData().getText()));
+			
+			// Get the question type
+			row.add(getTypeQuestion(item.getData().getTypeId()));
+			
+			// Get the points
+			row.add(item.getData().getScore());
+		
+			// Get the discount
+			row.add(item.getData().getDiscount());
+
+			StringBuilder contentBuffer = new StringBuilder();
+			StringBuilder key = new StringBuilder();
+		
+			if (TypeIfc.AUDIO_RECORDING.equals(item.getData().getTypeId())) {
+				// Key
+				key.append(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","time_allowed_seconds"));
+				key.append(" " + item.getData().getDuration() + "\n");
+				key.append(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","number_of_tries"));
+				key.append(" " + item.getData().getTriesAllowed());
+				
+				// Feedback
+				if (StringUtils.isNotEmpty(item.getData().getGeneralItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getGeneralItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+			}
+			else if (TypeIfc.FILE_UPLOAD.equals(item.getData().getTypeId())) {
+				// Answer
+				answerList.add("");
+				
+				// Feedback
+				if (StringUtils.isNotEmpty(item.getData().getGeneralItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getGeneralItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+			}
+			else if (TypeIfc.MULTIPLE_CORRECT.equals(item.getData().getTypeId()) ||
+					TypeIfc.MULTIPLE_CHOICE.equals(item.getData().getTypeId()) ||
+					TypeIfc.MULTIPLE_CHOICE_SURVEY.equals(item.getData().getTypeId()) ||
+					TypeIfc.MULTIPLE_CORRECT_SINGLE_SELECTION.equals(item.getData().getTypeId()) ||
+					TypeIfc.TRUE_FALSE.equals(item.getData().getTypeId()) ||
+					TypeIfc.MATRIX_CHOICES_SURVEY.equals(item.getData().getTypeId())) {
+
+				// Answer
+				for ( ItemTextIfc itemtext : item.getData().getItemTextArraySorted() ) {
+					List<AnswerIfc> answers = itemtext.getAnswerArraySorted();
+
+					for ( AnswerIfc answer : answers ) {
+						if (answer.getText() == null) {
+							break;
+						}
+												
+						contentBuffer.setLength(0);
+						String answerText = "";
+						if (TypeIfc.MULTIPLE_CHOICE_SURVEY.equals(item.getData().getTypeId())) {
+							answerText = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages", answer.getText());
+						}
+						else {
+							answerText = FormattedText.convertFormattedTextToPlaintext(answer.getText());
+						}
+						contentBuffer.append(answerText);
+						
+						answerList.add(contentBuffer.toString());
+						
+						contentBuffer.setLength(0);
+						if (StringUtils.isNotEmpty(answer.getGeneralAnswerFeedback())) {
+							contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(answer.getGeneralAnswerFeedback()));
+						}
+						feedbackAnswerList.add(contentBuffer.toString());	
+					}
+					
+					// If there are more columns than 4 we will need to add dynamically the others
+					if (answers.size() > DEFAULT_MAX_ANSWERS) {
+						for (int i=0; i<answers.size()-maxAnswers; i++) {
+							int index = headerList.lastIndexOf(keyString);
+							headerList.add(index, responseString.concat(" " + (char)('A' + maxAnswers + i)));
+							headerList.add(index+1, feedbackString.concat(" " + (char)('A' + maxAnswers + i)));
+							for ( List<Object> row2 : dataList) {
+								row2.add(index, "");
+								row2.add(index+1, "");
+							}
+						}
+						maxAnswers = answers.size();
+					}
+				}
+				
+				// Key
+				if (!TypeIfc.MULTIPLE_CHOICE_SURVEY.equals(item.getData().getTypeId()) &&
+					!TypeIfc.MATRIX_CHOICES_SURVEY.equals(item.getData().getTypeId())) {
+					key.append(item.getAnswerKey());
+				}
+				
+				// Feedback
+				if (!TypeIfc.MULTIPLE_CHOICE_SURVEY.equals(item.getData().getTypeId()) &&
+					!TypeIfc.MATRIX_CHOICES_SURVEY.equals(item.getData().getTypeId())) {
+					if (StringUtils.isNotEmpty(item.getData().getCorrectItemFeedback())) {
+						contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getCorrectItemFeedback()));
+					}
+					feedbackList.add(contentBuffer.toString());
+					
+					contentBuffer.setLength(0);
+					if (StringUtils.isNotEmpty(item.getData().getInCorrectItemFeedback())) {
+						contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getInCorrectItemFeedback()));
+					}
+					feedbackList.add(contentBuffer.toString());
+				}
+				else {
+					if (StringUtils.isNotEmpty(item.getData().getGeneralItemFeedback())) {
+						contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getGeneralItemFeedback()));
+					}
+					feedbackList.add(contentBuffer.toString());
+				}
+			}
+			else if (TypeIfc.MATCHING.equals(item.getData().getTypeId())) {
+				
+				// Answer
+				for ( ItemTextIfc matching : item.getData().getItemTextArray() ) {
+					contentBuffer.setLength(0);
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(matching.getText()));
+					contentBuffer.append("--->");
+					
+					boolean first = true;
+					for ( AnswerIfc answer : matching.getAnswerArraySorted() ) {
+						if (answer.getText() == null) {
+							break;
+						}
+						
+						if (first) {
+							contentBuffer.append(" | ");
+							first = false;
+						}
+						contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(answer.getText()));
+					}
+					
+					answerList.add(contentBuffer.toString());
+				}
+
+				// Key
+				key.append(item.getAnswerKey());
+				
+				// Feedback
+				contentBuffer.setLength(0);
+				if (StringUtils.isNotEmpty(item.getData().getCorrectItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getCorrectItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+				
+				contentBuffer.setLength(0);
+				if (StringUtils.isNotEmpty(item.getData().getInCorrectItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getInCorrectItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+			}
+			else if (TypeIfc.ESSAY_QUESTION.equals(item.getData().getTypeId())) {
+				
+				ItemTextIfc itemText = item.getData().getItemTextArray().get(0);
+				String answerText = "";
+				if (itemText.getAnswerArray() != null && itemText.getAnswerArray().size() > 0) {
+					AnswerIfc answer = itemText.getAnswerArray().get(0);
+					answerText = answer.getText();
+				}
+				
+				// Key
+				key.append(ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.QuestionPoolMessages","answer_model"));
+				key.append("\n");
+				key.append(answerText);
+				
+				// Feedback
+				contentBuffer.setLength(0);
+				if (StringUtils.isNotEmpty(item.getData().getGeneralItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getGeneralItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+			}
+			else if (TypeIfc.FILL_IN_BLANK.equals(item.getData().getTypeId()) ||
+					TypeIfc.FILL_IN_NUMERIC.equals(item.getData().getTypeId())) {
+				
+				// Key
+				ItemTextIfc itemText = item.getData().getItemTextArray().get(0);
+				boolean first = true;
+				for ( AnswerIfc answer : itemText.getAnswerArray() ) {
+					if (answer.getText() == null) {
+						break;
+					}
+					
+					if (first) {
+						contentBuffer.append(" | ");
+						first = false;
+					}
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(answer.getText()));
+				}
+				key.append(contentBuffer.toString());
+				
+				// Feedback
+				contentBuffer.setLength(0);
+				if (StringUtils.isNotEmpty(item.getData().getCorrectItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getCorrectItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+				
+				contentBuffer.setLength(0);
+				if (StringUtils.isNotEmpty(item.getData().getInCorrectItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getInCorrectItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+			}
+			else if (TypeIfc.CALCULATED_QUESTION.equals(item.getData().getTypeId())) {
+				// key
+
+				// Feedback
+				contentBuffer.setLength(0);
+				if (StringUtils.isNotEmpty(item.getData().getCorrectItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getCorrectItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+
+				contentBuffer.setLength(0);
+				if (StringUtils.isNotEmpty(item.getData().getInCorrectItemFeedback())) {
+					contentBuffer.append(FormattedText.convertFormattedTextToPlaintext(item.getData().getInCorrectItemFeedback()));
+				}
+				feedbackList.add(contentBuffer.toString());
+			}
+			else if (TypeIfc.EXTENDED_MATCHING_ITEMS.equals(item.getData().getTypeId())) {
+				//TODO:
+
+			}
+
+			// Responses && Feedback
+			for (int i=0; i<maxAnswers; i++) {
+				if (answerList.size() > i) {
+					row.add(answerList.get(i));
+					if (feedbackAnswerList.size() > i) {
+						row.add(feedbackAnswerList.get(i));
+					}
+					else {
+						row.add("");
+					}
+				}
+				else {
+					row.add(""); // blank answer
+					row.add(""); // blank feedback answer
+				}
+			}
+			
+			// Key
+			row.add(key.toString());
+			
+			// Feedback correct & incorrect
+			for (int i=0; i<2; i++) {
+				if (feedbackList.size() > i) {
+					row.add(feedbackList.get(i));
+				}
+				else {
+					row.add("");
+				}
+			}
+		
+			dataList.add(row);
+		}
+			
+		finalList.add(dataList);
+		finalList.add(headerList);
+		return finalList;
+	}
+
+	private String getTypeQuestion(Long typeId) {
+		String type = "";
+		ResourceLoader rb = new ResourceLoader("org.sakaiproject.tool.assessment.bundle.EvaluationMessages");
+		ResourceLoader rc = new ResourceLoader("org.sakaiproject.tool.assessment.bundle.CommonMessages");
+		if (typeId == TypeIfc.MULTIPLE_CHOICE.intValue()) {
+			type = rc.getString("multiple_choice_sin");
+		}
+		if (typeId == TypeIfc.MULTIPLE_CORRECT.intValue()) {
+			type = rc.getString("multipl_mc_ms");
+		}
+		if (typeId == TypeIfc.MULTIPLE_CORRECT_SINGLE_SELECTION.intValue()) {
+			type = rc.getString("multipl_mc_ss");
+		}
+		if (typeId == TypeIfc.MULTIPLE_CHOICE_SURVEY.intValue()) {
+			type = rb.getString("q_mult_surv");
+		}
+		if (typeId == TypeIfc.TRUE_FALSE.intValue()) {
+			type = rb.getString("q_tf");
+		}
+		if (typeId == TypeIfc.ESSAY_QUESTION.intValue()) {
+			type = rb.getString("q_short_ess");
+		}
+		if (typeId == TypeIfc.FILE_UPLOAD.intValue()) {
+			type = rb.getString("q_fu");
+		}
+		if (typeId == TypeIfc.AUDIO_RECORDING.intValue()) {
+			type = rb.getString("q_aud");
+		}
+		if (typeId == TypeIfc.FILL_IN_BLANK.intValue()) {
+			type = rb.getString("q_fib");
+		}
+		if (typeId == TypeIfc.MATCHING.intValue()) {
+			type = rb.getString("q_match");
+		}
+		if (typeId == TypeIfc.FILL_IN_NUMERIC.intValue()) {
+			type = rb.getString("q_fin");
+		}
+		if (typeId == TypeIfc.EXTENDED_MATCHING_ITEMS.intValue()) {
+			type = rb.getString("q_emi");
+		}
+		if (typeId == TypeIfc.MATRIX_CHOICES_SURVEY.intValue()) {
+			type = rb.getString("q_matrix_choices_surv");
+		}
+		if (typeId == TypeIfc.CALCULATED_QUESTION.intValue()) {
+			type = rb.getString("q_cq");
+		}
+		if (typeId == TypeIfc.IMAGEMAP_QUESTION.intValue()) {
+			type = rb.getString("q_imq");
+		}
+		return type;
+	}
+	
+	// **********************************************
+	// ****************** SAM-2049 ******************
+	// **********************************************
+	
+	public boolean getSortTransferPoolAscending() {
+		return sortTransferPoolAscending;
+	}
+	
 	public void setSortTransferPoolAscending(boolean sspa) {
 		sortTransferPoolAscending = sspa;
 	}
@@ -2432,7 +3117,7 @@ String poolId = ContextUtil.lookupParam("qpid");
   		// Construct the sortedList, pools need to be sorted one level at a time
   		// so the hierachical structure can be maintained. Here, we start from root = 0,
   		if (objects != null) {
-  			ArrayList<QuestionPoolDataIfc> sortedList = sortPoolByLevel(new Long("0"), objects,
+  			List<QuestionPoolDataIfc> sortedList = sortPoolByLevel(new Long("0"), objects,
   					getSortTransferPoolProperty(), getSortTransferPoolAscending());
   			ListDataModel model = new ListDataModel((List<QuestionPoolDataIfc>) sortedList);
   			QuestionPoolDataModel qpDataModel = new QuestionPoolDataModel(tree,
@@ -2447,7 +3132,7 @@ String poolId = ContextUtil.lookupParam("qpid");
 		// Construct the sortedList, pools need to be sorted one level at a time
 		// so the hierachical structure can be maintained. Here, we start from root = 0,
 		if (objects != null) {
-			ArrayList<QuestionPoolDataIfc> sortedList = sortPoolByLevel(new Long("0"), objects,
+			List<QuestionPoolDataIfc> sortedList = sortPoolByLevel(new Long("0"), objects,
 					"title", true);
 			ListDataModel model = new ListDataModel((List<QuestionPoolDataIfc>) sortedList);
 			QuestionPoolDataModel qpDataModel = new QuestionPoolDataModel(tree,

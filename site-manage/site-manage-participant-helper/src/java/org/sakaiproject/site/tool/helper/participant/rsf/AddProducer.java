@@ -3,16 +3,16 @@ package org.sakaiproject.site.tool.helper.participant.rsf;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.site.tool.helper.participant.impl.SiteAddParticipantHandler;
 import org.sakaiproject.tool.api.SessionManager;
 import org.sakaiproject.tool.api.Tool;
 import org.sakaiproject.user.api.UserDirectoryService;
 
-import uk.ac.cam.caret.sakai.rsf.producers.FrameAdjustingProducer;
-import uk.ac.cam.caret.sakai.rsf.util.SakaiURLUtil;
+import org.sakaiproject.rsf.producers.FrameAdjustingProducer;
+import org.sakaiproject.rsf.util.SakaiURLUtil;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.messageutil.TargettedMessage;
 import uk.org.ponder.messageutil.TargettedMessageList;
@@ -48,7 +48,7 @@ import uk.org.ponder.stringutil.StringList;
 public class AddProducer implements ViewComponentProducer, NavigationCaseReporter, DefaultView, ViewParamsReporter, ActionResultInterceptor {
 
 	/** Our log (commons). */
-	private static final Log M_log = LogFactory.getLog(AddProducer.class);
+	private static final Logger M_log = LoggerFactory.getLogger(AddProducer.class);
 
     public SiteAddParticipantHandler handler;
     public static final String VIEW_ID = "Add";

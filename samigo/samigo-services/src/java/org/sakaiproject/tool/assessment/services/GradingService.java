@@ -23,6 +23,7 @@
 package org.sakaiproject.tool.assessment.services;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
@@ -47,14 +49,19 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.commons.math.complex.Complex;
-import org.apache.commons.math.complex.ComplexFormat;
-import org.apache.commons.math.util.MathUtils;
+import org.apache.commons.math3.complex.Complex;
+import org.apache.commons.math3.complex.ComplexFormat;
+import org.apache.commons.math3.exception.MathParseException;
+import org.apache.commons.math3.util.Precision;
+import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedItemData;
+import org.sakaiproject.tool.assessment.data.dao.grading.StudentGradingSummaryData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.event.cover.EventTrackingService;
+import org.sakaiproject.samigo.util.SamigoConstants;
 import org.sakaiproject.service.gradebook.shared.GradebookExternalAssessmentService;
 import org.sakaiproject.spring.SpringBeanLocator;
+import org.sakaiproject.tool.assessment.data.dao.grading.AssessmentGradingAttachment;
 import org.sakaiproject.tool.assessment.data.dao.grading.AssessmentGradingData;
 import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingAttachment;
 import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingData;
@@ -100,6 +107,9 @@ public class GradingService
   final String CLOSE_BRACKET = "\\}";
   final String CALCULATION_OPEN = "[["; // not regex safe
   final String CALCULATION_CLOSE = "]]"; // not regex safe
+  final String FORMAT_MASK = "0E0";
+  final Double MAX_THRESHOLD = 10000.0;
+  final Double MIN_THRESHOLD = 0.0001;
   /**
    * regular expression for matching the contents of a variable or formula name 
    * in Calculated Questions
@@ -115,35 +125,35 @@ public class GradingService
   final Pattern CALCQ_FORMULA_SPLIT_PATTERN = Pattern.compile("(" + OPEN_BRACKET + OPEN_BRACKET + CALCQ_VAR_FORM_NAME + CLOSE_BRACKET + CLOSE_BRACKET + ")");
   final Pattern CALCQ_CALCULATION_PATTERN = Pattern.compile("\\[\\[([^\\[\\]]+?)\\]\\]?"); // non-greedy
 
-  private Log log = LogFactory.getLog(GradingService.class);
+  private Logger log = LoggerFactory.getLogger(GradingService.class);
 
   /**
    * Get all scores for a published assessment from the back end.
    */
-  public ArrayList getTotalScores(String publishedId, String which)
+  public List getTotalScores(String publishedId, String which)
   {
-    ArrayList results = null;
+    List results = null;
     try {
       results =
         new ArrayList(PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getTotalScores(publishedId,
              which));
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
   
-  public ArrayList getTotalScores(String publishedId, String which, boolean getSubmittedOnly)
+  public List getTotalScores(String publishedId, String which, boolean getSubmittedOnly)
   {
-    ArrayList results = null;
+    List results = null;
     try {
       results =
         new ArrayList(PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getTotalScores(publishedId,
              which, getSubmittedOnly));
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
@@ -158,7 +168,7 @@ public class GradingService
       results = PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getAllSubmissions(publishedId);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
@@ -170,46 +180,46 @@ public class GradingService
       results = PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getAllAssessmentGradingData(publishedId);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
 
-  public ArrayList getHighestAssessmentGradingList(Long publishedId)
+  public List getHighestAssessmentGradingList(Long publishedId)
   {
-    ArrayList results = null;
+    List results = null;
     try {
       results =
         new ArrayList(PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getHighestAssessmentGradingList(publishedId));
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
   
   public List getHighestSubmittedOrGradedAssessmentGradingList(Long publishedId)
   {
-    ArrayList results = null;
+    List results = null;
     try {
       results =
         new ArrayList(PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getHighestSubmittedOrGradedAssessmentGradingList(publishedId));
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
 
-  public ArrayList getLastAssessmentGradingList(Long publishedId)
+  public List getLastAssessmentGradingList(Long publishedId)
   {
-    ArrayList results = null;
+    List results = null;
     try {
       results =
         new ArrayList(PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getLastAssessmentGradingList(publishedId));
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
@@ -222,7 +232,7 @@ public class GradingService
     	  PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getLastSubmittedAssessmentGradingList(publishedId);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
@@ -235,12 +245,12 @@ public class GradingService
     	  PersistenceService.getInstance().
            getAssessmentGradingFacadeQueries().getLastSubmittedOrGradedAssessmentGradingList(publishedId);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
     }
     return results;
   }
   
-  public void saveTotalScores(ArrayList gdataList, PublishedAssessmentIfc pub)
+  public void saveTotalScores(List gdataList, PublishedAssessmentIfc pub)
   {
       //log.debug("**** GradingService: saveTotalScores");
     try {
@@ -250,12 +260,11 @@ public class GradingService
       else return;
 
       Integer scoringType = getScoringType(pub);
-      ArrayList oldList = getAssessmentGradingsByScoringType(
-          scoringType, gdata.getPublishedAssessmentId());
+      List oldList = getAssessmentGradingsByScoringType(scoringType, gdata.getPublishedAssessmentId());
       for (int i=0; i<gdataList.size(); i++){
         AssessmentGradingData ag = (AssessmentGradingData)gdataList.get(i);
         saveOrUpdateAssessmentGrading(ag);
-        EventTrackingService.post(EventTrackingService.newEvent("sam.total.score.update", 
+        EventTrackingService.post(EventTrackingService.newEvent(SamigoConstants.EVENT_ASSESSMENT_TOTAL_SCORE_UPDATE, 
         		"siteId=" + AgentFacade.getCurrentSiteId() +
         		", gradedBy=" + AgentFacade.getAgentString() + 
         		", assessmentGradingId=" + ag.getAssessmentGradingId() + 
@@ -267,9 +276,9 @@ public class GradingService
 
       // no need to notify gradebook if this submission is not for grade
       // we only want to notify GB when there are changes
-      ArrayList newList = getAssessmentGradingsByScoringType(
+      List newList = getAssessmentGradingsByScoringType(
         scoringType, gdata.getPublishedAssessmentId());
-      ArrayList l = getListForGradebookNotification(newList, oldList);
+      List l = getListForGradebookNotification(newList, oldList);
       
       notifyGradebook(l, pub);
     } catch (GradebookServiceException ge) {
@@ -278,11 +287,54 @@ public class GradingService
     } 
   }
 
+  /**
+   * This method is added to update student's total score to gradebook
+   * after submit attept is deleted in assessment.
+   * @param gdataList  a list of AssessmentGradingData
+   * @param pub   PublishedAssessment object
+   * @param studentId
+   */
 
-  private ArrayList getListForGradebookNotification(
-       ArrayList newList, ArrayList oldList){
-    ArrayList l = new ArrayList();
-    HashMap h = new HashMap();
+  public void notifyDeleteToGradebook(List gdataList, PublishedAssessmentIfc pub, String studentId){
+    try {
+      AssessmentGradingData gdata = null;
+      if (gdataList.size()>0) {
+        gdata = (AssessmentGradingData) gdataList.get(0);
+      } 
+      else {
+        return;
+      }
+
+      Integer scoringType = getScoringType(pub);
+      List fullList = getAssessmentGradingsByScoringType(
+          scoringType, gdata.getPublishedAssessmentId());
+
+      List l = new ArrayList();
+      for (int i=0; i< fullList.size(); i++){
+         AssessmentGradingData ag = (AssessmentGradingData)fullList.get(i);
+         if (ag.getAgentId().equals(studentId))
+               l.add(ag);
+      }
+      
+      //When there is no more submission left for this student, update
+      //this student's grade on gradebook as null(the initial state).
+      if(l.size() == 0)
+    	  l.add(gdata);
+
+      notifyGradebook(l, pub);
+    } catch (GradebookServiceException ge) {
+         log.error(ge.getMessage(), ge);
+         throw ge;
+    } catch (Exception e) {
+         log.error(e.getMessage(), e);
+         throw new RuntimeException(e);
+    }
+
+  }
+
+  private List getListForGradebookNotification(List newList, List oldList) {
+    List l = new ArrayList();
+    Map h = new HashMap();
     for (int i=0; i<oldList.size(); i++){
       AssessmentGradingData ag = (AssessmentGradingData)oldList.get(i);
       h.put(ag.getAssessmentGradingId(), ag);
@@ -297,14 +349,22 @@ public class GradingService
       else{ // if new is different from old, include it for update
         AssessmentGradingData b = (AssessmentGradingData) o;
         if ((a.getFinalScore()!=null && b.getFinalScore()!=null) 
-            && !a.getFinalScore().equals(b.getFinalScore()))
-          l.add(a);
+            && !a.getFinalScore().equals(b.getFinalScore())) {
+            l.add(a);
+        }
+        // if scores are not modified but comments are added, include it for update
+        Optional<String> commentsA = Optional.ofNullable(a.getComments());
+        Optional<String> commentsB = Optional.ofNullable(b.getComments());
+
+        if ( !commentsA.orElse("").equals(commentsB.orElse("")) ){
+        	l.add(a);
+        }
       }
     }
     return l;
   }
 
-  public ArrayList getAssessmentGradingsByScoringType(
+  public List getAssessmentGradingsByScoringType(
        Integer scoringType, Long publishedAssessmentId){
     List l = null;
     // get the list of highest score
@@ -343,7 +403,7 @@ public class GradingService
     return (forGrade && toGradebook);
   }
 
-  private void notifyGradebook(ArrayList l, PublishedAssessmentIfc pub){
+  private void notifyGradebook(List l, PublishedAssessmentIfc pub){
     for (int i=0; i<l.size(); i++){
       notifyGradebook((AssessmentGradingData)l.get(i), pub);
     }
@@ -353,38 +413,38 @@ public class GradingService
   /**
    * Get the score information for each item from the assessment score.
    */
-  public HashMap getItemScores(Long publishedId, Long itemId, String which)
+  public Map getItemScores(Long publishedId, Long itemId, String which)
   {
     try {
-      return (HashMap) PersistenceService.getInstance().
+      return PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries()
           .getItemScores(publishedId, itemId, which);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       return new HashMap();
     }
   }
   
-  public HashMap getItemScores(Long publishedId, Long itemId, String which, boolean loadItemGradingAttachment)
+  public Map getItemScores(Long publishedId, Long itemId, String which, boolean loadItemGradingAttachment)
   {
     try {
-      return (HashMap) PersistenceService.getInstance().
+      return PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries()
           .getItemScores(publishedId, itemId, which, loadItemGradingAttachment);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       return new HashMap();
     }
   }
 
-  public HashMap getItemScores(Long itemId, List scores, boolean loadItemGradingAttachment)
+  public Map getItemScores(Long itemId, List scores, boolean loadItemGradingAttachment)
   {
     try {
-      return (HashMap) PersistenceService.getInstance().
+      return PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries()
           .getItemScores(itemId, scores, loadItemGradingAttachment);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       return new HashMap();
     }
   }
@@ -392,14 +452,14 @@ public class GradingService
   /**
    * Get the last set of itemgradingdata for a student per assessment
    */
-  public HashMap getLastItemGradingData(String publishedId, String agentId)
+  public Map getLastItemGradingData(String publishedId, String agentId)
   {
     try {
-      return (HashMap) PersistenceService.getInstance().
+      return PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries()
           .getLastItemGradingData(Long.valueOf(publishedId), agentId);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       return new HashMap();
     }
   }
@@ -407,14 +467,14 @@ public class GradingService
   /**
    * Get the grading data for a given submission
    */
-  public HashMap getStudentGradingData(String assessmentGradingId)
+  public Map getStudentGradingData(String assessmentGradingId)
   {
     try {
-      return (HashMap) PersistenceService.getInstance().
+      return PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries()
           .getStudentGradingData(assessmentGradingId);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       return new HashMap();
     }
   }
@@ -422,15 +482,15 @@ public class GradingService
   /**
    * Get the last submission for a student per assessment
    */
-  public HashMap getSubmitData(String publishedId, String agentId, Integer scoringoption, String assessmentGradingId)
+  public Map getSubmitData(String publishedId, String agentId, Integer scoringoption, String assessmentGradingId)
   {
     try {
       Long gradingId = null;
       if (assessmentGradingId != null) gradingId = Long.valueOf(assessmentGradingId);
-      return (HashMap) PersistenceService.getInstance().
+      return PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries().getSubmitData(Long.valueOf(publishedId), agentId, scoringoption, gradingId);
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       return new HashMap();
     }
   }
@@ -451,7 +511,7 @@ public class GradingService
           .getSubmissionSizeOfPublishedAssessment(Long.valueOf(
           publishedAssessmentId));
     } catch(Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       return 0;
     }
   }
@@ -471,22 +531,22 @@ public class GradingService
         getMedia(Long.valueOf(mediaId));
   }
 
-  public ArrayList getMediaArray(String itemGradingId){
+  public List<MediaData> getMediaArray(String itemGradingId){
     return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
         getMediaArray(Long.valueOf(itemGradingId));
   }
   
-  public ArrayList getMediaArray2(String itemGradingId){
+  public List<MediaData> getMediaArray2(String itemGradingId){
 	    return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
 	        getMediaArray2(Long.valueOf(itemGradingId));
   }
 
-  public ArrayList getMediaArray(ItemGradingData i){
+  public List<MediaData> getMediaArray(ItemGradingData i){
     return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
         getMediaArray(i);
   }
   
-  public HashMap getMediaItemGradingHash(Long assessmentGradingId) {
+  public Map<Long, List<ItemGradingData>> getMediaItemGradingHash(Long assessmentGradingId) {
 	    return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
 	    getMediaItemGradingHash(assessmentGradingId);
   }
@@ -502,7 +562,7 @@ public class GradingService
       return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
           getLastItemGradingDataByAgent(Long.valueOf(publishedItemId), agentId);
     } catch (Exception e) {
-      e.printStackTrace();
+        log.error(e.getMessage(), e);
       return null;
     }
   }
@@ -513,7 +573,7 @@ public class GradingService
       return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
           getItemGradingData(Long.valueOf(assessmentGradingId), Long.valueOf(publishedItemId));
     } catch (Exception e) {
-      e.printStackTrace();
+        log.error(e.getMessage(), e);
       return null;
     }
   }
@@ -529,7 +589,8 @@ public class GradingService
     }
     catch(Exception e)
     {
-      log.error(e); throw new RuntimeException(e);
+        log.error(e.getMessage(), e);
+        throw new RuntimeException(e);
     }
   }
 
@@ -540,7 +601,8 @@ public class GradingService
     }
     catch(Exception e)
     {
-      log.error(e); throw new Error(e);
+        log.error(e.getMessage(), e);
+        throw new Error(e);
     }
   }
 
@@ -551,7 +613,8 @@ public class GradingService
     }
     catch(Exception e)
     {
-      log.error(e); throw new RuntimeException(e);
+        log.error(e.getMessage(), e);
+        throw new RuntimeException(e);
     }
   }
 
@@ -562,7 +625,8 @@ public class GradingService
     }
     catch(Exception e)
     {
-      log.error(e); throw new RuntimeException(e);
+        log.error(e.getMessage(), e);
+        throw new RuntimeException(e);
     }
   }
   
@@ -581,7 +645,8 @@ public class GradingService
 	  }
 	  catch(Exception e)
 	  {
-		  log.error(e); throw new RuntimeException(e);
+          log.error(e.getMessage(), e);
+          throw new RuntimeException(e);
 	  }
 
 	  return assessmentGranding;
@@ -593,7 +658,7 @@ public class GradingService
       PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries().saveItemGrading(item);
     } catch (Exception e) {
-      e.printStackTrace();
+        log.error(e.getMessage(), e);
     }
   }
 
@@ -623,7 +688,7 @@ public class GradingService
       PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries().saveOrUpdateAssessmentGrading(assessment);
     } catch (Exception e) {
-      e.printStackTrace();
+        log.error(e.getMessage(), e);
     }
 
   }
@@ -641,13 +706,13 @@ public class GradingService
       try {
     	  PersistenceService.getInstance().getAssessmentGradingFacadeQueries().saveOrUpdateAssessmentGrading(assessment);
       } catch (Exception e) {
-    	  e.printStackTrace();
+          log.error(e.getMessage(), e);
       }
       finally {
     	  // Restore the original itemGradingSet back
     	  assessment.setItemGradingSet(h);
     	  size = assessment.getItemGradingSet().size();
-		  log.debug("after persist to db: size = " + size);
+		  log.debug("after persist to db: size = {}", size);
       }
   }
 
@@ -658,7 +723,8 @@ public class GradingService
     }
     catch(Exception e)
     {
-      log.error(e); throw new RuntimeException(e);
+        log.error(e.getMessage(), e);
+        throw new RuntimeException(e);
     }
   }
 
@@ -669,7 +735,8 @@ public class GradingService
     }
     catch(Exception e)
     {
-      log.error(e); throw new RuntimeException(e);
+        log.error(e.getMessage(), e);
+        throw new RuntimeException(e);
     }
   }
   
@@ -687,7 +754,8 @@ public class GradingService
 	  }
 	  catch(Exception e)
 	  {
-		  log.error(e); throw new RuntimeException(e);
+          log.error(e.getMessage(), e);
+          throw new RuntimeException(e);
 	  }
 
 	  return  assessmentGrading;
@@ -703,17 +771,19 @@ public class GradingService
                getItemGradingSet(Long.valueOf(assessmentGradingId));
     }
     catch(Exception e){
-      log.error(e); throw new RuntimeException(e);
+        log.error(e.getMessage(), e);
+        throw new RuntimeException(e);
     }
   }
 
-  public HashMap getAssessmentGradingByItemGradingId(String publishedAssessmentId){
+  public Map<Long, AssessmentGradingData> getAssessmentGradingByItemGradingId(String publishedAssessmentId){
     try{
       return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
                getAssessmentGradingByItemGradingId(Long.valueOf(publishedAssessmentId));
     }
     catch(Exception e){
-      log.error(e); throw new RuntimeException(e);
+        log.error(e.getMessage(), e);
+        throw new RuntimeException(e);
     }
   }
 
@@ -749,10 +819,10 @@ public class GradingService
         notifyGradebookByScoringType(adata, pub);
       }
     } catch (GradebookServiceException ge) {
-      ge.printStackTrace();
+      log.error(ge.getMessage(), ge);
       throw ge;
     } catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       throw new RuntimeException(e);
     }
   }
@@ -761,8 +831,8 @@ public class GradingService
    * Assume this is a new item.
    */
   public void storeGrades(AssessmentGradingData data, PublishedAssessmentIfc pub,
-                          HashMap publishedItemHash, HashMap publishedItemTextHash,
-                          HashMap publishedAnswerHash, HashMap invalidFINMap, ArrayList invalidSALengthList) throws GradebookServiceException, FinFormatException
+                          Map publishedItemHash, Map publishedItemTextHash,
+                          Map publishedAnswerHash, Map invalidFINMap, List invalidSALengthList) throws GradebookServiceException, FinFormatException
   {
 	  log.debug("storeGrades: data.getSubmittedDate()" + data.getSubmittedDate());
 	  storeGrades(data, false, pub, publishedItemHash, publishedItemTextHash, publishedAnswerHash, true, invalidFINMap, invalidSALengthList);
@@ -772,16 +842,16 @@ public class GradingService
    * Assume this is a new item.
    */
   public void storeGrades(AssessmentGradingData data, PublishedAssessmentIfc pub,
-                          HashMap publishedItemHash, HashMap publishedItemTextHash,
-                          HashMap publishedAnswerHash, boolean persistToDB, HashMap invalidFINMap, ArrayList invalidSALengthList) throws GradebookServiceException, FinFormatException
+                          Map publishedItemHash, Map publishedItemTextHash,
+                          Map publishedAnswerHash, boolean persistToDB, Map invalidFINMap, List invalidSALengthList) throws GradebookServiceException, FinFormatException
   {
 	  log.debug("storeGrades (not persistToDB) : data.getSubmittedDate()" + data.getSubmittedDate());
 	  storeGrades(data, false, pub, publishedItemHash, publishedItemTextHash, publishedAnswerHash, persistToDB, invalidFINMap, invalidSALengthList);
   }
   
   public void storeGrades(AssessmentGradingData data, boolean regrade, PublishedAssessmentIfc pub,
-		  HashMap publishedItemHash, HashMap publishedItemTextHash,
-		  HashMap publishedAnswerHash, boolean persistToDB) throws GradebookServiceException, FinFormatException {
+		  Map publishedItemHash, Map publishedItemTextHash,
+		  Map publishedAnswerHash, boolean persistToDB) throws GradebookServiceException, FinFormatException {
 	  log.debug("storeGrades (not persistToDB) : data.getSubmittedDate()" + data.getSubmittedDate());
 	  storeGrades(data, regrade, pub, publishedItemHash, publishedItemTextHash, publishedAnswerHash, persistToDB, null, null);
   }
@@ -795,11 +865,14 @@ public class GradingService
    * false, we do everything from scratch.
    */
   public void storeGrades(AssessmentGradingData data, boolean regrade, PublishedAssessmentIfc pub,
-                          HashMap publishedItemHash, HashMap publishedItemTextHash,
-                          HashMap publishedAnswerHash, boolean persistToDB, HashMap invalidFINMap, ArrayList invalidSALengthList) 
+                          Map publishedItemHash, Map publishedItemTextHash,
+                          Map publishedAnswerHash, boolean persistToDB, Map invalidFINMap, List invalidSALengthList)
          throws GradebookServiceException, FinFormatException {
     log.debug("****x1. regrade ="+regrade+" "+(new Date()).getTime());
     try {
+    	boolean imageMapAllOk=true;
+    	boolean NeededAllOk = false;
+    	
       String agent = data.getAgentId();
       
       // note that this itemGradingSet is a partial set of answer submitted. it contains only 
@@ -844,8 +917,8 @@ public class GradingService
       Map<Long, Map<Long,Set<EMIScore>>> emiScoresMap = new HashMap<Long, Map<Long,Set<EMIScore>>>();
       
       //change algorithm based on each question (SAK-1930 & IM271559) -cwen
-      HashMap totalItems = new HashMap();
-      log.debug("****x2. "+(new Date()).getTime());
+      Map totalItems = new HashMap();
+      log.debug("****x2. {}", (new Date()).getTime());
       double autoScore = (double) 0;
       Long itemId = (long)0;
       int calcQuestionAnswerSequence = 1; // sequence of answers for CALCULATED_QUESTION
@@ -866,12 +939,29 @@ public class GradingService
         ItemDataIfc item = (ItemDataIfc) publishedItemHash.get(itemId);
         if (item == null) {
         	//this probably shouldn't happen
-        	log.error("unable to retrive itemDataIfc for: " + publishedItemHash.get(itemId));
+        	log.error("unable to retrive itemDataIfc for: {}", publishedItemHash.get(itemId));
         	continue;
+        }
+        Iterator i = item.getItemMetaDataSet().iterator();
+        while (i.hasNext())
+        {
+          ItemMetaDataIfc meta = (ItemMetaDataIfc) i.next();
+          if (meta.getLabel().equals(ItemMetaDataIfc.REQUIRE_ALL_OK))
+          {
+            if (meta.getEntry().equals("true"))
+            {
+          	  NeededAllOk = true;
+              break;
+            }
+            if (meta.getEntry().equals("false"))
+            {
+          	  NeededAllOk = false;
+              break;
+            }
+          }
         }
         Long itemType = item.getTypeId();  
     	autoScore = (double) 0;
-
         itemGrading.setAssessmentGradingId(data.getAssessmentGradingId());
         //itemGrading.setSubmittedDate(new Date());
         itemGrading.setAgentId(agent);
@@ -895,16 +985,20 @@ public class GradingService
         	autoScore = 0d;
         	if (invalidFINMap != null) {
         		if (invalidFINMap.containsKey(itemId)) {
-        			ArrayList list = (ArrayList) invalidFINMap.get(itemId);
+        			List list = (ArrayList) invalidFINMap.get(itemId);
         			list.add(itemGrading.getItemGradingId());
         		}
         		else {
-        			ArrayList list = new ArrayList();
+        			List list = new ArrayList();
         			list.add(itemGrading.getItemGradingId());
         			invalidFINMap.put(itemId, list);
         		}
         	}
         }
+        if ((TypeIfc.IMAGEMAP_QUESTION.equals(itemType))&&(NeededAllOk)&&((autoScore==-123456789)||!imageMapAllOk)){
+        	autoScore=0;
+        	imageMapAllOk=false;
+        } 
         
         log.debug("**!regrade, autoScore="+autoScore);
         if (!(TypeIfc.MULTIPLE_CORRECT).equals(itemType) && !(TypeIfc.EXTENDED_MATCHING_ITEMS).equals(itemType))
@@ -928,7 +1022,7 @@ public class GradingService
         setIsLate(data, pub);
       }
       
-      log.debug("****x3. "+(new Date()).getTime());
+      log.debug("****x3. {}", (new Date()).getTime());
       
       List<ItemGradingData> emiItemGradings = new ArrayList<ItemGradingData>();
       // the following procedure ensure total score awarded per question is no less than 0
@@ -937,6 +1031,11 @@ public class GradingService
       //since the itr goes through each answer (multiple answers for a signle mc question), keep track
       //of its total score by itemId -> autoScore[]{user's score, total possible}
       Map<Long, Double[]> mcmcAllOrNothingCheck = new HashMap<Long, Double[]>();
+      
+      //collect min score information to determine if the auto score will need to be adjusted
+      //since there can be multiple questions store in map: itemId -> {user's score, minScore, # of answers}
+      Map<Long, Double[]> minScoreCheck = new HashMap<Long, Double[]>();
+      double totalAutoScoreCheck = 0;
       Map<Long, Integer> countMcmcAllItemGradings = new HashMap<Long, Integer>();
       //get item information to check if it's MCMS and Not Partial Credit
       Long itemType2 = -1l;
@@ -952,6 +1051,7 @@ public class GradingService
         	log.error("unable to retrive itemDataIfc for: " + publishedItemHash.get(itemId));
         	continue;
         }
+
         itemType2 = item.getTypeId();
         //get item information to check if it's MCMS and Not Partial Credit
         mcmsPartialCredit = item.getItemMetaDataByLabel(ItemMetaDataIfc.MCMS_PARTIAL_CREDIT);
@@ -983,9 +1083,20 @@ public class GradingService
         		count = ((Integer)countMcmcAllItemGradings.get(itemId)).intValue();
         	countMcmcAllItemGradings.put(itemId, new Integer(++count));
         }
+        //min score check
+        if(item.getMinScore() != null){
+        	Double accumulatedScore = new Double(itemGrading.getAutoScore());
+        	Double itemParts = 1d;
+        	if(minScoreCheck.containsKey(itemId)){
+        		Double[] accumulatedScoreArr = minScoreCheck.get(itemId);
+        		accumulatedScore += accumulatedScoreArr[0];
+        		itemParts += accumulatedScoreArr[2];
+        	}
+        	minScoreCheck.put(itemId, new Double[]{accumulatedScore, item.getMinScore(), itemParts});
+        }
       }
       
-      log.debug("****x3.1 "+(new Date()).getTime());
+      log.debug("****x3.1 {}", (new Date()).getTime());
 
       // Loop 1: this procedure ensure total score awarded per EMI item
       // is correct
@@ -1025,7 +1136,7 @@ public class GradingService
     				  .get(itemGrading.getPublishedAnswerId());
     		if (score == null) {
     			//its possible! SAM-2016 
-    			log.warn("we can't find a score for answer: " + itemGrading.getPublishedAnswerId());
+    			log.warn("we can't find a score for answer: {}", itemGrading.getPublishedAnswerId());
     			continue;
     		}
     		  itemGrading.setAutoScore(emiOrderedScoresMap
@@ -1033,6 +1144,7 @@ public class GradingService
     				  .get(itemGrading.getPublishedItemTextId())
     				  .get(itemGrading.getPublishedAnswerId()).effectiveScore);
     	  }
+    	  totalAutoScoreCheck = 0;
       }
       
       // if it's MCMS and Not Partial Credit and the score isn't 100% (totalAutoScoreCheck != itemScore),
@@ -1066,6 +1178,23 @@ public class GradingService
     	  }
       }
       
+      //if there is a minimum score value, then make sure the auto score is at least the minimum
+      //entry.getValue()[0] = total score for the question
+      //entry.getValue()[1] = min score
+      //entry.getValue()[2] = how many question answers to divide minScore across
+      for(Entry<Long, Double[]> entry : minScoreCheck.entrySet()){
+    	  if(entry.getValue()[0] < entry.getValue()[1]){
+    		  //reset all scores to 0 since the user didn't get all correct answers
+    		  iter = itemGradingSet.iterator();
+    		  while(iter.hasNext()){
+    			  ItemGradingData itemGrading = (ItemGradingData) iter.next();
+    			  if(itemGrading.getPublishedItemId().equals(entry.getKey())){
+    				  itemGrading.setAutoScore(new Double(entry.getValue()[1]/entry.getValue()[2]));
+    			  }
+    		  }
+    	  }
+      }
+      
       log.debug("****x4. "+(new Date()).getTime());
 
       // save#1: this itemGrading Set is a partial set of answers submitted. it contains new answers and
@@ -1078,11 +1207,14 @@ public class GradingService
       }
       log.debug("****x5. "+(new Date()).getTime());
 
+      
+
       // save#2: now, we need to get the full set so we can calculate the total score accumulate for the
       // whole assessment.
       Set fullItemGradingSet = getItemGradingSet(data.getAssessmentGradingId().toString());
       double totalAutoScore = getTotalAutoScore(fullItemGradingSet);
       data.setTotalAutoScore( Double.valueOf(totalAutoScore));
+     
       //log.debug("**#1 total AutoScore"+totalAutoScore);
       if (Double.compare((totalAutoScore + data.getTotalOverrideScore().doubleValue()),new Double("0").doubleValue())<0){
     	  data.setFinalScore( Double.valueOf("0"));
@@ -1091,11 +1223,11 @@ public class GradingService
       }
       log.debug("****x6. "+(new Date()).getTime());
     } catch (GradebookServiceException ge) {
-      ge.printStackTrace();
+      log.error(ge.getMessage(), ge);
       throw ge;
     } 
     catch (Exception e) {
-      e.printStackTrace();
+      log.error(e.getMessage(), e);
       throw new RuntimeException(e);
     }
 
@@ -1107,12 +1239,12 @@ public class GradingService
     if (persistToDB) {
         data.setItemGradingSet(new HashSet());
     	saveOrUpdateAssessmentGrading(data);
-    	log.debug("****x7. "+(new Date()).getTime());	
+    	log.debug("****x7. {}", (new Date()).getTime());	
     	if (!regrade) {
     		notifyGradebookByScoringType(data, pub);
     	}
     }
-    log.debug("****x8. "+(new Date()).getTime());
+    log.debug("****x8. {}", (new Date()).getTime());
 
     // I am not quite sure what the following code is doing... I modified this based on my assumption:
     // If this happens dring regrade, we don't want to clean these data up
@@ -1150,7 +1282,7 @@ public class GradingService
   private double getScoreByQuestionType(ItemGradingData itemGrading, ItemDataIfc item,
                                        Long itemType, Map publishedItemTextHash, 
                                        Map totalItems, Map fibAnswersMap, Map<Long, Map<Long,Set<EMIScore>>> emiScoresMap,
-                                       HashMap publishedAnswerHash, boolean regrade,
+                                       Map publishedAnswerHash, boolean regrade,
                                        int calcQuestionAnswerSequence) throws FinFormatException {
     //double score = (double) 0;
     double initScore = (double) 0;
@@ -1270,14 +1402,14 @@ public class GradingService
     	  }
     	  //overridescore - cwen
           if (itemGrading.getOverrideScore() != null)
-            autoScore += itemGrading.getOverrideScore().doubleValue();
+            autoScore += itemGrading.getOverrideScore();
 
           if (!totalItems.containsKey(itemId))
-            totalItems.put(itemId, Double.valueOf(autoScore));
+            totalItems.put(itemId, autoScore);
           else {
-            accumelateScore = ((Double)totalItems.get(itemId)).doubleValue();
+            accumelateScore = (Double) totalItems.get(itemId);
             accumelateScore += autoScore;
-            totalItems.put(itemId, Double.valueOf(accumelateScore));
+            totalItems.put(itemId, accumelateScore);
           }
           break;
 
@@ -1292,16 +1424,57 @@ public class GradingService
     	  	    autoScore = itemGrading.getAutoScore();
     	  	  }
               if (itemGrading.getOverrideScore() != null)
-                autoScore += itemGrading.getOverrideScore().doubleValue();
+                autoScore += itemGrading.getOverrideScore();
               if (!totalItems.containsKey(itemId))
-                totalItems.put(itemId, Double.valueOf(autoScore));
+                totalItems.put(itemId, autoScore);
               else {
-                accumelateScore = ((Double)totalItems.get(itemId)).doubleValue();
+                accumelateScore = (Double) totalItems.get(itemId);
                 accumelateScore += autoScore;
-                totalItems.put(itemId, Double.valueOf(accumelateScore));
+                totalItems.put(itemId, accumelateScore);
               }
               break;
+      case 16:    	  
+    	  initScore = getImageMapScore(itemGrading,item, publishedItemTextHash,publishedAnswerHash);
+    	  //if one answer is 0 or negative, and need all OK to be scored, then autoScore=-123456789
+    	  //and we break the case...
+    	  
+    	  boolean NeededAllOk = false;
+    	  Iterator i = item.getItemMetaDataSet().iterator();
+          while (i.hasNext())
+          {
+            ItemMetaDataIfc meta = (ItemMetaDataIfc) i.next();
+            if (meta.getLabel().equals(ItemMetaDataIfc.REQUIRE_ALL_OK))
+            {
+              if (meta.getEntry().equals("true"))
+              {
+            	  NeededAllOk = true;
+                break;
     }
+            }
+          }
+    	  if (NeededAllOk&&initScore<=0){
+    		  autoScore=-123456789;
+    		  break;
+    	  }
+          //if (initScore > 0) {
+      	         autoScore += initScore ;
+          //}
+    	  
+          //overridescore?
+          if (itemGrading.getOverrideScore() != null)
+            autoScore += itemGrading.getOverrideScore();
+          
+          if (!totalItems.containsKey(itemId)){
+            totalItems.put(itemId, autoScore);
+          }else {
+            accumelateScore = (Double) totalItems.get(itemId);
+            accumelateScore += autoScore;
+            totalItems.put(itemId, accumelateScore);
+          }
+          
+          break;
+    }
+    
     return autoScore;
   }
 
@@ -1320,17 +1493,17 @@ public class GradingService
     }
     ItemDataIfc item = (ItemDataIfc) answer.getItem();
     Long itemType = item.getTypeId();
-    if (answer.getIsCorrect() == null || !answer.getIsCorrect().booleanValue())
+    if (answer.getIsCorrect() == null || !answer.getIsCorrect())
     {
     	// return (double) 0;
     	// Para que descuente (For discount)
     	if ((TypeIfc.EXTENDED_MATCHING_ITEMS).equals(itemType)||(TypeIfc.MULTIPLE_CHOICE).equals(itemType)||(TypeIfc.TRUE_FALSE).equals(itemType)||(TypeIfc.MULTIPLE_CORRECT_SINGLE_SELECTION).equals(itemType)){
-    		return (Math.abs(answer.getDiscount().doubleValue()) * ((double) -1));
+    		return (Math.abs(answer.getDiscount()) * ((double) -1));
     	}else{
     		return (double) 0;
     	}
     }
-    return answer.getScore().doubleValue();
+    return answer.getScore();
   }
 
   public void notifyGradebook(AssessmentGradingData data, PublishedAssessmentIfc pub) throws GradebookServiceException {
@@ -1357,7 +1530,7 @@ public class GradingService
     // add retry logic to resolve deadlock problem while sending grades to gradebook
 
     Double originalFinalScore = data.getFinalScore();
-    int retryCount = PersistenceService.getInstance().getPersistenceHelper().getRetryCount().intValue();
+    int retryCount = PersistenceService.getInstance().getPersistenceHelper().getRetryCount();
     while (retryCount > 0){
     	try {
     		// Send the average score if average was selected for multiple submissions
@@ -1376,7 +1549,7 @@ public class GradingService
     		retryCount = 0;
     	}
       catch (org.sakaiproject.service.gradebook.shared.AssessmentNotFoundException ante) {
-    	  log.warn("problem sending grades to gradebook: " + ante.getMessage());
+    	  log.warn("problem sending grades to gradebook: {}", ante.getMessage());
           if (AssessmentIfc.RETRACT_FOR_EDIT_STATUS.equals(pub.getStatus())) {
         	  retryCount = retry(retryCount, ante, pub, true);
           }
@@ -1391,12 +1564,22 @@ public class GradingService
     }
 
     // change the final score back to the original score since it may set to average score.
-    // data.getFinalScore() != originalFinalScore
-    if(!(MathUtils.equalsIncludingNaN(data.getFinalScore(), originalFinalScore, 0.0001))) {
+    // if we're deleting the last submission, the score might be null bugid 5440
+    if(originalFinalScore != null && data.getFinalScore() != null && !(Precision.equalsIncludingNaN(data.getFinalScore(), originalFinalScore, 0.0001))) {
     	data.setFinalScore(originalFinalScore);
     }
+    
+    try {
+        	Long publishedAssessmentId = data.getPublishedAssessmentId();
+        	String agent = data.getAgentId();
+        	String comment = data.getComments();
+        	gbsHelper.updateExternalAssessmentComment(publishedAssessmentId, agent, comment, g);
+    }
+    catch (Exception ex) {
+          log.warn("Error sending comments to gradebook: {}", ex.getMessage());
+          }
     } else {
-       if(log.isDebugEnabled()) log.debug("Not updating the gradebook.  toGradebook = " + toGradebook);
+       log.debug("Not updating the gradebook.  toGradebook = {}", toGradebook);
     }
   }
 
@@ -1503,6 +1686,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 
     String casesensitive = itemdata.getItemMetaDataByLabel(ItemMetaDataIfc.CASE_SENSITIVE_FOR_FIB);
     String mutuallyexclusive = itemdata.getItemMetaDataByLabel(ItemMetaDataIfc.MUTUALLY_EXCLUSIVE_FOR_FIB);
+    String ignorespaces = itemdata.getItemMetaDataByLabel(ItemMetaDataIfc.IGNORE_SPACES_FOR_FIB);
     //Set answerSet = new HashSet();
 
     if (answertext != null)
@@ -1511,10 +1695,11 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
       while (st.hasMoreTokens())
       {
         String answer = st.nextToken().trim();
+        boolean ignoreSpaces = "true".equalsIgnoreCase(ignorespaces);
         if ("true".equalsIgnoreCase(casesensitive)) {
           if (data.getAnswerText() != null){
         	  studentanswer= data.getAnswerText().trim();
-            matchresult = fibmatch(answer, studentanswer, true);
+            matchresult = fibmatch(answer, studentanswer, true, ignoreSpaces);
              
           }
         }  // if case sensitive 
@@ -1522,7 +1707,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
         // case insensitive , if casesensitive is false, or null, or "".
           if (data.getAnswerText() != null){
         	  studentanswer= data.getAnswerText().trim();
-    	    matchresult = fibmatch(answer, studentanswer, false);
+    	    matchresult = fibmatch(answer, studentanswer, false, ignoreSpaces);
            }
         }  // else , case insensitive
  
@@ -1563,7 +1748,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
     return totalScore;
   }
 
-  public boolean getFIBResult(ItemGradingData data, HashMap fibmap,  ItemDataIfc itemdata, HashMap publishedAnswerHash)
+  public boolean getFIBResult(ItemGradingData data, Map fibmap,  ItemDataIfc itemdata, Map publishedAnswerHash)
   {
 	  // this method is similiar to getFIBScore(), except it returns true/false for the answer, not scores.  
 	  // may be able to refactor code out to be reused, but totalscores for mutually exclusive case is a bit tricky. 
@@ -1583,6 +1768,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 
     String casesensitive = itemdata.getItemMetaDataByLabel(ItemMetaDataIfc.CASE_SENSITIVE_FOR_FIB);
     String mutuallyexclusive = itemdata.getItemMetaDataByLabel(ItemMetaDataIfc.MUTUALLY_EXCLUSIVE_FOR_FIB);
+    String ignorespaces = itemdata.getItemMetaDataByLabel(ItemMetaDataIfc.IGNORE_SPACES_FOR_FIB);
     //Set answerSet = new HashSet();
 
 
@@ -1592,17 +1778,18 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
       while (st.hasMoreTokens())
       {
         String answer = st.nextToken().trim();
+        boolean ignoreSpaces = "true".equalsIgnoreCase(ignorespaces);
         if ("true".equalsIgnoreCase(casesensitive)) {
           if (data.getAnswerText() != null){
         	  studentanswer= data.getAnswerText().trim();
-            matchresult = fibmatch(answer, studentanswer, true);
+            matchresult = fibmatch(answer, studentanswer, true, ignoreSpaces);
            }
         }  // if case sensitive 
         else {
         // case insensitive , if casesensitive is false, or null, or "".
           if (data.getAnswerText() != null){
         	  studentanswer= data.getAnswerText().trim();
-    	    matchresult = fibmatch(answer, studentanswer, false);
+    	    matchresult = fibmatch(answer, studentanswer, false, ignoreSpaces);
            }
         }  // else , case insensitive
  
@@ -1727,7 +1914,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 
 			  try {
 				  answerComplex = complexFormat.parse(answer);
-			  } catch(ParseException ex) {
+			  } catch(MathParseException ex) {
 				  log.debug("Number is not Complex: " + answer);
 			  }
 
@@ -1747,6 +1934,66 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	  }
 	  return matchresult;
   }  
+  
+  
+  public double getImageMapScore(ItemGradingData data, ItemDataIfc itemdata, Map publishedItemTextHash, Map publishedAnswerHash)
+  {
+	  // Final score must be... 
+	  // IF NOT PARTIALCREDIT THEN 0 or total
+	  // IF PARTIALCREDIT EACH PART ADDED. 
+	  
+	  
+	  data.setIsCorrect(Boolean.FALSE);
+	  double totalScore; 
+	 
+	 Iterator iter = publishedAnswerHash.keySet().iterator();
+	 int answerNumber = 0;
+	 while (iter.hasNext()){
+		 Long answerId = Long.valueOf(iter.next().toString());
+		 AnswerIfc answer = (AnswerIfc) publishedAnswerHash.get(answerId);
+		 
+		 if (answer.getItem().getItemId().equals(data.getPublishedItemId())) 
+			 answerNumber=answerNumber+1;
+		 	 
+	 }
+	 
+	 double answerScore=itemdata.getScore();
+	 	 
+	 if (answerNumber!=0){
+		 answerScore=answerScore/answerNumber;
+	 }
+	 
+	 ItemTextIfc itemTextIfc = (ItemTextIfc) publishedItemTextHash.get(data.getPublishedItemTextId());
+	 
+	 List answerArray = (List) itemTextIfc.getAnswerArray();
+	 AnswerIfc answerIfc= (AnswerIfc) answerArray.get(0); 
+	 
+	 try{
+		 String area = answerIfc.getText();
+		 Integer areax1=Integer.valueOf(area.substring(area.indexOf("\"x1\":")+5,area.indexOf(",", area.indexOf("\"x1\":"))));
+		 Integer areay1=Integer.valueOf(area.substring(area.indexOf("\"y1\":")+5,area.indexOf(",", area.indexOf("\"y1\":"))));
+		 Integer areax2=Integer.valueOf(area.substring(area.indexOf("\"x2\":")+5,area.indexOf(",", area.indexOf("\"x2\":"))));
+		 Integer areay2=Integer.valueOf(area.substring(area.indexOf("\"y2\":")+5,area.indexOf("}", area.indexOf("\"y2\":"))));
+		 
+		 String point = data.getAnswerText();
+		 Integer pointx=Integer.valueOf(point.substring(point.indexOf("\"x\":")+4,point.indexOf(",", point.indexOf("\"x\":"))));
+		 Integer pointy=Integer.valueOf(point.substring(point.indexOf("\"y\":")+4,point.indexOf("}", point.indexOf("\"y\":"))));
+		
+				 
+		 if (((pointx>=areax1)&&(pointx<=areax2))&&((pointy>=areay1)&&(pointy<=areay2))) {
+			 totalScore=answerScore;
+			 data.setIsCorrect(Boolean.TRUE);
+		 }else{
+			 totalScore=0;
+		 }
+	}catch(Exception ex){
+		 totalScore=0;
+	 }
+	 	  
+    
+    return totalScore;
+  }
+  
 
   /**
    * Validate a students numeric answer 
@@ -1754,7 +2001,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
    * @return a Map containing either Real or Complex answer keyed by {@link #ANSWER_TYPE_REAL} or {@link #ANSWER_TYPE_COMPLEX} 
    */
   public Map validate(String value) {
-	  HashMap map = new HashMap();
+	  Map map = new HashMap();
 	  if (value == null || value.trim().equals("")) {
 		  return map;
 	  }
@@ -1875,7 +2122,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 		if (itemGrading.getOverrideScore() != null)
 			autoScore += itemGrading.getOverrideScore().doubleValue();
 
-		HashMap totalItemTextScores = (HashMap) totalItems.get(itemId);
+		Map totalItemTextScores = (Map) totalItems.get(itemId);
 		totalItemTextScores.put(itemTextId, Double.valueOf(autoScore));
 		return autoScore;
 	}
@@ -2010,7 +2257,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
       PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries().deleteAll(c);
     } catch (Exception e) {
-      e.printStackTrace();
+        log.error(e.getMessage(), e);
     }
   }
 
@@ -2041,21 +2288,21 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
           notifyGradebookByScoringType(adata, pub);
         }
      } catch (GradebookServiceException ge) {
-       ge.printStackTrace();
+       log.error(ge.getMessage(), ge);
        throw ge;
      } catch (Exception e) {
-       e.printStackTrace();
+       log.error(e.getMessage(), e);
        throw new RuntimeException(e);
      }
   }
 
-  public void saveOrUpdateAll(Collection c)
+  public void saveOrUpdateAll(Collection<ItemGradingData> c)
   {
     try {
       PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries().saveOrUpdateAll(c);
     } catch (Exception e) {
-      e.printStackTrace();
+        log.error(e.getMessage(), e);
     }
   }
 
@@ -2065,7 +2312,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
       pub = PersistenceService.getInstance().
         getAssessmentGradingFacadeQueries().getPublishedAssessmentByAssessmentGradingId(Long.valueOf(id));
     } catch (Exception e) {
-      e.printStackTrace();
+        log.error(e.getMessage(), e);
     }
     return pub;
   }
@@ -2076,40 +2323,50 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	      pub = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getPublishedAssessmentByPublishedItemId(Long.valueOf(publishedItemId));
 	    } catch (Exception e) {
-	      e.printStackTrace();
+            log.error(e.getMessage(), e);
 	    }
 	    return pub;
 	  }
   
-  public ArrayList getLastItemGradingDataPosition(Long assessmentGradingId, String agentId) {
-	  	ArrayList results = null;
+  public List<Integer> getLastItemGradingDataPosition(Long assessmentGradingId, String agentId) {
+	  	List<Integer> results = null;
 	    try {
 	    	results = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getLastItemGradingDataPosition(assessmentGradingId, agentId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+            log.error(e.getMessage(), e);
 	    }
 	    return results;
 	  }
   
+  public List getItemGradingIds(Long assessmentGradingId) {
+	    List results = null;
+	    try {
+	         results = PersistenceService.getInstance().getAssessmentGradingFacadeQueries().getItemGradingIds(assessmentGradingId);
+	    } catch (Exception e) {
+            log.error(e.getMessage(), e);
+	    }
+	    return results;
+  }
+
   public List getPublishedItemIds(Long assessmentGradingId) {
 	  	List results = null;
 	    try {
 	    	results = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getPublishedItemIds(assessmentGradingId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return results;
 	  }
   
-  public HashSet getItemSet(Long publishedAssessmentId, Long sectionId) {
-	  	HashSet results = null;
+  public Set<PublishedItemData> getItemSet(Long publishedAssessmentId, Long sectionId) {
+	  	Set<PublishedItemData> results = null;
 	    try {
 	    	results = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getItemSet(publishedAssessmentId, sectionId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return results;
   }
@@ -2120,15 +2377,19 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	typeId = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getTypeId(itemGradingId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return typeId;
   }
   
-  public boolean fibmatch(String answer, String input, boolean casesensitive) {
+  public boolean fibmatch(String answer, String input, boolean casesensitive, boolean ignorespaces) {
 
 	  
 		try {
+		 if (ignorespaces) {
+			 answer = answer.replaceAll(" ", "");
+			 input = input.replaceAll(" ", "");
+		 }
  		 StringBuilder regex_quotebuf = new StringBuilder();
 		 
 		 String REGEX = answer.replaceAll("\\*", "|*|");
@@ -2167,7 +2428,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	results = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getAllAssessmentGradingByAgentId(publishedAssessmentId, agentIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return results;
   }
@@ -2179,24 +2440,24 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	  return results;
   }
   
-  public HashMap getSiteSubmissionCountHash(String siteId) {
-	  HashMap results = new HashMap();
+  public Map<Long, Map<String, Integer>> getSiteSubmissionCountHash(String siteId) {
+	    Map<Long, Map<String, Integer>> results = new HashMap<>();
 	    try {
 	    	results = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getSiteSubmissionCountHash(siteId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return results;
   }  
   
-  public HashMap getSiteInProgressCountHash(final String siteId) {
-	  HashMap results = new HashMap();
+  public Map<Long, Map<String, Long>> getSiteInProgressCountHash(final String siteId) {
+        Map<Long, Map<String, Long>> results = new HashMap<>();
 	    try {
 	    	results = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getSiteInProgressCountHash(siteId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return results;
   }
@@ -2207,29 +2468,29 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	actualNumberReatke = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getActualNumberRetake(publishedAssessmentId, agentIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return actualNumberReatke;
   }
   
-  public HashMap getActualNumberRetakeHash(String agentIdString) {
-	  HashMap actualNumberReatkeHash = new HashMap();
+  public Map<Long, Long> getActualNumberRetakeHash(String agentIdString) {
+	    Map<Long, Long> actualNumberReatkeHash = new HashMap<>();
 	    try {
 	    	actualNumberReatkeHash = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getActualNumberRetakeHash(agentIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return actualNumberReatkeHash;
   }
     
-  public HashMap getSiteActualNumberRetakeHash(String siteIdString) {
-	  HashMap numberRetakeHash = new HashMap();
+  public Map<Long, Map<String, Long>> getSiteActualNumberRetakeHash(String siteIdString) {
+        Map<Long, Map<String, Long>> numberRetakeHash = new HashMap<>();
 	    try {
 	    	numberRetakeHash = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getSiteActualNumberRetakeHash(siteIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return numberRetakeHash;
   }
@@ -2240,7 +2501,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	results = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getStudentGradingSummaryData(publishedAssessmentId, agentIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return results;
   }
@@ -2252,29 +2513,29 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	numberRetake = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getNumberRetake(publishedAssessmentId, agentIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return numberRetake;
   }
   
-  public HashMap getNumberRetakeHash(String agentIdString) {
-	  HashMap numberRetakeHash = new HashMap();
+  public Map<Long, StudentGradingSummaryData> getNumberRetakeHash(String agentIdString) {
+	    Map<Long, StudentGradingSummaryData> numberRetakeHash = new HashMap<>();
 	    try {
 	    	numberRetakeHash = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getNumberRetakeHash(agentIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return numberRetakeHash;
   }
   
-  public HashMap getSiteNumberRetakeHash(String siteIdString) {
-	  HashMap siteActualNumberRetakeList = new HashMap();
+  public Map<Long, Map<String, Integer>> getSiteNumberRetakeHash(String siteIdString) {
+	    Map<Long, Map<String, Integer>> siteActualNumberRetakeList = new HashMap();
 	    try {
 	    	siteActualNumberRetakeList = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getSiteNumberRetakeHash(siteIdString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return siteActualNumberRetakeList;
   }
@@ -2283,7 +2544,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    try {
 	    	PersistenceService.getInstance().getAssessmentGradingFacadeQueries().saveStudentGradingSummaryData(studentGradingSummaryData);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
   }
   
@@ -2294,7 +2555,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	numberRetake = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getLateSubmissionsNumberByAgentId(publishedAssessmentId, agentIdString, dueDate);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return numberRetake;
   }
@@ -2323,7 +2584,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	list = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getExportResponsesData(publishedAssessmentId, anonymous,audioMessage, fileUploadMessage, noSubmissionMessage, showPartAndTotalScoreSpreadsheetColumns, poolString, partString, questionString, textString, rationaleString, itemGradingCommentsString, useridMap, responseCommentString);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return list;
   }
@@ -2333,7 +2594,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	      PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().removeUnsubmittedAssessmentGradingData(data);
 	    } catch (Exception e) {
-	      //e.printStackTrace();
+	      //log.error(e.getMessage(), e);
 	      log.error("Exception thrown from removeUnsubmittedAssessmentGradingData" + e.getMessage());
 	    }
   }
@@ -2344,7 +2605,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	hasGradingData = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getHasGradingData(publishedAssessmentId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return hasGradingData;
   }
@@ -2357,7 +2618,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
    * @return map of calc answers
    */
   private Map<Integer, String> getCalculatedAnswersMap(ItemGradingData itemGrading, ItemDataIfc item) {
-      HashMap<Integer, String> calculatedAnswersMap = new HashMap<Integer, String>();
+      Map<Integer, String> calculatedAnswersMap = new HashMap<Integer, String>();
       // return value from extractCalcQAnswersArray is not used, calculatedAnswersMap is populated by this call
       extractCalcQAnswersArray(calculatedAnswersMap, item, itemGrading.getAssessmentGradingId(), itemGrading.getAgentId());
       return calculatedAnswersMap;
@@ -2510,6 +2771,39 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
       return segments;
   }
 
+  
+  /**
+   * CALCULATED_QUESTION
+   * toScientificNotation() Takes a string representation of a number and returns
+   * a string representation of that number, in scientific notation.
+   * Numbers like 100, 0.01 will not be formatted (see values of MAX_THRESHOLD and MIN_THRESHOLD)
+   * @param numberStr
+   * @param decimalPlaces
+   * @return processed number string
+   */
+  public String toScientificNotation(String numberStr,int decimalPlaces){
+	  
+	  BigDecimal x = new BigDecimal(numberStr);
+	  x.setScale(decimalPlaces,RoundingMode.HALF_UP);	
+	  
+	  NumberFormat formatter;
+	  
+	  if (((( Math.abs(x.doubleValue())) >= MAX_THRESHOLD) || ( Math.abs(x.doubleValue()) <= MIN_THRESHOLD) 
+        || (numberStr.contains("e")) || numberStr.contains("E") ) 
+	    && (x.doubleValue() != 0)) {
+		  formatter = new DecimalFormat(FORMAT_MASK);
+	  } else {
+		  formatter = new DecimalFormat("0");
+	  }	  
+	  
+	  formatter.setRoundingMode(RoundingMode.HALF_UP);	  
+	  formatter.setMaximumFractionDigits(decimalPlaces);
+	  
+	  String formattedNumber = formatter.format(x);
+
+	  return formattedNumber.replace(",",".");
+  }
+  
   /**
    * CALCULATED_QUESTION
    * applyPrecisionToNumberString() takes a string representation of a number and returns
@@ -2781,7 +3075,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
           expression = "";
       } else {
           Matcher keyMatcher = CALCQ_CALCULATION_PATTERN.matcher(expression);
-          ArrayList<String> toReplace = new ArrayList<String>();
+          List<String> toReplace = new ArrayList<String>();
           while (keyMatcher.find()) {
               String match = keyMatcher.group(1);
               toReplace.add(match); // should be the formula
@@ -2819,7 +3113,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
           SamigoExpressionParser parser = new SamigoExpressionParser(); // this will turn the expression into a number in string form
           String numericString = parser.parse(formula, decimalPlaces+1);
           if (this.isAnswerValid(numericString)) {
-              numericString = applyPrecisionToNumberString(numericString, decimalPlaces);
+              numericString = toScientificNotation(numericString, decimalPlaces);
               value = numericString;
           } else {
               throw new IllegalStateException("Invalid calculation formula ("+formula+") result ("+numericString+"), result could not be calculated");
@@ -2915,11 +3209,13 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 		  Double randomValue = minVal + (maxVal - minVal) * generator.nextDouble();
 		  
 		  // Trim off excess decimal points based on decimalPlaces value
-		  BigDecimal bd = new BigDecimal(randomValue);
+		  /*BigDecimal bd = new BigDecimal(randomValue);
 		  bd = bd.setScale(decimalPlaces,BigDecimal.ROUND_HALF_UP);
 		  randomValue = bd.doubleValue();
+		  String displayNumber = randomValue.toString();*/
 		  
-		  String displayNumber = randomValue.toString();
+		  String displayNumber = toScientificNotation(randomValue.toString(), decimalPlaces);
+		  
 		  // Remove ".0" if decimalPlaces ==0
 		  if (decimalPlaces == 0) {
 			  displayNumber = displayNumber.replace(".0", "");
@@ -2937,7 +3233,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
    * variable names and variable ranges.
    */
    private Map<String, String> buildVariableRangeMap(ItemDataIfc item) {
-       HashMap<String, String> variableRangeMap = new HashMap<String, String>();
+       Map<String, String> variableRangeMap = new HashMap<String, String>();
 
        String instructions = item.getInstruction();
        List<String> variables = this.extractVariables(instructions);
@@ -2977,7 +3273,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
    * CALCULATED_QUESTION
    * Simple to check to see if this is a calculated question. It's used in storeGrades() to see if the sort is necessary.
    */
-  private boolean isCalcQuestion(List tempItemGradinglist, HashMap publishedItemHash) {
+  private boolean isCalcQuestion(List tempItemGradinglist, Map publishedItemHash) {
 	  if (tempItemGradinglist == null) return false;
 	  if (tempItemGradinglist.size() == 0) return false;
 	  
@@ -2986,7 +3282,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 		  ItemGradingData itemCheck = (ItemGradingData) iter.next();
 		  Long itemId = itemCheck.getPublishedItemId();
 		  ItemDataIfc item = (ItemDataIfc) publishedItemHash.get(itemId);
-		  if (item.getTypeId().equals(TypeIfc.CALCULATED_QUESTION)) {
+		  if (item != null && (TypeIfc.CALCULATED_QUESTION).equals(item.getTypeId())) {
 	    	  return true;
 	      }
 	  }
@@ -2994,13 +3290,13 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
   }
 
   
-  public ArrayList getHasGradingDataAndHasSubmission(Long publishedAssessmentId) {
-	  ArrayList al = new ArrayList();
+  public List<Boolean> getHasGradingDataAndHasSubmission(Long publishedAssessmentId) {
+	    List<Boolean> al = new ArrayList<>();
 	    try {
 	    	al = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getHasGradingDataAndHasSubmission(publishedAssessmentId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return al;
   }
@@ -3011,7 +3307,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	name = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getFilename(itemGradingId, agentId, filename);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return name;
   }
@@ -3022,7 +3318,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	list = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getUpdatedAssessmentList(agentId, siteId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return list;
   }
@@ -3033,17 +3329,18 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    	list = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getSiteNeedResubmitList(siteId);
 	    } catch (Exception e) {
-	      e.printStackTrace();
+	      log.error(e.getMessage(), e);
 	    }
 	    return list;
   }
   
-  public void autoSubmitAssessments() {
+  public int autoSubmitAssessments() {
 	  try {
-		  PersistenceService.getInstance().
+		  return PersistenceService.getInstance().
 		  getAssessmentGradingFacadeQueries().autoSubmitAssessments();
 	  } catch (Exception e) {
-		  e.printStackTrace();
+		  log.error(e.getMessage(), e);
+		  return 1;
 	  }
   }
   
@@ -3056,7 +3353,21 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	        getAssessmentGradingFacadeQueries().createItemGradingtAttachment(itemGrading,
 					resourceId, filename, protocol);
 		} catch (Exception e) {
-			e.printStackTrace();
+			log.error(e.getMessage(), e);
+		}
+		return attachment;
+	}
+  
+  public AssessmentGradingAttachment createAssessmentGradingAttachment(
+		  AssessmentGradingData assessmentGrading, String resourceId, String filename,
+			String protocol) {
+	  AssessmentGradingAttachment attachment = null;
+		try {
+			attachment = PersistenceService.getInstance().
+	        getAssessmentGradingFacadeQueries().createAssessmentGradingtAttachment(assessmentGrading,
+					resourceId, filename, protocol);
+		} catch (Exception e) {
+			log.error(e.getMessage(), e);
 		}
 		return attachment;
 	}
@@ -3065,18 +3376,23 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	  PersistenceService.getInstance().getAssessmentGradingFacadeQueries()
 	  .removeItemGradingAttachment(Long.valueOf(attachmentId));
   }
+  
+  public void removeAssessmentGradingAttachment(String attachmentId) {
+	  PersistenceService.getInstance().getAssessmentGradingFacadeQueries()
+	  .removeAssessmentGradingAttachment(Long.valueOf(attachmentId));
+  }
 
   public void saveOrUpdateAttachments(List list) {
 	  PersistenceService.getInstance().getAssessmentGradingFacadeQueries()
 	  .saveOrUpdateAttachments(list);
   }
   
-  public HashMap getInProgressCounts(String siteId)  {
+  public Map getInProgressCounts(String siteId)  {
       return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
       getInProgressCounts(siteId);
   }
   
-  public HashMap getSubmittedCounts(String siteId)  {
+  public Map getSubmittedCounts(String siteId)  {
       return PersistenceService.getInstance().getAssessmentGradingFacadeQueries().
       getSubmittedCounts(siteId);
   }

@@ -1,57 +1,55 @@
 package org.sakaiproject.content.impl.test;
 
-import junit.extensions.TestSetup;
-import junit.framework.Test;
-import junit.framework.TestSuite;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.sakaiproject.content.api.ContentCollection;
+import org.sakaiproject.content.api.ContentCollectionEdit;
 import org.sakaiproject.content.api.ContentHostingService;
 import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.content.api.ContentResourceEdit;
-import org.sakaiproject.content.impl.BaseContentService;
+import org.sakaiproject.entity.api.ResourceProperties;
+import org.sakaiproject.entity.api.ResourcePropertiesEdit;
+import org.sakaiproject.exception.OverQuotaException;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.IdUsedException;
 import org.sakaiproject.test.SakaiKernelTestBase;
 import org.sakaiproject.thread_local.api.ThreadLocalManager;
 import org.sakaiproject.tool.api.Session;
 import org.sakaiproject.tool.api.SessionManager;
-import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.MapPropertySource;
-import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.env.StandardEnvironment;
-
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
 
 /**
  * Test for deleting files.
  */
 public class ContentHostingServiceRecycleTest  extends SakaiKernelTestBase {
+	private static Logger log = LoggerFactory.getLogger(ContentHostingServiceRecycleTest.class);
+	private static final String SAMPLE_FOLDER = "/user/admin/";
+	
+	@BeforeClass
+	public static void beforeClass() {
+		try {
+			// These properties need to be dynamic so they work across linux/mac/windows.
+			Properties properties = new Properties();
+			properties.put("org.sakaiproject.content.api.ContentHostingService@bodyPath",
+					Files.createTempDirectory(FileSystems.getDefault().getPath(System.getProperty("java.io.tmpdir")), "files").toString());
+			properties.put("org.sakaiproject.content.api.ContentHostingService@bodyPathDeleted",
+					Files.createTempDirectory(FileSystems.getDefault().getPath(System.getProperty("java.io.tmpdir")), "deleted").toString());
+			oneTimeSetup(null, null, properties);    		
+		} catch (Exception e) {
+			log.warn(e.getMessage(), e);
+		}
+	}
 
-    public static Test suite()
-    {
-        TestSetup setup = new TestSetup(new TestSuite(ContentHostingServiceRecycleTest.class))
-        {
-
-            protected void setUp() throws Exception
-            {
-                // These properties need to be dynamic so they work across linux/mac/windows.
-                Properties properties = new Properties();
-                properties.put("org.sakaiproject.content.api.ContentHostingService@bodyPath",
-                        Files.createTempDirectory(FileSystems.getDefault().getPath(System.getProperty("java.io.tmpdir")), "files").toString());
-                properties.put("org.sakaiproject.content.api.ContentHostingService@bodyPathDeleted",
-                        Files.createTempDirectory(FileSystems.getDefault().getPath(System.getProperty("java.io.tmpdir")), "deleted").toString());
-                oneTimeSetup(null, null, properties);
-            }
-            protected void tearDown() throws Exception
-            {
-                oneTimeTearDown();
-            }
-        };
-        return setup;
-    }
-
+	@Test
     public void testDeleteResource() throws Exception {
         ContentHostingService ch = getService(ContentHostingService.class);
         SessionManager sm = getService(SessionManager.class);
@@ -79,6 +77,7 @@ public class ContentHostingServiceRecycleTest  extends SakaiKernelTestBase {
      *
      * @throws Exception
      */
+	@Test
     public void testDeleteResourceTwice() throws Exception {
         ContentHostingService ch = getService(ContentHostingService.class);
         SessionManager sm = getService(SessionManager.class);
@@ -102,7 +101,7 @@ public class ContentHostingServiceRecycleTest  extends SakaiKernelTestBase {
 
         try {
             ch.getResource(filename);
-            fail("We shouldn't be able to find: "+ filename);
+            Assert.fail("We shouldn't be able to find: "+ filename);
         } catch (IdUnusedException e) {
             // Expected
         }
@@ -114,7 +113,7 @@ public class ContentHostingServiceRecycleTest  extends SakaiKernelTestBase {
                 found++;
             }
         }
-        assertEquals("There should only be one copy of the file in the recycle bin.", 1, found);
+        Assert.assertEquals("There should only be one copy of the file in the recycle bin.", 1, found);
     }
 
     /**
@@ -122,6 +121,7 @@ public class ContentHostingServiceRecycleTest  extends SakaiKernelTestBase {
      * we correctly unlock the file we are attempting to restore ontop of.
      * @throws Exception
      */
+	@Test
     public void testDeleteResourceRestoreOnTop() throws Exception {
         ContentHostingService ch = getService(ContentHostingService.class);
         SessionManager sm = getService(SessionManager.class);
@@ -144,12 +144,72 @@ public class ContentHostingServiceRecycleTest  extends SakaiKernelTestBase {
         // Attempt to restore ontop of existing file.
         try {
             ch.restoreResource(filename);
-            fail("We should have thrown an exception as the file has been re-created.");
+            Assert.fail("We should have thrown an exception as the file has been re-created.");
         } catch (IdUsedException iue) {
             // Expected
         }
         // The file in resources shouldn't be locked.
         ch.removeResource(filename);
+    }
+
+    /**
+     * This is to check that when a restore is attempted and the file exceed quota
+     * the file is not restored and we correctly unlock it.
+     * @throws Exception
+     */
+	@Test
+    public void testRestoreOnOverquota() throws Exception {
+        ContentHostingService ch = getService(ContentHostingService.class);
+        SessionManager sm = getService(SessionManager.class);
+        ThreadLocalManager tl = getService(ThreadLocalManager.class);
+        reset(tl, sm);
+
+        // Set quota to 1kb
+		ResourcePropertiesEdit props = ch.newResourceProperties();
+		props.addProperty (ResourceProperties.PROP_COLLECTION_BODY_QUOTA,"1");
+		ContentCollection c = ch.addCollection(SAMPLE_FOLDER,props);
+		ContentCollectionEdit ce = ch.editCollection(SAMPLE_FOLDER);
+		ch.commitCollection(ce);
+
+		long quota = ch.getQuota(ch.getCollection(SAMPLE_FOLDER));
+		Assert.assertEquals("The quota is set to 1",1,quota);
+		
+        // Create a file
+        String filename = SAMPLE_FOLDER + UUID.randomUUID().toString();
+
+        try {
+        	ContentResourceEdit resource = ch.addResource(filename);
+        	resource.setContent(new byte[1048]);
+        	ch.commitResource(resource);
+        	Assert.fail("We should have exceed the quota.");
+        } catch (OverQuotaException oqe) {
+        	// OverQuota Resource Goes to Trash
+        }
+        
+        try {
+            ch.getResource(filename);
+            Assert.fail("We shouldn't be able to find: "+ filename);
+        } catch (IdUnusedException e) {
+            // Expected
+        }
+        
+        try {
+            ch.restoreResource(filename);
+            Assert.fail("We shouldn't be able to restore: "+ filename);
+        } catch (OverQuotaException e) {
+            // Expected
+        }
+
+        try {
+            ch.getResource(filename);
+            Assert.fail("We shouldn't be able to find: "+ filename);
+        } catch (IdUnusedException e) {
+            // Expected
+        }
+
+        List<ContentResource> allDeleted = ch.getAllDeletedResources(SAMPLE_FOLDER);
+        Assert.assertEquals("There should only be one copy of the file in the recycle bin.", 1, allDeleted.size());
+
     }
 
     /**

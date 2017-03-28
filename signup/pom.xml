@@ -5,14 +5,13 @@
 	<parent>
 		<groupId>org.sakaiproject</groupId>
 		<artifactId>master</artifactId>
-		<version>11-SNAPSHOT</version>
+		<version>12-SNAPSHOT</version>
 		<relativePath>../master/pom.xml</relativePath>
 	</parent>
 
 	<name>Sakai Signup Module</name>
 	<groupId>org.sakaiproject.signup</groupId>
 	<artifactId>signup</artifactId>
-	<version>11-SNAPSHOT</version>
 
 	<organization>
 		<name>Sakai Project</name>
@@ -48,17 +47,8 @@
 	<modules>
 		<module>api</module>
 		<module>impl</module>
-		<module>pack</module>
 		<module>tool</module>
 	</modules>
-
-	<distributionManagement>
-		<site>
-			<id>sakai-site</id>
-			<name>Sakai release Site</name>
-			<url>scpexe://source.sakaiproject.org/var/www/html/release/signup/${project.version}</url>
-		</site>
-	</distributionManagement>
 
 	<dependencyManagement>
 		<dependencies>
@@ -88,12 +78,6 @@
 				<artifactId>entitybroker-utils</artifactId>
 				<version>${sakai.version}</version>
 				<scope>compile</scope>
-			</dependency>
-			<dependency>
-				<groupId>org.sakaiproject</groupId>
-				<artifactId>generic-dao</artifactId>
-				<version>${generic-dao.version}</version>
-				<scope>provided</scope>
 			</dependency>
 			<dependency>
 				<groupId>org.sakaiproject.jsf</groupId>
@@ -127,15 +111,9 @@
 				<scope>test</scope>
 			</dependency>
 			<dependency>
-				<groupId>jta</groupId>
-				<artifactId>jta</artifactId>
-				<version>h2.1.8</version>
-				<scope>provided</scope>
-			</dependency>
-			<dependency>
 				<groupId>org.apache.myfaces.tomahawk</groupId>
 				<artifactId>tomahawk</artifactId>
-				<version>1.1.11</version>
+				<version>1.1.14</version>
 				<scope>compile</scope>
 			</dependency>
 			<dependency>
@@ -163,21 +141,9 @@
 				<scope>provided</scope>
 			</dependency>
 			<dependency>
-				<groupId>commons-validator</groupId>
-				<artifactId>commons-validator</artifactId>
-				<version>1.3.0</version>
-				<scope>compile</scope>
-			</dependency>
-			<dependency>
 				<groupId>oro</groupId>
 				<artifactId>oro</artifactId>
 				<version>2.0.8</version>
-				<scope>compile</scope>
-			</dependency>
-			<dependency>
-				<groupId>net.sf.opencsv</groupId>
-				<artifactId>opencsv</artifactId>
-				<version>2.3</version>
 				<scope>compile</scope>
 			</dependency>
 		</dependencies>

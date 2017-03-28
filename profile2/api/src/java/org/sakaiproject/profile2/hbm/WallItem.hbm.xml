@@ -1,8 +1,5 @@
-<?xml version="1.0"?>
-<!DOCTYPE hibernate-mapping
-    PUBLIC "-//Hibernate/Hibernate Mapping DTD//EN"
-    "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
-
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
 <hibernate-mapping package="org.sakaiproject.profile2.model">
 
 	<class name="WallItem" table="PROFILE_WALL_ITEMS_T">
@@ -30,6 +27,11 @@
   	<!-- get wall item records -->
 	<query name="getWallItemRecords">
     	<![CDATA[from WallItem item WHERE item.userUuid = :userUuid]]>
+    </query>
+
+  	<!-- get wall item record -->
+	<query name="getWallItemRecord">
+    	<![CDATA[from WallItem item WHERE item.id = :id]]>
 	</query>
 	
 </hibernate-mapping>

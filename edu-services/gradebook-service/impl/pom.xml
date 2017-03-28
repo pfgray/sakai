@@ -4,7 +4,7 @@
     <parent>
         <artifactId>edu-services</artifactId>
         <groupId>org.sakaiproject.edu-services</groupId>
-        <version>11-SNAPSHOT</version><!-- ProjectVersion -->
+        <version>12-SNAPSHOT</version><!-- ProjectVersion -->
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <groupId>org.sakaiproject.edu-services.gradebook</groupId>
@@ -22,6 +22,10 @@
         <dependency>
           <groupId>org.sakaiproject.kernel</groupId>
           <artifactId>sakai-component-manager</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.sakaiproject.kernel</groupId>
+            <artifactId>sakai-kernel-private</artifactId>
         </dependency>
         <dependency>
             <groupId>javax.servlet</groupId>
@@ -48,10 +52,6 @@
             <groupId>org.sakaiproject.kernel</groupId>
             <artifactId>sakai-kernel-api</artifactId>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
         </dependency>
         <dependency>
             <groupId>commons-lang</groupId>
@@ -111,9 +111,8 @@
             <version>1.0</version>
         </dependency>
         <dependency>
-            <groupId>jta</groupId>
+            <groupId>javax.transaction</groupId>
             <artifactId>jta</artifactId>
-            <version>h2.1.8</version>
         </dependency>
         <dependency>
             <groupId>cglib</groupId>
@@ -127,17 +126,14 @@
         <dependency>
             <groupId>commons-collections</groupId>
             <artifactId>commons-collections</artifactId>
-            <version>3.1</version>
         </dependency>
         <dependency>
             <groupId>commons-digester</groupId>
             <artifactId>commons-digester</artifactId>
-            <version>1.6</version>
         </dependency>
         <dependency>
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>
-            <version>1.7.0</version>
         </dependency>
         <dependency>
             <groupId>dom4j</groupId>

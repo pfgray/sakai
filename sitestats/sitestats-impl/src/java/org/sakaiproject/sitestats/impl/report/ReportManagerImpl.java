@@ -18,16 +18,42 @@
  */
 package org.sakaiproject.sitestats.impl.report;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.fop.apps.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Observable;
+import java.util.Observer;
+
+import javax.xml.transform.Result;
+import javax.xml.transform.Source;
+import javax.xml.transform.Templates;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.sax.SAXResult;
+import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stream.StreamSource;
+
+import org.apache.fop.apps.FOPException;
+import org.apache.fop.apps.FOUserAgent;
+import org.apache.fop.apps.Fop;
+import org.apache.fop.apps.FopFactory;
+import org.apache.fop.apps.MimeConstants;
 import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.util.WorkbookUtil;
 import org.hibernate.Criteria;
-import org.hibernate.HibernateException;
-import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.criterion.Expression;
 import org.sakaiproject.content.api.ContentCollection;
@@ -44,11 +70,22 @@ import org.sakaiproject.memory.api.Cache;
 import org.sakaiproject.memory.api.MemoryService;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.SiteService;
-import org.sakaiproject.sitestats.api.*;
+import org.sakaiproject.sitestats.api.EventStat;
+import org.sakaiproject.sitestats.api.ResourceStat;
+import org.sakaiproject.sitestats.api.SitePresence;
+import org.sakaiproject.sitestats.api.SiteVisits;
+import org.sakaiproject.sitestats.api.Stat;
+import org.sakaiproject.sitestats.api.StatsAuthz;
+import org.sakaiproject.sitestats.api.StatsManager;
+import org.sakaiproject.sitestats.api.Util;
 import org.sakaiproject.sitestats.api.event.EventInfo;
 import org.sakaiproject.sitestats.api.event.EventRegistryService;
 import org.sakaiproject.sitestats.api.event.ToolInfo;
-import org.sakaiproject.sitestats.api.report.*;
+import org.sakaiproject.sitestats.api.report.Report;
+import org.sakaiproject.sitestats.api.report.ReportDef;
+import org.sakaiproject.sitestats.api.report.ReportFormattedParams;
+import org.sakaiproject.sitestats.api.report.ReportManager;
+import org.sakaiproject.sitestats.api.report.ReportParams;
 import org.sakaiproject.sitestats.impl.parser.DigesterUtil;
 import org.sakaiproject.sitestats.impl.report.fop.LibraryURIResolver;
 import org.sakaiproject.sitestats.impl.report.fop.ReportInputSource;
@@ -61,22 +98,12 @@ import org.sakaiproject.user.api.User;
 import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.util.ResourceLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataAccessException;
-import org.springframework.orm.hibernate3.HibernateCallback;
-import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
-
-import javax.xml.transform.*;
-import javax.xml.transform.sax.SAXResult;
-import javax.xml.transform.sax.SAXSource;
-import javax.xml.transform.stream.StreamSource;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.sql.SQLException;
-import java.text.SimpleDateFormat;
-import java.util.*;
+import org.springframework.orm.hibernate4.HibernateCallback;
+import org.springframework.orm.hibernate4.support.HibernateDaoSupport;
 
 
 /**
@@ -84,7 +111,7 @@ import java.util.*;
  *
  */
 public class ReportManagerImpl extends HibernateDaoSupport implements ReportManager, Observer {
-	private Log						LOG				= LogFactory.getLog(ReportManagerImpl.class);
+	private Logger						LOG				= LoggerFactory.getLogger(ReportManagerImpl.class);
 	private static ResourceLoader	msgs			= new ResourceLoader("Messages");
 	private ReportFormattedParams	formattedParams	= new ReportFormattedParamsImpl();
 
@@ -243,35 +270,35 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 		// generate report
 		Report report = new Report();
 		List<Stat> data = null;
-		if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_RESOURCES)){
+		if (reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_RESOURCES)) {
 			data = M_sm.getResourceStats(rpp.siteId, rpp.resourceAction, rpp.resourceIds, rpp.iDate, rpp.fDate, rpp.userIds, rpp.inverseUserSelection, pagingPosition, rpp.totalsBy, rpp.sortBy, rpp.sortAscending, rpp.maxResults);
-		}else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_VISITS)
-				|| reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_EVENTS)){
+		} else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_VISITS)
+				|| reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_EVENTS)) {
 			data = M_sm.getEventStats(rpp.siteId, rpp.events, rpp.iDate, rpp.fDate, rpp.userIds, rpp.inverseUserSelection, pagingPosition, rpp.totalsBy, rpp.sortBy, rpp.sortAscending, rpp.maxResults);
-		}else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_PRESENCES)){
+		} else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_PRESENCES)) {
 			data = M_sm.getPresenceStats(rpp.siteId, rpp.iDate, rpp.fDate, rpp.userIds, rpp.inverseUserSelection, pagingPosition, rpp.totalsBy, rpp.sortBy, rpp.sortAscending, rpp.maxResults);
-		}else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_VISITS_TOTALS)){
+		} else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_VISITS_TOTALS)) {
 			data = M_sm.getVisitsTotalsStats(rpp.siteId, rpp.iDate, rpp.fDate, pagingPosition, rpp.totalsBy, rpp.sortBy, rpp.sortAscending, rpp.maxResults);
-		}else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_ACTIVITY_TOTALS)){
+		} else if(reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_ACTIVITY_TOTALS)) {
 			data = M_sm.getActivityTotalsStats(rpp.siteId, rpp.events, rpp.iDate, rpp.fDate, pagingPosition, rpp.totalsBy, rpp.sortBy, rpp.sortAscending, rpp.maxResults);
+		} else if (reportDef.getReportParams().getWhat().equals(ReportManager.WHAT_LESSONPAGES)) {
+			data = M_sm.getLessonBuilderStats(rpp.siteId, rpp.resourceAction, rpp.resourceIds, rpp.iDate, rpp.fDate, rpp.userIds, rpp.inverseUserSelection, pagingPosition, rpp.totalsBy, rpp.sortBy, rpp.sortAscending, rpp.maxResults);
 		}
 		
 		// add missing info in report and its parameters
-		if(report != null) {
-			reportDef.getReportParams().setWhenFrom(rpp.iDate);
-			reportDef.getReportParams().setWhenTo(rpp.fDate);
-			reportDef.getReportParams().setWhoUserIds(rpp.userIds);
-			reportDef.getReportParams().setHowTotalsBy(rpp.totalsBy);
-			report.setReportData(data);
-			report.setReportDefinition(reportDef);
-			report.setReportGenerationDate(new Date());
-			if(log && reportDef.getId() != 0) {
-				String siteId = reportDef.getSiteId();
-				if(siteId == null) {
-					siteId = reportDef.getReportParams().getSiteId();
-				}
-				M_sm.logEvent(reportDef, StatsManager.LOG_ACTION_VIEW, siteId, true);
+		reportDef.getReportParams().setWhenFrom(rpp.iDate);
+		reportDef.getReportParams().setWhenTo(rpp.fDate);
+		reportDef.getReportParams().setWhoUserIds(rpp.userIds);
+		reportDef.getReportParams().setHowTotalsBy(rpp.totalsBy);
+		report.setReportData(data);
+		report.setReportDefinition(reportDef);
+		report.setReportGenerationDate(new Date());
+		if (log && reportDef.getId() != 0) {
+			String siteId = reportDef.getSiteId();
+			if (siteId == null) {
+				siteId = reportDef.getReportParams().getSiteId();
 			}
+			M_sm.logEvent(reportDef, StatsManager.LOG_ACTION_VIEW, siteId, true);
 		}
 
 		return report;
@@ -318,10 +345,24 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 			if(params.isWhatLimitedResourceIds() && params.getWhatResourceIds() != null){
 				rpp.resourceIds = new ArrayList<String>();
 				Iterator<String> iR = params.getWhatResourceIds().iterator();
-				while (iR.hasNext())
-					rpp.resourceIds.add("/content" + iR.next());
+				while (iR.hasNext()) {
+					String next = iR.next();
+					rpp.resourceIds.add("/content" + next);
+				}
 			}
 			if(params.isWhatLimitedAction() && params.getWhatResourceAction() != null) {
+				rpp.resourceAction = params.getWhatResourceAction();			
+			}
+		} else if (params.getWhat().equals(ReportManager.WHAT_LESSONPAGES)){
+			rpp.resourceIds = null;
+			rpp.resourceAction = null;
+			if (params.isWhatLimitedResourceIds() && params.getWhatResourceIds() != null) {
+				rpp.resourceIds = new ArrayList<String>();
+				for (String iR : params.getWhatResourceIds()) {
+					rpp.resourceIds.add("/lessonbuilder" + iR);
+				}
+			}
+			if (params.isWhatLimitedAction() && params.getWhatResourceAction() != null) {
 				rpp.resourceAction = params.getWhatResourceAction();			
 			}
 		}
@@ -335,6 +376,7 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 		}else rpp.fDate = new Date();
 		if(params.getWhen().equals(ReportManager.WHEN_ALL)){
 			if(rpp.siteId != null) {
+                // ADRIAN
 				rpp.iDate = M_sm.getInitialActivityDate(rpp.siteId);
 			}else{
 				rpp.iDate = null;
@@ -409,7 +451,7 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 			rpp.maxResults = 0;
 		}
 
-		return rpp;		
+		return rpp;
 	}
 	
 	
@@ -445,6 +487,12 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 			
 		}else if(column.equals(StatsManager.T_RESOURCE_ACTION)) {
 			return totalsBy.contains(StatsManager.T_RESOURCE_ACTION) && !ReportManager.WHO_NONE.equals(params.getWho());
+
+		}else if(column.equals(StatsManager.T_PAGE)) {
+			return totalsBy.contains(StatsManager.T_PAGE) && !ReportManager.WHO_NONE.equals(params.getWho());
+
+		}else if(column.equals(StatsManager.T_PAGE_ACTION)) {
+			return totalsBy.contains(StatsManager.T_PAGE_ACTION) && !ReportManager.WHO_NONE.equals(params.getWho());
 			
 		}else if(column.equals(StatsManager.T_DATE)) {
 			return totalsBy.contains(StatsManager.T_DATE) && !ReportManager.WHO_NONE.equals(params.getWho());
@@ -488,11 +536,7 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 		if(cached != null){
 			reportDef = (ReportDef) cached;
 		}else{
-			HibernateCallback hcb = new HibernateCallback() {
-				public Object doInHibernate(Session session) throws HibernateException, SQLException {
-					return session.load(ReportDef.class, Long.valueOf(id));
-				}
-			};
+			HibernateCallback<ReportDef> hcb = session -> (ReportDef) session.load(ReportDef.class, Long.valueOf(id));
 			Object o;
 			try{
 				o = getHibernateTemplate().execute(hcb);
@@ -562,52 +606,48 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 			LOG.warn("saveReportDefinition(): unable to generate xml string from report parameters.", e);
 			return false;
 		}
-		HibernateCallback hcb = new HibernateCallback() {
-			public Object doInHibernate(Session session) throws HibernateException, SQLException {
-				Transaction tx = null;
-				try{
-					tx = session.beginTransaction();
-					session.saveOrUpdate(reportDef);
-					tx.commit();
-				}catch(Exception e){
-					if(tx != null) tx.rollback();
-					LOG.warn("Unable to commit transaction: ", e);
-					return Boolean.FALSE;
-				}
-				return Boolean.TRUE;
-			}
-		};
-		Boolean success = (Boolean) getHibernateTemplate().execute(hcb);
-		if(success.booleanValue()) {
+		HibernateCallback<Boolean> hcb = session -> {
+            Transaction tx = null;
+            try{
+                tx = session.beginTransaction();
+                session.saveOrUpdate(reportDef);
+                tx.commit();
+            }catch(Exception e){
+                if(tx != null) tx.rollback();
+                LOG.warn("Unable to commit transaction: ", e);
+                return Boolean.FALSE;
+            }
+            return Boolean.TRUE;
+        };
+		Boolean success = getHibernateTemplate().execute(hcb);
+		if(success) {
 			String siteId = reportDef.getSiteId();
 			if(siteId == null) {
 				siteId = reportDef.getReportParams().getSiteId();
 			}
 			M_sm.logEvent(reportDef, isNew ? StatsManager.LOG_ACTION_NEW : StatsManager.LOG_ACTION_EDIT, siteId, false);
 		}
-		return success.booleanValue();
+		return success;
 	}
 	
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.sitestats.api.report.ReportManager#removeReportDefinition(org.sakaiproject.sitestats.api.report.ReportDef)
 	 */
 	public boolean removeReportDefinition(final ReportDef reportDef) {
-		HibernateCallback hcb = new HibernateCallback() {
-			public Object doInHibernate(Session session) throws HibernateException, SQLException {
-				Transaction tx = null;
-				try{
-					tx = session.beginTransaction();
-					session.delete(reportDef);
-					tx.commit();
-				}catch(Exception e){
-					if(tx != null) tx.rollback();
-					LOG.warn("Unable to commit transaction: ", e);
-					return Boolean.FALSE;
-				}
-				return Boolean.TRUE;
-			}
-		};
-		Boolean success = (Boolean) getHibernateTemplate().execute(hcb);
+		HibernateCallback<Boolean> hcb = session -> {
+            Transaction tx = null;
+            try{
+                tx = session.beginTransaction();
+                session.delete(reportDef);
+                tx.commit();
+            }catch(Exception e){
+                if(tx != null) tx.rollback();
+                LOG.warn("Unable to commit transaction: ", e);
+                return Boolean.FALSE;
+            }
+            return Boolean.TRUE;
+        };
+		Boolean success = getHibernateTemplate().execute(hcb);
 		if(success) {
 			String siteId = reportDef.getSiteId();
 			if(siteId == null) {
@@ -629,27 +669,24 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 			reportDefs = (List<ReportDef>) cached;
 			LOG.debug("Getting report list from cache for site "+siteId);
 		}else{
-			HibernateCallback hcb = new HibernateCallback() {
-				public Object doInHibernate(Session session) throws HibernateException, SQLException {
-					Criteria c = session.createCriteria(ReportDef.class);
-					if(siteId != null) {
-						if(includedPredefined) {
-							c.add(Expression.or(Expression.eq("siteId", siteId), Expression.isNull("siteId")));
-						}else{
-							c.add(Expression.eq("siteId", siteId));
-						}
-					}else{
-						c.add(Expression.isNull("siteId"));
-					}
-					if(!includeHidden) {
-						c.add(Expression.eq("hidden", false));
-					}
-					return c.list();
-				}
-			};
-			Object o = getHibernateTemplate().execute(hcb);
-			if(o != null) {
-				reportDefs = (List<ReportDef>) o;
+			HibernateCallback<List<ReportDef>> hcb = session -> {
+                Criteria c = session.createCriteria(ReportDef.class);
+                if(siteId != null) {
+                    if(includedPredefined) {
+                        c.add(Expression.or(Expression.eq("siteId", siteId), Expression.isNull("siteId")));
+                    }else{
+                        c.add(Expression.eq("siteId", siteId));
+                    }
+                }else{
+                    c.add(Expression.isNull("siteId"));
+                }
+                if(!includeHidden) {
+                    c.add(Expression.eq("hidden", false));
+                }
+                return c.list();
+            };
+			reportDefs = getHibernateTemplate().execute(hcb);
+			if(reportDefs != null) {
 				for(ReportDef reportDef : reportDefs) {
 					try{
 						reportDef.setReportParams(DigesterUtil.convertXmlToReportParams(reportDef.getReportDefinitionXml()));
@@ -1412,7 +1449,7 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 					}
 					return buff.toString();
 				}
-			}else{
+			}else if(report.getReportDefinition().getReportParams().getWhat().equals(ReportManager.WHAT_RESOURCES)){
 				// resources
 				List<String> list = report.getReportDefinition().getReportParams().getWhatResourceIds();
 				if(report.getReportDefinition().getReportParams().getWhatResourceIds() == null
@@ -1469,7 +1506,9 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 					}
 				}
 				return buff.toString();
-			}
+			}else {
+                return null;
+            }
 		}
 		
 		/* (non-Javadoc)

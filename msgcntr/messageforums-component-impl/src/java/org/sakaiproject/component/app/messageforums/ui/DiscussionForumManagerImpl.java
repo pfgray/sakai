@@ -31,8 +31,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.api.app.messageforums.ActorPermissions;
 import org.sakaiproject.api.app.messageforums.Area;
 import org.sakaiproject.api.app.messageforums.AreaControlPermission;
@@ -85,7 +85,7 @@ import org.sakaiproject.tool.cover.ToolManager;
 import org.sakaiproject.user.api.User;
 import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.user.api.UserNotDefinedException;
-import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
+import org.springframework.orm.hibernate4.support.HibernateDaoSupport;
 
 
 
@@ -95,8 +95,7 @@ import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
 public class DiscussionForumManagerImpl extends HibernateDaoSupport implements
     DiscussionForumManager {
   private static final String MC_DEFAULT = "mc.default.";
-  private static final Log LOG = LogFactory
-      .getLog(DiscussionForumManagerImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DiscussionForumManagerImpl.class);
   private AreaManager areaManager;
   private MessageForumsForumManager forumManager;
   private MessageForumsMessageManager messageManager;
@@ -2533,8 +2532,32 @@ public class DiscussionForumManagerImpl extends HibernateDaoSupport implements
   	  return usersAllowed;
     }
 
+	public List getRecentDiscussionForumThreadsByTopicIds(List<Long> topicIds, int numberOfMessages)
+	{
+		if (LOG.isDebugEnabled())
+		{
+			LOG.debug("getRecentDiscussionForumMessagesByContext( Size of list is " + topicIds.size() + ")");
+		}
+		return messageManager.getRecentDiscussionForumThreadsByTopicIds(topicIds, numberOfMessages);
+	}
+
 	public List<Attachment> getTopicAttachments(Long topicId) {
 		return forumManager.getTopicAttachments(topicId);
+	}
+
+	public List<Topic> getTopicsInSite(final String contextId)
+	{
+		return forumManager.getTopicsInSite(contextId);
+	}
+
+	public List<Topic> getAnonymousTopicsInSite(final String contextId)
+	{
+		return forumManager.getAnonymousTopicsInSite(contextId);
+	}
+
+	public boolean isSiteHasAnonymousTopics(final String contextId)
+	{
+		return forumManager.isSiteHasAnonymousTopics(contextId);
 	}
 
 	public MemoryService getMemoryService() {

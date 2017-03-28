@@ -32,8 +32,8 @@ import java.util.regex.Pattern;
 import javax.servlet.ServletConfig;
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.tool.api.SessionManager;
 
@@ -47,15 +47,12 @@ import org.sakaiproject.tool.api.SessionManager;
 public class Web
 {
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(Web.class);
+	private static Logger M_log = LoggerFactory.getLogger(Web.class);
 
 	// used to remove javascript from html
 	private static final String START_JAVASCRIPT = "<script";
 	private static final String END_JAVASCRIPT = "</script>";
 	
-	private static SessionManager sessionManager = (SessionManager)
-			ComponentManager.get(SessionManager.class);
-
 	/**
 	 * Escape a plaintext string so that it can be output as part of an HTML document. Amperstand, greater-than, less-than, newlines, etc, will be escaped so that they display (instead of being interpreted as formatting).
 	 * 
@@ -341,7 +338,7 @@ public class Web
 	 */
 	public static void sendAutoUpdate(PrintWriter out, HttpServletRequest req, String placementId, int updateTime)
 	{
-		String userId = sessionManager.getCurrentSessionUserId();
+		String userId = ComponentManager.get(SessionManager.class).getCurrentSessionUserId();
 		StringBuilder url = new StringBuilder(serverUrl(req));
 		url.append("/courier/");
 		url.append(placementId);
@@ -565,7 +562,7 @@ public class Web
 		}
 		catch (java.io.UnsupportedEncodingException e)
 		{
-			M_log.error(e);
+			M_log.error(e.getMessage(), e);
 		}
 		
 		return fileName;		

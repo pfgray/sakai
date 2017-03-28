@@ -29,6 +29,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,9 +42,12 @@ import javax.faces.event.ActionEvent;
 import javax.faces.event.ActionListener;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.event.cover.EventTrackingService;
+import org.sakaiproject.tags.api.Tag;
+import org.sakaiproject.tags.api.TagService;
+import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.tool.assessment.data.dao.assessment.Answer;
 import org.sakaiproject.tool.assessment.data.dao.assessment.AnswerFeedback;
 import org.sakaiproject.tool.assessment.data.dao.assessment.ItemMetaData;
@@ -60,6 +65,7 @@ import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemFeedbackIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemMetaDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTextAttachmentIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTextIfc;
+import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTagIfc;
 import org.sakaiproject.tool.assessment.services.FinFormatException;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.SectionDataIfc;
 import org.sakaiproject.tool.assessment.facade.AgentFacade;
@@ -78,16 +84,19 @@ import org.sakaiproject.tool.assessment.ui.bean.author.AuthorBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.CalculatedQuestionAnswerIfc;
 import org.sakaiproject.tool.assessment.ui.bean.author.CalculatedQuestionFormulaBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.CalculatedQuestionVariableBean;
+import org.sakaiproject.tool.assessment.ui.bean.author.ImageMapItemBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.ItemAuthorBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.ItemBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.MatchItemBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.CalculatedQuestionBean;
+import org.sakaiproject.tool.assessment.ui.bean.authz.AuthorizationBean;
 import org.sakaiproject.tool.assessment.ui.bean.questionpool.QuestionPoolBean;
 import org.sakaiproject.tool.assessment.ui.bean.questionpool.QuestionPoolDataBean;
 import org.sakaiproject.tool.assessment.ui.listener.util.ContextUtil;
 import org.sakaiproject.tool.assessment.util.TextFormat;
 import org.sakaiproject.tool.assessment.data.dao.assessment.FavoriteColChoices;
 import org.sakaiproject.tool.assessment.data.dao.assessment.FavoriteColChoicesItem;
+import org.sakaiproject.tool.assessment.ws.Item;
 import org.sakaiproject.util.FormattedText;
 
 /**
@@ -99,12 +108,14 @@ import org.sakaiproject.util.FormattedText;
 public class ItemAddListener
     implements ActionListener {
 
-  private static final Log log = LogFactory.getLog(ItemAddListener.class);
-  //private static ContextUtil cu;
+  private static final Logger log = LoggerFactory.getLogger(ItemAddListener.class);
+  private static final TagService tagService= (TagService) ComponentManager.get( TagService.class );
+    //private static ContextUtil cu;
   //private String scalename; // used for multiple choice Survey
   private boolean error = false;
   private boolean isPendingOrPool = false;
   private boolean isEditPendingAssessmentFlow = true;
+  AssessmentService assessdelegate;
 
   /**
    * Standard process action method.
@@ -113,59 +124,73 @@ public class ItemAddListener
    */
   public void processAction(ActionEvent ae) throws AbortProcessingException {
 
-    //boolean correct=false;
-
-    log.debug("ItemAdd LISTENER.");
+	log.debug("ItemAdd LISTENER.");
 
     ItemAuthorBean itemauthorbean = (ItemAuthorBean) ContextUtil.lookupBean("itemauthor");
     ItemBean item = itemauthorbean.getCurrentItem();
+    
     item.setEmiVisibleItems("0");
     String iText = ContextUtil.stringWYSIWYG(item.getItemText());
     String iInstruction = ContextUtil.stringWYSIWYG(item.getInstruction());
     String iType = item.getItemType();
     String err="";
     FacesContext context=FacesContext.getCurrentInstance();
-   
+
+    // To keep the temporal list of tags when validation fails
+    String[] tagsFromForm = FacesContext.getCurrentInstance().getExternalContext().getRequestParameterValuesMap().get("tag_selector[]");
+    if (itemauthorbean.getDeleteTagsAllowed()) {
+    	//we update the full list of tags for the input field
+    	itemauthorbean.setTagsListToJson(convertTagSelectOptionsToJson(tagsFromForm));
+    } else {
+    	//we update the list of tags for the NEW tags input field, but tagsListToJson will maintain the original value
+    	itemauthorbean.setTagsTempListToJson(convertTagSelectOptionsToJson(tagsFromForm));    
+    }
+
     // SAK-6050
     // if((!iType.equals(TypeFacade.MATCHING.toString())&&((iText==null)||(iText.replaceAll("<.*?>", "").trim().equals(""))))|| (iType.equals(TypeFacade.MATCHING.toString()) && ((iInstruction==null)||(iInstruction.replaceAll("<.*?>", "").trim().equals(""))))){
     if( (!iType.equals(TypeFacade.MATCHING.toString())&&((iText==null) ||(iText.toLowerCase().replaceAll("<^[^(img)]*?>", "").trim().equals(""))))|| (iType.equals(TypeFacade.MATCHING.toString()) && ((iInstruction==null)||(iInstruction.toLowerCase().replaceAll("<^[^(img)]*?>", "").trim().equals(""))))){
     	
     	// Like Matching CaculatedQuestion will also use Instruction instead of itemText
-    	if (!iType.equals(TypeFacade.CALCULATED_QUESTION.toString())) {
+    	if (!iType.equals(TypeFacade.CALCULATED_QUESTION.toString()) && !iType.equals(TypeFacade.IMAGEMAP_QUESTION.toString()) ) {
 			String emptyText_err = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","emptyText_error");     
 			context.addMessage(null,new FacesMessage(emptyText_err));
 			return;
     	}
     }   
 
-    if(iType.equals(TypeFacade.EXTENDED_MATCHING_ITEMS.toString()))
+    if(iType.equals(TypeFacade.EXTENDED_MATCHING_ITEMS.toString())) {
     	checkEMI();
+    }
     
-    if(iType.equals(TypeFacade.MULTIPLE_CHOICE.toString()))
-	checkMC(true);
+    if(iType.equals(TypeFacade.MULTIPLE_CHOICE.toString())) {
+    	checkMC(true);
+    }
 
-    if(iType.equals(TypeFacade.MULTIPLE_CORRECT.toString()))
-	checkMC(false);
+    if(iType.equals(TypeFacade.MULTIPLE_CORRECT.toString())) {
+    	checkMC(false);
+    }
     
-    if(iType.equals(TypeFacade.MULTIPLE_CORRECT_SINGLE_SELECTION.toString()))
-    checkMC(false);
+    if(iType.equals(TypeFacade.MULTIPLE_CORRECT_SINGLE_SELECTION.toString())) {
+    	checkMC(false);
+    }
     
-    if(iType.equals(TypeFacade.MATCHING.toString()))
-        {   
-            ArrayList l=item.getMatchItemBeanList();
+    if(iType.equals(TypeFacade.MATCHING.toString())) {   
+		List l=item.getMatchItemBeanList();
 	    if (l==null || l.size()==0){
 		String noPairMatching_err=ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","noMatchingPair_error");
 		context.addMessage(null,new FacesMessage(noPairMatching_err));
 		error=true;
 	    }
 	}
-    if(error)
-	return;
+    
+    if(error) { 
+    	return;
+    }
     
     if(iType.equals(TypeFacade.MULTIPLE_CHOICE_SURVEY.toString()))
     {   
       String scaleName = item.getScaleName();
-      if (scaleName == null){
+      if (StringUtils.isBlank(scaleName)){
 	    err = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","corrAnswer");
 	    context.addMessage(null,new FacesMessage(err));
 	    item.setOutcome("surveyItem");
@@ -177,7 +202,7 @@ public class ItemAddListener
     if(iType.equals(TypeFacade.TRUE_FALSE.toString()))
     {   
       String corrAnswer = item.getCorrAnswer();
-      if (corrAnswer == null){
+      if (StringUtils.isBlank(corrAnswer)){
 	    err = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","corrAnswer");
 	    context.addMessage(null,new FacesMessage(err));
 	    item.setOutcome("trueFalseItem");
@@ -249,7 +274,7 @@ public class ItemAddListener
         // make sure any last minute updates to instructions are handles
         // this also does the standard validations
         CalculatedQuestionExtractListener extractListener = new CalculatedQuestionExtractListener();
-        List<String> errors = extractListener.validate(item);
+        List<String> errors = extractListener.validate(item,false);
         if (errors.size() > 0) {
             for (String curError : errors) {
                 context.addMessage(null, new FacesMessage(curError));
@@ -280,7 +305,18 @@ public class ItemAddListener
             }
         }
     }
-
+    if (iType.equals(TypeFacade.IMAGEMAP_QUESTION.toString())) {
+ 	   
+        List l=item.getImageMapItemBeanList();
+   	    if (l==null || l.size()==0){
+   		String noPairImageMap_err=ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","noImageMapPair_error");
+   		context.addMessage(null,new FacesMessage(noPairImageMap_err));
+   		error=true;
+   	    
+    	}
+   	 if(error)
+   		return;
+    }
 	try {
 		saveItem(itemauthorbean);
 	}
@@ -296,7 +332,29 @@ public class ItemAddListener
     item.setPoolOutcome("editPool");
     itemauthorbean.setItemTypeString("");
   }
-    
+
+	private String convertTagSelectOptionsToJson(String[] tagsFromForm){
+
+		String tagsListToJson = "[";
+		if (tagsFromForm!=null) {
+			Boolean more = false;
+			for (String s:tagsFromForm) {
+				if (more) {
+					tagsListToJson += ",";
+				}
+				if (tagService.getTags().getForId(s).isPresent()) {
+					Tag tag = tagService.getTags().getForId(s).get();
+					String tagLabel = tag.getTagLabel();
+					String tagCollectionName = tag.getCollectionName();
+					tagsListToJson += "{\"tagId\":\"" + s + "\",\"tagLabel\":\"" + tagLabel + "\",\"tagCollectionName\":\"" + tagCollectionName + "\"}";
+					more = true;
+				}
+			}
+		}
+		tagsListToJson += "]";
+		return tagsListToJson;
+	}
+
 	private void checkEMI() {
 		ItemAuthorBean itemauthorbean = (ItemAuthorBean) ContextUtil
 				.lookupBean("itemauthor");
@@ -665,13 +723,14 @@ public class ItemAddListener
     	String text=item.getColumnChoices();
     	String[] columns;
     	columns = text.split(System.getProperty("line.separator"));
-    	if(columns.length < 2)
+    	if(columns.length < 2) {
     		return true;	
+    	}
     	return false;
     }
 
   public void saveItem(ItemAuthorBean itemauthor) throws FinFormatException{
-    boolean update = false;
+	  boolean update = false;
       ItemBean bean = itemauthor.getCurrentItem();
       ItemFacade item;
       AuthorBean author = (AuthorBean) ContextUtil.lookupBean("author");
@@ -713,6 +772,9 @@ public class ItemAddListener
       }
       item.setScore(Double.valueOf(bean.getItemScore()));
       item.setDiscount(Double.valueOf(bean.getItemDiscount()));
+      //default should be "true", so anything other than "false" is a true value
+      item.setScoreDisplayFlag(!"false".equals(bean.getItemScoreDisplayFlag()));
+      item.setMinScore(bean.getItemMinScore());
       item.setHint("");
 
       item.setStatus(ItemDataIfc.ACTIVE_STATUS);
@@ -783,13 +845,17 @@ public class ItemAddListener
             }
 			else if(item.getTypeId().equals(TypeFacade.CALCULATED_QUESTION)) {
               item.setItemTextSet(prepareTextForCalculatedQuestion(item, bean, itemauthor));
-    	    }
-    	  	else if(item.getTypeId().equals(TypeFacade.MATRIX_CHOICES_SURVEY)) {
-    	  		item.setItemTextSet(prepareTextForMatrixChoice(item, bean, itemauthor));
-    	  	}
-            else { //Other Types
-                item.setItemTextSet(prepareText(item, bean, itemauthor));
-            }
+			}
+	    	  else if(item.getTypeId().equals(TypeFacade.MATRIX_CHOICES_SURVEY)) {
+	    		  item.setItemTextSet(prepareTextForMatrixChoice(item, bean, itemauthor));
+	    	  }
+	    	  else if(item.getTypeId().equals(TypeFacade.IMAGEMAP_QUESTION)) {
+		          item.setItemTextSet(prepareTextForImageMapQuestion(item, bean, itemauthor));
+		  	  }
+	    	  else {  //Other Types
+	    		  item.setItemTextSet(prepareText(item, bean, itemauthor));
+	    	  }
+
     	  	
             // prepare MetaData
             item.setItemMetaDataSet(prepareMetaData(item, bean));
@@ -809,24 +875,66 @@ public class ItemAddListener
       	  	}
       }
 
-      if (isFromQuestionPool) {
+	  updateAttachments(itemauthor.getAttachmentList(), item);
+
+	  //Manage the tags.
+	  String[] tagsFromForm= FacesContext.getCurrentInstance().getExternalContext().getRequestParameterValuesMap().get("tag_selector[]");
+	  Set<ItemTagIfc> originalTagList = itemauthor.getTagsList();
+
+	  if (itemauthor.getDeleteTagsAllowed()){
+	  	//Let's check the ones that have been deleted and delete from the item
+	  	if (originalTagList!=null){
+			Iterator<ItemTagIfc> ite = originalTagList.iterator();
+			while ( ite.hasNext() ) {
+			  ItemTagIfc tagToShow = (ItemTagIfc)ite.next();
+			  if (tagsFromForm==null || !(Arrays.asList(tagsFromForm).contains(tagToShow.getTagId()))){
+			  	  item.removeItemTagByTagId(tagToShow.getTagId());
+			  }
+		  	}
+	  	}
+	  }
+
+	  //Let's add the new ones
+	  if (tagsFromForm!=null){
+		  for (String s:tagsFromForm) {
+			  Boolean found = false;
+			  if (originalTagList != null) {
+				  Iterator<ItemTagIfc> it = originalTagList.iterator();
+				  while (it.hasNext()) {
+					  ItemTagIfc tagToShow = (ItemTagIfc) it.next();
+					  if (tagToShow.getTagId().equals(s)) {
+						  found = true;  //If it is in the list... we don't need to do anything.
+						  break;
+					  }
+				  }
+			  }
+			  if (!found) {  //If it is not in the list... we need to add it.
+				  if (tagService.getTags().getForId(s).isPresent()) {
+					  Tag tag = tagService.getTags().getForId(s).get();
+					  item.addItemTag(s, tag.getTagLabel(), tag.getTagCollectionId(), tag.getCollectionName());
+				  }
+
+			  }
+		  }
+	  }
+      itemauthor.setTagsList(item.getItemTagSet());//To avoid add extra labels when refreshing the page manually.
+
+
+	  if (isFromQuestionPool) {
         // Came from Pool manager
+		  if (item.getTypeId().equals(TypeFacade.EXTENDED_MATCHING_ITEMS)) {
+			  Iterator emiItemIter = itemauthor.getCurrentItem().getEmiQuestionAnswerCombinationsClean().iterator();
+			  while (emiItemIter.hasNext()) {
+				  AnswerBean answerBean = (AnswerBean)emiItemIter.next();
+				  ItemTextIfc itemText = item.getItemTextBySequence(answerBean.getSequence());
+				  updateItemTextAttachment(answerBean.getAttachmentList(),
+						  itemText, true);
+			  }
+		  }
 
         delegate.saveItem(item);
 
-       // added by daisyf, 10/10/06
-       updateAttachment(item.getItemAttachmentList(), itemauthor.getAttachmentList(),
-                        (ItemDataIfc)item.getData(), true);
 
-	  	if (item.getTypeId().equals(TypeFacade.EXTENDED_MATCHING_ITEMS)) {
-	  		Iterator emiItemIter = itemauthor.getCurrentItem().getEmiQuestionAnswerCombinationsClean().iterator();
-	  		while (emiItemIter.hasNext()) {
-	  		   AnswerBean answerBean = (AnswerBean)emiItemIter.next();
-	  		   ItemTextIfc itemText = item.getItemTextBySequence(answerBean.getSequence());
-	  	       updateItemTextAttachment(answerBean.getAttachmentList(),
-	  	    		 itemText, true);
-	  		}
-	  	}
 
        item = delegate.getItem(item.getItemId().toString());
 
@@ -858,7 +966,7 @@ public class ItemAddListener
         currentPool.setObjectives(contextCurrentPool.getObjectives());
         currentPool.setKeywords(contextCurrentPool.getKeywords());
         
-        ArrayList addedQuestions = qpoolbean.getAddedQuestions();
+        List addedQuestions = qpoolbean.getAddedQuestions();
         if (addedQuestions == null) {
         	addedQuestions = new ArrayList();
         }
@@ -873,18 +981,12 @@ public class ItemAddListener
 		itemauthor.setItemNo(item.getItemId().toString());
       }
       else {
-        // Came from Assessment Authoring
-
-        AssessmentService assessdelegate;
-        if (isEditPendingAssessmentFlow) {
-        	assessdelegate = new AssessmentService();
-        }
-        else {
-        	assessdelegate = new PublishedAssessmentService();
-        }
-        // add the item to the specified part, otherwise add to default
+    	  
+    	  if(assessdelegate == null) {
+    		  assessdelegate = isEditPendingAssessmentFlow ? new AssessmentService() : new PublishedAssessmentService();
+    	  }
+    	  
         if (bean.getSelectedSection() != null) {
-// need to do  add a temp part first if assigned to a temp part SAK-2109
  
           SectionFacade section;
 
@@ -952,20 +1054,16 @@ public class ItemAddListener
               section.addSectionMetaData(SectionDataIfc.QUESTIONS_RANDOM_DRAW_DATE, df.format(item.getLastModifiedDate()));
               assessdelegate.saveOrUpdateSection(section);
           }
-          
-          delegate.saveItem(item);
 
-          // added by daisyf, 10/10/06
-          updateAttachment(item.getItemAttachmentList(), itemauthor.getAttachmentList(),
-                           (ItemDataIfc)item.getData(), isEditPendingAssessmentFlow);
-          
-  	  	if (item.getTypeId().equals(TypeFacade.EXTENDED_MATCHING_ITEMS)) {
-            for(AnswerBean answerBean: itemauthor.getCurrentItem().getEmiQuestionAnswerCombinationsClean()){
-  	  		   ItemTextIfc itemText = item.getItemTextBySequence(answerBean.getSequence());
-  	  	       updateItemTextAttachment(answerBean.getAttachmentList(),
-  	  	    		 itemText, isEditPendingAssessmentFlow);
-  	  		}
-  	  	}
+		  if (item.getTypeId().equals(TypeFacade.EXTENDED_MATCHING_ITEMS)) {
+			for(AnswerBean answerBean: itemauthor.getCurrentItem().getEmiQuestionAnswerCombinationsClean()){
+				ItemTextIfc itemText = item.getItemTextBySequence(answerBean.getSequence());
+				updateItemTextAttachment(answerBean.getAttachmentList(),
+						itemText, isEditPendingAssessmentFlow);
+			}
+		  }
+
+		  delegate.saveItem(item);
 
           item = delegate.getItem(item.getItemId().toString());
 
@@ -1029,10 +1127,43 @@ public class ItemAddListener
         itemauthor.setOutcome("editAssessment");
 
       }
-      // sorry, i need this for item attachment, used by SaveItemAttachmentListener. 
+	  //This is the event used by the Elasticsearch to catalog the questions.
+	  // We can't rely in the sam.assessment.review one because
+	  // It happens before the saving si we don't have the new ItemId
+	  if (isPendingOrPool) {
+		  EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.saveitem", "/sam/" + AgentFacade.getCurrentSiteId() + "/saved itemId=" + item.getItemId().toString(), true));
+	  }
+	  else {
+		  EventTrackingService.post(EventTrackingService.newEvent("sam.pubassessment.saveitem", "/sam/" + AgentFacade.getCurrentSiteId() + "/saved  publishedItemId=" + item.getItemId().toString(), true));
+	  }
+
+
+      // sorry, i need this for item attachment, used by SaveItemAttachmentListener.
+      bean.setItemId(item.getItemId().toString());
       itemauthor.setItemId(item.getItemId().toString());
+
+	  //Once we have saved the items... we need to MAYBE update tags in other questions.
+	  //We use these 2 properties
+	  //samigo.author.multitag.singlequestion=true
+	  //samigo.author.multitag.singlequestion.check=true
+	  //Admins can always decide.
+
+	  boolean saveMultiTagsCheck;
+	  String[] multiTagsSingleCheck = FacesContext.getCurrentInstance().getExternalContext().getRequestParameterValuesMap().get("multiTagsSingleCheck");
+	  if ((multiTagsSingleCheck != null) && (multiTagsSingleCheck.length>0)){
+		  saveMultiTagsCheck=true;
+	  }else{
+		  saveMultiTagsCheck=false;
+	  }
+
+	  AuthorizationBean authorizationBean = (AuthorizationBean) ContextUtil.lookupBean("authorization");
+	  //If we are admins... ONLY if saveMultiTagscheck. If we are other user, then if the check is on or
+	  // if the property samigo.author.multitag.singlequestion is set to true
+	  if (saveMultiTagsCheck || (itemauthor.getMultiTagsSingleQuestion() && !(authorizationBean.isSuperUser()))){
+		 delegate.saveTagsInHashedQuestions(item);
+	  }
   }
-  
+
 /**
  * for the current choice, loop through all answers and add unique matches to the list of valid matches for the choice. 
  * @param choicebean current choice
@@ -1041,7 +1172,7 @@ public class ItemAddListener
  * @param bean
  * @return
  */
-  private ItemText selectAnswers(MatchItemBean choicebean, ArrayList<MatchItemBean> matchItemBeanList, ItemFacade item, ItemBean bean) {
+  private ItemText selectAnswers(MatchItemBean choicebean, List<MatchItemBean> matchItemBeanList, ItemFacade item, ItemBean bean) {
 	  
 	  // Create a list of valid answers to loop through.  Ignore answers that are distractors
 	  // or are controlled by another MatchItemBean
@@ -1098,10 +1229,9 @@ public class ItemAddListener
 	  return choicetext;
   }
   
-  private HashSet prepareTextForMatching(ItemFacade item, ItemBean bean,
-		  ItemAuthorBean itemauthor) {
+  private Set prepareTextForMatching(ItemFacade item, ItemBean bean, ItemAuthorBean itemauthor) {
 	  // looping through matchItemBean
-	  ArrayList<MatchItemBean>matchItemBeanList = bean.getMatchItemBeanList();
+	  List<MatchItemBean>matchItemBeanList = bean.getMatchItemBeanList();
 	  HashSet<ItemText> textSet = new HashSet<ItemText>();
 	  
 	  Iterator<MatchItemBean> choiceiter = matchItemBeanList.iterator();
@@ -1549,6 +1679,47 @@ public class ItemAddListener
 	      return textSet;
 	  }
 	  
+	  /**
+	   * prepareTextForImageMapQestion 
+	   * @param item
+	   * @param bean
+	   * @param itemauthor
+	   * @return
+	   */
+	private Set<ItemText> prepareTextForImageMapQuestion(ItemFacade item, ItemBean bean, ItemAuthorBean itemauthor) {
+		List<ImageMapItemBean>imageMapItemBeanList = bean.getImageMapItemBeanList();
+		HashSet<ItemText> textSet = new HashSet<ItemText>();
+
+		for(ImageMapItemBean choicebean : imageMapItemBeanList)
+		{
+			ItemText choicetext = new ItemText();
+			choicetext.setItem(item.getData()); // all set to the same
+			choicetext.setSequence(choicebean.getSequence());
+			choicetext.setText(stripPtags(choicebean.getChoice()));
+
+			HashSet<Answer> answerSet = new HashSet<Answer>();
+
+			// correct answer
+			Answer  answer = new Answer(choicetext, 
+										stripPtags(choicebean.getMatch()), 
+										choicebean.getSequence(), 
+										AnswerBean.getChoiceLabels(choicebean.getSequence().intValue() - 1)[choicebean.getSequence().intValue() - 1], 
+										Boolean.TRUE, 
+										null, 
+										Double.valueOf(bean.getItemScore()), 
+										Double.valueOf(0d), 
+										Double.valueOf(bean.getItemDiscount()));
+			HashSet<AnswerFeedback> answerFeedbackSet = new HashSet<AnswerFeedback>();
+			answerFeedbackSet.add(new AnswerFeedback(answer, AnswerFeedbackIfc.CORRECT_FEEDBACK, stripPtags(choicebean.getCorrImageMapFeedback())));
+			answerFeedbackSet.add(new AnswerFeedback(answer, AnswerFeedbackIfc.INCORRECT_FEEDBACK, stripPtags(choicebean.getIncorrImageMapFeedback())));
+			answer.setAnswerFeedbackSet(answerFeedbackSet);
+			answerSet.add(answer);
+			choicetext.setAnswerSet((HashSet)answerSet);
+			textSet.add(choicetext);
+		}
+		return textSet;
+	}
+	  
   private Set preparePublishedText(ItemFacade item, ItemBean bean, ItemService delegate) throws FinFormatException{
 
 	  if (item.getTypeId().equals(TypeFacade.TRUE_FALSE)) {
@@ -1581,6 +1752,9 @@ public class ItemAddListener
 	  }
 	  else if (item.getTypeId().equals(TypeFacade.CALCULATED_QUESTION)) {
 	      preparePublishedTextForCalculatedQueston(item, bean, delegate);
+	  }
+	  else if (item.getTypeId().equals(TypeFacade.IMAGEMAP_QUESTION)) {
+		  preparePublishedTextForImageMapQuestion(item, bean, delegate);
 	  }
 	  else if(item.getTypeId().equals(TypeFacade.MATRIX_CHOICES_SURVEY)) {
 		  preparePublishedTextForMatrixSurvey(item,bean,delegate);
@@ -1731,8 +1905,8 @@ public class ItemAddListener
 		while (iter.hasNext()) {
 			text = (ItemTextIfc) iter.next();
 			text.setText(bean.getItemText());
-			ArrayList newAnswerList = bean.getMultipleChoiceAnswers();
-			HashMap newAnswerMap = new HashMap();
+			List newAnswerList = bean.getMultipleChoiceAnswers();
+			Map newAnswerMap = new HashMap();
 			Iterator newAnswerIter = newAnswerList.iterator();
 			while (newAnswerIter.hasNext()) {
 				AnswerBean answerBean = (AnswerBean) newAnswerIter.next();
@@ -1899,19 +2073,144 @@ public class ItemAddListener
       }
   }
 
+  private void preparePublishedTextForImageMapQuestion(ItemFacade item, ItemBean bean, ItemService delegate) {
+		Set textSet = item.getItemTextSet();
+		Iterator textIter = textSet.iterator();
+		Map itemTextMap = new HashMap();
+		while (textIter.hasNext()) {
+			ItemTextIfc itemText = (ItemTextIfc) textIter.next();
+			itemTextMap.put(itemText.getSequence(), itemText);
+		}
+		
+		List<ImageMapItemBean>imageMapItemBeanList = bean.getImageMapItemBeanList();
+		
+		Set answerSet = null;
+		ItemTextIfc choicetext = null;
+		AnswerIfc answer = null;
+		Long choiceSequence = null;
+		Long matchSequence = null;
+
+		for(ImageMapItemBean choicebean : imageMapItemBeanList)
+		{
+			choiceSequence = choicebean.getSequence();
+			if (itemTextMap.get(choiceSequence) == null) {
+				// new - add it in
+				choicetext = new PublishedItemText();
+				choicetext.setItem(item.getData()); // all set to the same
+				choicetext.setSequence(choicebean.getSequence());
+				choicetext.setText(stripPtags(choicebean.getChoice()));
+			} else {
+				choicetext = (ItemTextIfc) itemTextMap.get(choiceSequence);
+				choicetext.setText(choicebean.getChoice());
+			}
+			Map answerMap = new HashMap();
+			answerSet = choicetext.getAnswerSet();
+			if (answerSet != null) {
+				Iterator answerIter = answerSet.iterator();
+				while (answerIter.hasNext()) {
+					answer = (AnswerIfc) answerIter.next();
+					answerMap.put(answer.getSequence(), answer);
+				}
+			}
+			else {
+				answerSet = new HashSet();
+				choicetext.setAnswerSet(answerSet);
+				textSet.add(choicetext);
+			}
+			
+			matchSequence = choicebean.getSequence();
+			if (answerMap.get(matchSequence) == null) {
+				// new - add it in
+
+				// correct answer
+				answer = new PublishedAnswer(choicetext, 
+											stripPtags(choicebean.getMatch()), 
+											choicebean.getSequence(), 
+											AnswerBean.getChoiceLabels()[choicebean.getSequence().intValue() - 1], 
+											Boolean.TRUE, 
+											null, 
+											Double.valueOf(bean.getItemScore()), 
+											Double.valueOf(0d), 
+											Double.valueOf(bean.getItemDiscount()));
+				
+				Set<AnswerFeedbackIfc> answerFeedbackSet = new HashSet<AnswerFeedbackIfc>();
+				answerFeedbackSet.add(new PublishedAnswerFeedback(answer, AnswerFeedbackIfc.CORRECT_FEEDBACK, stripPtags(choicebean.getCorrImageMapFeedback())));
+				answerFeedbackSet.add(new PublishedAnswerFeedback(answer, AnswerFeedbackIfc.INCORRECT_FEEDBACK, stripPtags(choicebean.getIncorrImageMapFeedback())));
+				answer.setAnswerFeedbackSet(answerFeedbackSet);
+				answerSet.add(answer);
+				
+			} else {
+				answer = (AnswerIfc) answerMap.get(matchSequence);
+				answer.setScore(Double.valueOf(bean.getItemScore()));
+				String oneAnswer = stripPtags(choicebean.getMatch());
+				String oneLabel = AnswerBean.getChoiceLabels()[matchSequence
+					.intValue() - 1];
+				log.debug("oneAnswer = " + oneAnswer);
+				log.debug("oneLabel = " + oneLabel);
+				answer.setText(oneAnswer);
+				answer.setLabel(oneLabel);
+				// for new answers above, the default is true, not clear if we need to do something fancier here.
+				answer.setIsCorrect(Boolean.TRUE);
+				Set answerFeedbackSet = answer.getAnswerFeedbackSet();
+				Iterator answerFeedbackIter = answerFeedbackSet.iterator();
+				String feedback = "";
+				while (answerFeedbackIter.hasNext()) {
+					AnswerFeedbackIfc answerFeedback = (AnswerFeedbackIfc) answerFeedbackIter
+						.next();
+					if (answerFeedback.getTypeId().equals(AnswerFeedbackIfc.CORRECT_FEEDBACK)) {
+						answerFeedback.setText(stripPtags(choicebean.getCorrImageMapFeedback()));
+					}
+					else if (answerFeedback.getTypeId().equals(AnswerFeedbackIfc.INCORRECT_FEEDBACK)) {
+						answerFeedback.setText(stripPtags(choicebean.getIncorrImageMapFeedback()));
+					}
+				}
+			}
+		}
+		
+		int oldSize = textSet.size();
+		int newSize = imageMapItemBeanList.size();
+		if (oldSize > newSize) {
+			HashSet toBeRemovedTextSet = new HashSet();
+			HashSet toBeRemovedAnswerSet = new HashSet();
+			// Need to remove from answer too
+			for (int i = 1; i < newSize + 1; i++) {
+				ItemTextIfc text = (ItemTextIfc) itemTextMap.get(Long.valueOf(i));
+				answerSet = text.getAnswerSet();
+				if (answerSet != null) {
+					Iterator answerIter = answerSet.iterator();
+					while (answerIter.hasNext()) {
+						answer = (AnswerIfc) answerIter.next();
+						for (int j = newSize + 1; j < oldSize + 1; j++) {
+							if (answer.getSequence().intValue() == j) {
+								toBeRemovedAnswerSet.add(answer);
+							}
+						}
+					}
+					answerSet.removeAll(toBeRemovedAnswerSet);
+					delegate.deleteSet(toBeRemovedAnswerSet);
+				}
+			}
+			for (int i = newSize + 1; i < oldSize + 1; i++) {
+				ItemTextIfc text = (ItemTextIfc) itemTextMap.get(Long.valueOf(i));
+				toBeRemovedTextSet.add(text);
+			}
+			textSet.removeAll(toBeRemovedTextSet);
+			delegate.deleteSet(toBeRemovedTextSet);
+		}
+  }
   
   private void preparePublishedTextForMatching(ItemFacade item,
 			ItemBean bean, ItemService delegate) {
 		Set textSet = item.getItemTextSet();
 		Iterator textIter = textSet.iterator();
-		HashMap itemTextMap = new HashMap();
+		Map itemTextMap = new HashMap();
 		while (textIter.hasNext()) {
 			ItemTextIfc itemText = (ItemTextIfc) textIter.next();
 			itemTextMap.put(itemText.getSequence(), itemText);
 		}
 
 		// looping through matchItemBean
-		ArrayList matchItemBeanList = bean.getMatchItemBeanList();
+		List matchItemBeanList = bean.getMatchItemBeanList();
 		Iterator choiceIter = matchItemBeanList.iterator();
 		
 		Set answerSet = null;
@@ -1935,7 +2234,7 @@ public class ItemAddListener
 				itemText = (ItemTextIfc) itemTextMap.get(choiceSequence);
 				itemText.setText(choiceBean.getChoice());
 			}
-			HashMap answerMap = new HashMap();
+			Map answerMap = new HashMap();
 			answerSet = itemText.getAnswerSet();
 			if (answerSet != null) {
 				Iterator answerIter = answerSet.iterator();
@@ -2250,6 +2549,17 @@ public class ItemAddListener
 		set.add(new ItemMetaData(item.getData(),
 					ItemMetaDataIfc.RANDOMIZE, bean.getRandomized()));
 		}
+		// Required all ok for Image MAP property got left out, added in metadata
+		if (bean.getRequireAllOk() != null) {
+		set.add(new ItemMetaData(item.getData(),
+					ItemMetaDataIfc.REQUIRE_ALL_OK, bean.getRequireAllOk()));
+		}
+
+		// The imageMap Image URL added in Metadata
+		if (bean.getImageMapSrc() != null) {
+		set.add(new ItemMetaData(item.getData(),
+					ItemMetaDataIfc.IMAGE_MAP_SRC, bean.getImageMapSrc()));
+		}
 		// MSMC property got left out, added in metadata
 		if (bean.getMcmsPartialCredit() != null) {
 		set.add(new ItemMetaData(item.getData(),
@@ -2277,6 +2587,12 @@ public class ItemAddListener
 		set.add(new ItemMetaData(item.getData(),
 				ItemMetaDataIfc.MUTUALLY_EXCLUSIVE_FOR_FIB, Boolean
 						.toString(wellformatted)));
+
+	    // save settings for ignore spaces for FIB. Default=false
+		set.add(new ItemMetaData(item.getData(),
+				ItemMetaDataIfc.IGNORE_SPACES_FOR_FIB, Boolean
+						.toString(bean.getIgnoreSpacesForFib())));
+
 		// sam-939
 		set.add(new ItemMetaData(item.getData(),
 				ItemMetaDataIfc.FORCE_RANKING, Boolean
@@ -2348,6 +2664,12 @@ public class ItemAddListener
 		  else if (itemMetaData.getLabel().equals(ItemMetaDataIfc.RANDOMIZE)){
 			  itemMetaData.setEntry(bean.getRandomized());
 		  }
+		  else if (itemMetaData.getLabel().equals(ItemMetaDataIfc.REQUIRE_ALL_OK)){
+			  itemMetaData.setEntry(bean.getRequireAllOk());
+		  }
+		  else if (itemMetaData.getLabel().equals(ItemMetaDataIfc.IMAGE_MAP_SRC)){
+			  itemMetaData.setEntry(bean.getImageMapSrc());
+		  }
 		  else if (itemMetaData.getLabel().equals(ItemMetaDataIfc.PREDEFINED_SCALE)){
 			  itemMetaData.setEntry(bean.getScaleName());
 		  }
@@ -2370,6 +2692,10 @@ public class ItemAddListener
 			  }
 			  itemMetaData.setEntry(Boolean
 						.toString(wellformatted));
+		  }
+
+		  else if (itemMetaData.getLabel().equals(ItemMetaDataIfc.IGNORE_SPACES_FOR_FIB)){
+			  itemMetaData.setEntry(Boolean.toString(bean.getIgnoreSpacesForFib()));
 		  }
 		  
 		  else if (itemMetaData.getLabel().equals(ItemMetaDataIfc.PARTID)){
@@ -2398,7 +2724,7 @@ public class ItemAddListener
 	  item.getData().setInstruction(bean.getItemText());
 	  Set textSet = item.getItemTextSet();
 	  Iterator textIter = textSet.iterator();
-	  HashMap itemTextMap = new HashMap();
+	  Map itemTextMap = new HashMap();
 	  while (textIter.hasNext()) {
 			ItemTextIfc itemText = (ItemTextIfc) textIter.next();
 			itemTextMap.put(itemText.getSequence(), itemText);
@@ -2421,7 +2747,7 @@ public class ItemAddListener
 			    publishedItemText = (ItemTextIfc) itemTextMap.get(rowChoiceSequence);
 			    publishedItemText.setText(rowChoices[i]);
 		  }
-		  HashMap answerMap = new HashMap();
+		  Map answerMap = new HashMap();
 		  answerSet = publishedItemText.getAnswerSet();
 		  if (answerSet != null) {
 			    Iterator answerIter = answerSet.iterator();
@@ -2470,10 +2796,10 @@ public class ItemAddListener
 	  }
   }
 
-  private static ArrayList getFIBanswers(String entiretext) {
+  private static List getFIBanswers(String entiretext) {
 	  String fixedText = entiretext.replaceAll("&nbsp;", " "); // replace &nbsp to " " (instead of "") just want to reserve the original input
 	  String[] tokens = fixedText.split("[\\}][^\\{]*[\\{]");
-	  ArrayList list = new ArrayList();
+	  List list = new ArrayList();
 	  if (tokens.length==1) {
 		  String[] afteropen= tokens[0].split("\\{");
 		  if (afteropen.length>1) {
@@ -2508,10 +2834,10 @@ public class ItemAddListener
 
   }
 
-  private static ArrayList getFINanswers(String entiretext) throws FinFormatException {
+  private static List getFINanswers(String entiretext) throws FinFormatException {
 	  String fixedText = entiretext.replaceAll("&nbsp;", " "); // replace &nbsp to " " (instead of "") just want to reserve the original input
 	  String[] tokens = fixedText.split("[\\}][^\\{]*[\\{]");
-	  ArrayList list = new ArrayList();
+	  List list = new ArrayList();
 	  if (tokens.length==1) {
 		  String[] afteropen= tokens[0].split("\\{");
 		  if (afteropen.length>1) {
@@ -2592,7 +2918,7 @@ public class ItemAddListener
       }
     }
     else {
-      ArrayList corranswersList = ContextUtil.paramArrayValueLike(
+      List corranswersList = ContextUtil.paramArrayValueLike(
           "mccheckboxes");
       Iterator iter = corranswersList.iterator();
       while (iter.hasNext()) {
@@ -2698,70 +3024,49 @@ public class ItemAddListener
     return !invalid; 
   } 
 
-  private void updateAttachment(List oldList, List newList, ItemDataIfc item, boolean pendingOrPool){
-    if ((oldList == null || oldList.size() == 0 ) && (newList == null || newList.size() == 0)) return;
-    List list = new ArrayList();
-    HashMap map = getAttachmentIdHash(oldList);
-    for (int i=0; i<newList.size(); i++){
-      ItemAttachmentIfc a = (ItemAttachmentIfc)newList.get(i);
-      if (map.get(a.getAttachmentId())!=null){
-        // exist already, remove it from map
-        map.remove(a.getAttachmentId());
-      }
-      else{
-        // new attachments
-        a.setItem(item);
-        list.add(a);
-      }
-    }      
-    // save new ones
-    AssessmentService service;
-    if (pendingOrPool) {
-    	service = new AssessmentService();
-    }
-    else {
-    	service = new PublishedAssessmentService();
-    }
-    service.saveOrUpdateAttachments(list);
-
-    // remove old ones
-    Set set = map.keySet();
-    Iterator iter = set.iterator();
-    while (iter.hasNext()){
-      Long attachmentId = (Long)iter.next();
-      service.removeItemAttachment(attachmentId.toString());
-    }
+  private void updateItemTextAttachment(List newList, ItemTextIfc targetItemText, boolean pendingOrPool) {
+	  final Map<Long, ItemTextAttachmentIfc> oldIds = targetItemText.getItemTextAttachmentMap();
+	  if (!(oldIds.isEmpty())){
+		  for (ItemTextAttachmentIfc itemTextAttachmentIfcOld : oldIds.values()){
+		  }
+	  }
+	  if (newList != null && !(newList.isEmpty())) {
+		  for (Object o : newList) {
+			 ItemTextAttachmentIfc newAttachment = (ItemTextAttachmentIfc) o;
+			 final Long newAttachmentId = newAttachment.getAttachmentId();
+			 if (oldIds.containsKey(newAttachmentId)) {
+			  oldIds.remove(newAttachmentId);
+			 }
+			 //We need to add all the items always because answers are
+			  //completely deleted when saving an item.
+			 targetItemText.addNewItemTextAttachment(newAttachment);
+		  }
+	  }
+	  // any "oldIds" left over must be orphans. delete them.
+	  for (Map.Entry<Long, ItemTextAttachmentIfc> e : oldIds.entrySet()) {
+		  targetItemText.removeItemTextAttachment(e.getValue());
+	  }
   }
 
-  private void updateItemTextAttachment(List newList, ItemTextIfc itemText, boolean pendingOrPool){
-	    if (newList == null || newList.size() == 0) return;
-	    List list = new ArrayList();
-	    for (int i=0; i<newList.size(); i++){
-	      ItemTextAttachmentIfc a = (ItemTextAttachmentIfc)newList.get(i);
-	      // new attachments
-	      a.setAttachmentId(null);  
-	      a.setItemText(itemText);
-	      list.add(a);
-	    }      
-	    // save new ones
-	    AssessmentService service;
-	    if (pendingOrPool) {
-	    	service = new AssessmentService();
-	    }
-	    else {
-	    	service = new PublishedAssessmentService();
-	    }
-	    service.saveOrUpdateAttachments(list);
-  }
-  
-  private HashMap getAttachmentIdHash(List list){
-    HashMap map = new HashMap();
-    for (int i=0; i<list.size(); i++){
-      AttachmentIfc a = (AttachmentIfc)list.get(i);
-      map.put(a.getAttachmentId(), a);
-    }
-    return map;
-  }
+	private void updateAttachments(List newList, ItemFacade targetItem) {
+		final Map<Long, ItemAttachmentIfc> oldIds = targetItem.getItemAttachmentMap();
+		if ( newList != null && !(newList.isEmpty()) ) {
+			for (Object o : newList) {
+				ItemAttachmentIfc newAttachment = (ItemAttachmentIfc) o;
+				final Long newAttachmentId = newAttachment.getAttachmentId();
+				if (oldIds.containsKey(newAttachmentId)) {
+					// reiteration of existing attachment, no-op
+					oldIds.remove(newAttachmentId);
+				} else {
+					targetItem.addItemAttachment(newAttachment);
+				}
+			}
+		}
+		// any "oldIds" left over must be orphans. delete them.
+		for ( Map.Entry<Long, ItemAttachmentIfc> e : oldIds.entrySet() ) {
+			targetItem.removeItemAttachment(e.getValue());
+		}
+	}
 
   private void updateItemFeedback(ItemFacade item, String feedbackTypeId, String feedbackText) {
 	  Set itemFeedbackSet = item.getItemFeedbackSet();

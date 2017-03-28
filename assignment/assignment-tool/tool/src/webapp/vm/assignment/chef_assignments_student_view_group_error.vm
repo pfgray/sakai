@@ -7,9 +7,7 @@
 					</th>
 					<td>
                                         #if ($!assignment.isGroup() )
-                                           <span class="group_icon" title="$tlang.getString('gen.groupassignment')" alt="$tlang.getString('gen.groupassignment')"></span>
-                                        #else
-                                           <span class="user_icon" title="$tlang.getString('gen.userassignment')" alt="$tlang.getString('gen.userassignment')"></span>
+                                           <i class="fa fa-users" aria-hidden="true" title="$tlang.getString('gen.groupassignment')"></i>
                                         #end
 						$validator.escapeHtml($assignment.getTitle())
 						#set ($deleted = false)
@@ -80,7 +78,8 @@
 
 		<form action="#toolForm("AssignmentAction")" method="post" >
 			<div class="act">
-				<input type="submit" accesskey="x" name="eventSubmit_doCancel_view_grade" value="$tlang.getString("gen.backtolist")" accesskey="x" class="active TB_hideControl"/>
+				<input type="submit" accesskey="x" name="eventSubmit_doCancel_view_grade" value="$tlang.getString("gen.backtolist")" accesskey="x" class="active TB_hideControl"
+					onclick="SPNR.disableControlsAndSpin( this, null );" />
 			</div>
 			<input type="hidden" name="sakai_csrf_token" value="$sakai_csrf_token" />
 		</form>

@@ -39,8 +39,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.cover.SecurityService;
 import org.sakaiproject.cheftool.api.Alert;
 import org.sakaiproject.cheftool.api.Menu;
@@ -52,6 +52,7 @@ import org.sakaiproject.courier.api.ObservingCourier;
 import org.sakaiproject.event.api.SessionState;
 import org.sakaiproject.event.api.UsageSession;
 import org.sakaiproject.event.cover.UsageSessionService;
+import org.sakaiproject.portal.util.PortalUtils;
 import org.sakaiproject.tool.api.Placement;
 import org.sakaiproject.tool.api.Session;
 import org.sakaiproject.tool.api.Tool;
@@ -78,7 +79,7 @@ public abstract class VelocityPortletPaneledAction extends ToolServlet
 	private static final long serialVersionUID = 1L;
 
 	/** Our logger. */
-	private static Log M_log = LogFactory.getLog(VelocityPortletPaneledAction.class);
+	private static Logger M_log = LoggerFactory.getLogger(VelocityPortletPaneledAction.class);
 
 	/** message bundle */
 	private static ResourceLoader rb = new ResourceLoader("velocity-tool");
@@ -118,72 +119,6 @@ public abstract class VelocityPortletPaneledAction extends ToolServlet
 		contentHostingService = (ContentHostingService) ComponentManager.get(ContentHostingService.class.getName());
 	}
 	
-	protected class MyLogger
-	{
-		public void warn(String channel, String msg)
-		{
-			M_log.warn(msg);
-		}
-
-		public void warn(String channel, String msg, Throwable e)
-		{
-			M_log.warn(msg, e);
-		}
-
-		public void debug(String channel, String msg)
-		{
-			M_log.debug(msg);
-		}
-
-		public void debug(String channel, String msg, Throwable e)
-		{
-			M_log.debug(msg, e);
-		}
-
-		public void info(String channel, String msg)
-		{
-			M_log.info(msg);
-		}
-
-		public void info(String channel, String msg, Throwable e)
-		{
-			M_log.info(msg, e);
-		}
-
-		public void error(String channel, String msg)
-		{
-			M_log.error(msg);
-		}
-
-		public void error(String channel, String msg, Throwable e)
-		{
-			M_log.error(msg, e);
-		}
-
-		// to support: if (Log.getLogger("chef").isDebugEnabled())
-		public MyLogger getLogger(String name)
-		{
-			return this;
-		}
-
-		public boolean isDebugEnabled()
-		{
-			return M_log.isDebugEnabled();
-		}
-
-		public boolean isWarnEnabled()
-		{
-			return M_log.isWarnEnabled();
-		}
-
-		public boolean isInfoEnabled()
-		{
-			return M_log.isInfoEnabled();
-		}
-	}
-
-	protected MyLogger Log = new MyLogger();
-
 	protected void initState(SessionState state, VelocityPortlet portlet, JetspeedRunData rundata)
 	{
 		HttpServletRequest req = rundata.getRequest();
@@ -277,6 +212,29 @@ public abstract class VelocityPortletPaneledAction extends ToolServlet
 			soFar = message;
 		}
 		state.setAttribute(STATE_MESSAGE, soFar);
+
+	} // addAlert
+
+	/**
+	 * Add another string to the flash notification message.
+	 *
+	 * @param state
+	 *        The session state.
+	 * @param message
+	 *        The string to add.
+	 */
+	public static void addFlashNotif(SessionState state, String message)
+	{
+		String soFar = (String) state.getAttribute(STATE_NOTIF);
+		if (soFar != null)
+		{
+			soFar = soFar + "\n\n" + message;
+		}
+		else
+		{
+			soFar = message;
+		}
+		state.setAttribute(STATE_NOTIF, soFar);
 
 	} // addAlert
 
@@ -471,6 +429,19 @@ public abstract class VelocityPortletPaneledAction extends ToolServlet
 				if (buf.length() > 0)
 				{
 					setVmReference("alertMessage", buf.toString(), req);
+				}
+				//set up for duplicate site alert
+				StringBuilder sbNotif = new StringBuilder();
+				String sNotif = (String) getState(req).getAttribute(STATE_NOTIF);
+				if (sNotif != null)
+				{
+							sbNotif.append(sNotif);
+					getState(req).removeAttribute(STATE_NOTIF);
+				}
+				if (sbNotif.length() > 0)
+				{
+							setVmReference("flashNotif", sbNotif.toString(), req);
+					setVmReference("flashNotifCloseTitle",rb.getString("flashNotifCloseTitle"),req);
 				}
 
 				// setup for old style validator
@@ -882,6 +853,7 @@ public abstract class VelocityPortletPaneledAction extends ToolServlet
 	public static final String STATE_TOOL = "tool";
 
 	public static final String STATE_MESSAGE = "message";
+	public static final String STATE_NOTIF = "notification";
 
 	/** Standard modes. */
 	public static final String MODE_OPTIONS = "options";
@@ -1087,6 +1059,10 @@ public abstract class VelocityPortletPaneledAction extends ToolServlet
 		// add the pid
 		setVmReference("pid", getPid(request), request);
 
+		// add the css version
+		final String query = PortalUtils.getCDNQuery();
+		setVmReference("portalCdnQuery", query, request);
+
 		// check for a scheduled peer frame or focus refresh
 		ToolSession session = SessionManager.getCurrentToolSession();
 		if (session != null)
@@ -1176,6 +1152,19 @@ public abstract class VelocityPortletPaneledAction extends ToolServlet
 		req.setAttribute(ATTR_RUNDATA, rundata);
 
 		super.doGet(req, res);
+	}
+
+	// Set up RunData if it's not already set up    
+
+        protected void checkRunData(HttpServletRequest req)
+	{
+		if (req.getAttribute(ATTR_RUNDATA) != null)
+		    return;
+
+		// set in VmServlet
+		ParameterParser params = (ParameterParser) req.getAttribute(ATTR_PARAMS);
+		JetspeedRunData rundata = new JetspeedRunData(req, getState(req), getPid(req), params);
+		req.setAttribute(ATTR_RUNDATA, rundata);
 	}
 
 	/** Tool session attribute name used to schedule a peer frame refresh. */

@@ -14,7 +14,7 @@
     <parent>
         <artifactId>entitybroker</artifactId>
         <groupId>org.sakaiproject</groupId>
-        <version>11-SNAPSHOT</version><!--entitybroker.version-->
+        <version>12-SNAPSHOT</version><!--entitybroker.version-->
     </parent>
     <dependencies>
 <!-- internal dependencies -->
@@ -54,22 +54,17 @@
             <artifactId>spring-jdbc</artifactId>
         </dependency>
         <dependency>
-            <groupId>javax.mail</groupId>
-            <artifactId>mail</artifactId>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>javax.mail</artifactId>
         </dependency>
         <!-- generic DAO -->
         <dependency>
-            <groupId>org.sakaiproject</groupId>
+            <groupId>org.sakaiproject.genericdao</groupId>
             <artifactId>generic-dao</artifactId>
         </dependency>
         <dependency>
             <groupId>org.azeckoski</groupId>
             <artifactId>reflectutils</artifactId>
-        </dependency>
-        <!-- Data processing -->
-        <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
         </dependency>
         <!-- testing -->
         <dependency>
@@ -83,12 +78,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.5</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-test</artifactId>
             <scope>test</scope>
@@ -98,9 +87,7 @@
             <artifactId>hsqldb</artifactId>
             <scope>test</scope>
         </dependency>
-
-<!-- Sakai K1 dependencies -->
-<!-- -->
+        <!-- Kernel dependencies -->
         <dependency>
             <groupId>org.sakaiproject.kernel</groupId>
             <artifactId>sakai-kernel-api</artifactId>
@@ -113,59 +100,6 @@
             <groupId>org.sakaiproject.kernel</groupId>
             <artifactId>sakai-kernel-util</artifactId>
         </dependency>
-<!-- -->
-
-        <!-- Pre K1 Sakai deps -->
-<!-- 
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-authz-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-cluster-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-component-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-email-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-entity-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-event-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-site-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-tool-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-user-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-util-api</artifactId>
-            <version>${sakai.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.sakaiproject</groupId>
-            <artifactId>sakai-entity-util</artifactId>
-            <version>${sakai.version}</version>
-        </dependency>
- -->
-
-        <!-- testing dependencies -->
     </dependencies>
     <build>
         <resources>
@@ -192,22 +126,6 @@
                 <filtering>false</filtering>
             </resource>
         </resources>
-<!-- unit testing -->
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <!--
-                    By default, the surefire plugin will automatically include all test
-                    classes with the following wildcard patterns: "**/Test*.java" -
-                    includes all of its subdirectory and all java filenames that start
-                    with "Test". "**/*Test.java" - includes all of its subdirectory and
-                    all java filenames that end with "Test". "**/*TestCase.java" -
-                    includes all of its subdirectory and all java filenames that end with
-                    "TestCase".
-                -->
-            </plugin>
-        </plugins>
         <testResources>
             <testResource>
                 <directory>${basedir}/src/ddl</directory>
@@ -220,6 +138,7 @@
                 <includes>
                     <include>database-test.xml</include>
                     <include>database.properties</include>
+                    <include>log4j.properties</include>
                 </includes>
             </testResource>
         </testResources>

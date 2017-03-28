@@ -20,22 +20,21 @@
  **********************************************************************************/
 package org.sakaiproject.component.app.messageforums;
 
-import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.hibernate.Hibernate;
-import org.hibernate.HibernateException;
 import org.hibernate.Query;
-import org.hibernate.Session;
+import org.hibernate.type.LongType;
+import org.hibernate.type.StringType;
 import org.sakaiproject.api.app.messageforums.Rank;
 import org.sakaiproject.api.app.messageforums.RankImage;
 import org.sakaiproject.api.app.messageforums.RankManager;
+import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.component.app.messageforums.dao.hibernate.RankImageImpl;
 import org.sakaiproject.component.app.messageforums.dao.hibernate.RankImpl;
 import org.sakaiproject.content.api.ContentHostingService;
+import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.event.api.EventTrackingService;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.InUseException;
@@ -45,17 +44,16 @@ import org.sakaiproject.id.api.IdManager;
 import org.sakaiproject.tool.api.Placement;
 import org.sakaiproject.tool.api.SessionManager;
 import org.sakaiproject.tool.cover.ToolManager;
-import org.sakaiproject.user.api.UserDirectoryService;
-import org.sakaiproject.user.api.UserNotDefinedException;
-import org.springframework.orm.hibernate3.HibernateCallback;
-import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
-
-import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.user.api.User;
+import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.util.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.orm.hibernate4.HibernateCallback;
+import org.springframework.orm.hibernate4.support.HibernateDaoSupport;
 
 public class RankManagerImpl extends HibernateDaoSupport implements RankManager {
-    private static final Log LOG = LogFactory.getLog(RankManagerImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RankManagerImpl.class);
     private static final String QUERY_BY_CONTEXT_ID_USERID = "findRanksByContextIdUserID";
     private static final String QUERY_BY_CONTEXT_ID_NUM_POSTS_BASED = "findRanksByContextIdBasedOnNumPost";
     private static final String QUERY_BY_CONTEXT_ID = "findRanksByContextId";
@@ -71,6 +69,8 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
     private EventTrackingService eventTrackingService;
 
     private ContentHostingService contentHostingService;
+
+    private ServerConfigurationService serverConfigurationService;
 
     public void init() {
         LOG.info("init()");
@@ -92,6 +92,15 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
         this.userDirectoryService = userDirectoryService;
     }
 
+    public void setServerConfigurationService(ServerConfigurationService serverConfigurationService) {
+        this.serverConfigurationService = serverConfigurationService;
+    }
+
+    public boolean isRanksEnabled()
+    {
+        return serverConfigurationService.getBoolean("msgcntr.forums.ranks.enable", false);
+    }
+
     private String getContextId() {
         if (TestUtil.isRunningTests()) {
             return "test-context";
@@ -102,6 +111,11 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
     }
 
     public void saveRank(Rank rank) {
+        if (!isRanksEnabled())
+        {
+            LOG.warn("saveRank invoked, but ranks are disabled");
+            return;
+        }
         rank.setUuid(getNextUuid());
         rank.setCreated(new Date());
         rank.setCreatedBy(getCurrentUser());
@@ -119,16 +133,17 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
         if (contextId == null) {
             throw new IllegalArgumentException("Null Argument");
         }
-        HibernateCallback hcb = new HibernateCallback() {
-            public Object doInHibernate(Session session) throws HibernateException, SQLException {
-                Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID);
-                q.setParameter("contextId", contextId, Hibernate.STRING);
-                return q.list();
-            }
+        if (!isRanksEnabled())
+        {
+            return new ArrayList();
+        }
+        HibernateCallback<List> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID);
+            q.setParameter("contextId", contextId, StringType.INSTANCE);
+            return q.list();
         };
 
-        List ranklist = (List) getHibernateTemplate().execute(hcb);
-        return ranklist;
+        return getHibernateTemplate().execute(hcb);
     }
 
     public List findRanksByContextIdOrderByMinPostDesc(final String contextId) {
@@ -140,16 +155,18 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
             throw new IllegalArgumentException("Null Argument");
         }
 
-        HibernateCallback hcb = new HibernateCallback() {
-            public Object doInHibernate(Session session) throws HibernateException, SQLException {
-                Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID_ORDER_BY_MIN_POST_DESC);
-                q.setParameter("contextId", contextId, Hibernate.STRING);
-                return q.list();
-            }
+        if (!isRanksEnabled())
+        {
+            return new ArrayList();
+        }
+
+        HibernateCallback<List> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID_ORDER_BY_MIN_POST_DESC);
+            q.setParameter("contextId", contextId, StringType.INSTANCE);
+            return q.list();
         };
 
-        List ranklist = (List) getHibernateTemplate().execute(hcb);
-        return ranklist;
+        return getHibernateTemplate().execute(hcb);
     }
 
     private String getCurrentUser() {
@@ -193,6 +210,11 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
 
     public void removeRank(Rank rank) {
         LOG.info("removeRank(Rank rank)");
+        if (!isRanksEnabled())
+        {
+            LOG.warn("removeRank invoked, but ranks are disabled");
+            return;
+        }
         if (rank.getRankImage() != null) {
             removeImageAttachmentObject(rank.getRankImage());
         }
@@ -201,6 +223,11 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
 
     public void removeImageAttachmentObject(RankImage o) {
         LOG.info("removeImageAttachmentObject(RankImage o)");
+        if (!isRanksEnabled())
+        {
+            LOG.warn("removeImageAttachmentObject invoked, but ranks are disabled");
+            return;
+        }
         getHibernateTemplate().delete(o);
     }
 
@@ -210,32 +237,28 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
             throw new IllegalArgumentException("Null Argument");
         }
 
-        HibernateCallback hcb = new HibernateCallback() {
-            public Object doInHibernate(Session session) throws HibernateException, SQLException {
-                Rank returnedData = (Rank) session.get(RankImpl.class, rank.getId());
-                RankImage returnedAttach = (RankImage) session.get(RankImageImpl.class, Long.valueOf(imageAttach.getId()));
-                if (returnedData != null) {
-                    returnedData.setRankImage(null);
-                    session.saveOrUpdate(returnedData);
+        if (!isRanksEnabled())
+        {
+            LOG.warn("removeImageAttachToRank invoked, but ranks are disabled");
+            return;
+        }
 
-                    if (returnedAttach.getAttachmentId().toLowerCase().startsWith("/attachment"))
-                        try {
-                            contentHostingService.removeResource(returnedAttach.getAttachmentId());
-                            // returnedAttach.setSyllabus(null);
-                            // session.saveOrUpdate(returnedAttach);
-                            session.delete(returnedAttach);
-                        } catch (PermissionException e) {
-                            e.printStackTrace();
-                        } catch (IdUnusedException e) {
-                            e.printStackTrace();
-                        } catch (TypeException e) {
-                            e.printStackTrace();
-                        } catch (InUseException e) {
-                            e.printStackTrace();
-                        }
-                }
-                return null;
+        HibernateCallback hcb = session -> {
+            Rank returnedData = (Rank) session.get(RankImpl.class, rank.getId());
+            RankImage returnedAttach = (RankImage) session.get(RankImageImpl.class, Long.valueOf(imageAttach.getId()));
+            if (returnedData != null) {
+                returnedData.setRankImage(null);
+                session.saveOrUpdate(returnedData);
+
+                if (returnedAttach.getAttachmentId().toLowerCase().startsWith("/attachment"))
+                    try {
+                        contentHostingService.removeResource(returnedAttach.getAttachmentId());
+                        session.delete(returnedAttach);
+                    } catch (PermissionException | IdUnusedException | TypeException | InUseException e) {
+                        e.printStackTrace();
+                    }
             }
+            return null;
         };
         getHibernateTemplate().execute(hcb);
     }
@@ -249,19 +272,29 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
             throw new IllegalArgumentException("getRankById(): rankId is null");
         }
 
-        HibernateCallback hcb = new HibernateCallback() {
-            public Object doInHibernate(Session session) throws HibernateException, SQLException {
-                Query q = session.getNamedQuery(QUERY_BY_RANK_ID);
-                q.setParameter("rankId", rankId, Hibernate.LONG);
-                return q.uniqueResult();
-            }
+        if (!isRanksEnabled())
+        {
+            // This is 'warn' because it implies some code is aware of a rank, but ranks are disabled
+            LOG.warn("getRankById invoked, but ranks are disabled");
+            return null;
+        }
+
+        HibernateCallback<Rank> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_BY_RANK_ID);
+            q.setParameter("rankId", rankId, LongType.INSTANCE);
+            return (Rank) q.uniqueResult();
         };
 
-        Rank rank = (Rank) getHibernateTemplate().execute(hcb);
+        Rank rank = getHibernateTemplate().execute(hcb);
         return rank;
     }
 
     public RankImage createRankImageAttachmentObject(String attachId, String name) {
+        if (!isRanksEnabled())
+        {
+            LOG.warn("createRankImageAttachmentObject invoked, but ranks are disabled");
+            return null;
+        }
         try {
             RankImage attach = new RankImageImpl();
             attach.setCreated(new Date());
@@ -296,16 +329,20 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
             throw new IllegalArgumentException("Null Argument");
         }
 
-        HibernateCallback hcb = new HibernateCallback() {
-            public Object doInHibernate(Session session) throws HibernateException, SQLException {
-                Rank returnedData = (Rank) session.get(RankImpl.class, rank.getId());
-                if (returnedData != null) {
-                    imageAttach.setRank(rank);
-                    returnedData.setRankImage(imageAttach);
-                    session.save(returnedData);
-                }
-                return null;
+        if (!isRanksEnabled())
+        {
+            LOG.warn("addImageAttachToRank invoked, but ranks are disabled");
+            return;
+        }
+
+        HibernateCallback hcb = session -> {
+            Rank returnedData = (Rank) session.get(RankImpl.class, rank.getId());
+            if (returnedData != null) {
+                imageAttach.setRank(rank);
+                returnedData.setRankImage(imageAttach);
+                session.save(returnedData);
             }
+            return null;
         };
         getHibernateTemplate().execute(hcb);
     }
@@ -332,17 +369,19 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
             throw new IllegalArgumentException("Null Argument");
         }
 
-        HibernateCallback hcb = new HibernateCallback() {
-            public Object doInHibernate(Session session) throws HibernateException, SQLException {
-                Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID_USERID);
-                q.setParameter("contextId", contextId, Hibernate.STRING);
-                q.setParameter("userId", userid, Hibernate.STRING);
-                return q.list();
-            }
+        if (!isRanksEnabled())
+        {
+            return new ArrayList();
+        }
+
+        HibernateCallback<List> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID_USERID);
+            q.setParameter("contextId", contextId, StringType.INSTANCE);
+            q.setParameter("userId", userid, StringType.INSTANCE);
+            return q.list();
         };
 
-        List ranklist = (List) getHibernateTemplate().execute(hcb);
-        return ranklist;
+        return getHibernateTemplate().execute(hcb);
     }
 
     public List findRanksByContextIdBasedOnNumPost(final String contextId) {
@@ -354,15 +393,17 @@ public class RankManagerImpl extends HibernateDaoSupport implements RankManager 
             throw new IllegalArgumentException("Null Argument");
         }
 
-        HibernateCallback hcb = new HibernateCallback() {
-            public Object doInHibernate(Session session) throws HibernateException, SQLException {
-                Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID_NUM_POSTS_BASED);
-                q.setParameter("contextId", contextId, Hibernate.STRING);
-                return q.list();
-            }
+        if (!isRanksEnabled())
+        {
+            return new ArrayList();
+        }
+
+        HibernateCallback<List> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_BY_CONTEXT_ID_NUM_POSTS_BASED);
+            q.setParameter("contextId", contextId, StringType.INSTANCE);
+            return q.list();
         };
 
-        List ranklist = (List) getHibernateTemplate().execute(hcb);
-        return ranklist;
+        return getHibernateTemplate().execute(hcb);
     }
 }

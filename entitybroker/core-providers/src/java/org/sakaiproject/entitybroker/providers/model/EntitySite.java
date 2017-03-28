@@ -551,6 +551,13 @@ public class EntitySite implements Site {
         throw new UnsupportedOperationException();
     }
 
+    public Collection getGroupsWithMembers(String [] arg0) {
+        if (site != null) {
+            return site.getGroupsWithMembers(arg0);
+        }
+        throw new UnsupportedOperationException();
+    }
+
     public Collection getGroupsWithMemberHasRole(String arg0, String arg1) {
         if (site != null) {
             return site.getGroupsWithMemberHasRole(arg0, arg1);
@@ -660,6 +667,17 @@ public class EntitySite implements Site {
     public void removeGroup(Group arg0) {
         if (site != null) {
             site.removeGroup(arg0);
+        }
+        throw new UnsupportedOperationException();
+    }
+
+    public void deleteGroup(Group arg0) throws IllegalStateException {
+        if (site != null) {
+            try {
+                site.deleteGroup(arg0);
+            } catch (IllegalStateException e) {
+                throw e;
+            }
         }
         throw new UnsupportedOperationException();
     }

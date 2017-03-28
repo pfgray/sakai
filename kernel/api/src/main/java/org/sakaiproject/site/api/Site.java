@@ -228,6 +228,15 @@ public interface Site extends Edit, Comparable, Serializable, AuthzGroup
 	Collection<Group> getGroupsWithMember(String userId);
 
 	/**
+	 * Get a collection of the groups in a Site that have all these users as members.
+	 * 
+	 * @param userId
+	 *        The user id.
+	 * @return A collection (Group) of groups defined in the site that have these users as members, empty if there are none.
+	 */
+	Collection<Group> getGroupsWithMembers(String[] userIds);
+	
+	/**
 	 * Get a collection of the groups in a Site that have this user as a member with this role.
 	 * 
 	 * @param userId
@@ -372,10 +381,20 @@ public interface Site extends Edit, Comparable, Serializable, AuthzGroup
 	/**
 	 * Remove this group from the groups for this site.
 	 * 
+	 * @deprecated Use deleteGroup() instead.
 	 * @param group
 	 *        The group to remove.
 	 */
 	void removeGroup(Group group);
+
+	/**
+	 * Remove a group from the groups for this site.
+	 * Its functionallity is the same as removeMember but throws IllegalStateException.
+	 * 
+	 * @param group
+	 *        The group to delete.
+	 */
+	void deleteGroup(Group group) throws IllegalStateException;
 
 	/**
 	 * Check if the site has a custom page order

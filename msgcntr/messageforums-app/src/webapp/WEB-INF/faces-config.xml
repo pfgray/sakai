@@ -101,6 +101,11 @@
         </navigation-case>
     
         <navigation-case>
+            <from-outcome>pvtMsgDirectAccess</from-outcome>
+            <to-view-id>/jsp/privateMsg/pvtMsgDirectAccess.jsp</to-view-id>
+            <redirect/>
+        </navigation-case>  
+        <navigation-case>
             <from-outcome>pvtMsgOrganize</from-outcome>
             <to-view-id>/jsp/privateMsg/pvtMsgOrganize.jsp</to-view-id>
             <redirect/>
@@ -496,6 +501,12 @@
          	<property-name>userPreferencesManager</property-name>
          	<value>#{Components["org.sakaiproject.api.app.messageforums.UserPreferencesManager"]}</value>
         </managed-property>
+
+        <managed-property>
+            <description>Anonymous Manager</description>
+            <property-name>anonymousManager</property-name>
+            <value>#{Components["org.sakaiproject.api.app.messageforums.AnonymousManager"]}</value>
+        </managed-property>
         
     </managed-bean>
     <managed-bean>
@@ -654,6 +665,16 @@
             <description>UI Permissions Manager</description>
             <property-name>uiPermissionsManager</property-name>
             <value>#{Components["org.sakaiproject.api.app.messageforums.ui.UIPermissionsManager"]}</value>
+        </managed-property>
+        <managed-property>
+            <description>Anonymous Manager</description>
+            <property-name>anonymousManager</property-name>
+            <value>#{Components["org.sakaiproject.api.app.messageforums.AnonymousManager"]}</value>
+        </managed-property>
+        <managed-property>
+            <description>Tool Manager</description>
+            <property-name>toolManager</property-name>
+            <value>#{Components["org.sakaiproject.tool.api.ToolManager"]}</value>
         </managed-property>
  	</managed-bean>
  

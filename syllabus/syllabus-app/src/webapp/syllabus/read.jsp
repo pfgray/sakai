@@ -9,11 +9,10 @@
 </jsp:useBean>
 
 	<sakai:view_container title="#{msgs.title_edit}">
-		<sakai:stylesheet path="/syllabus/css/syllabus.css" />
 		<sakai:view_content>
 
 <script>includeLatestJQuery('read.jsp');</script>
-<link rel="stylesheet" href="/library/js/jquery/ui/1.11.3/themes/ui-lightness/jquery-ui.min.css" type="text/css" />
+<link rel="stylesheet" href="/library/webjars/jquery-ui/1.11.3/jquery-ui.min.css" type="text/css" />
 <script type="text/javascript" src="js/jquery-ui-timepicker-addon.js"></script>
 <style>
 	.ui-datepicker { 
@@ -212,7 +211,7 @@
 					<h:commandButton
 						action="#{SyllabusTool.processReadPost}"
 						styleClass="active"
-						value="#{msgs.bar_post}"
+						value="#{msgs.bar_publish}"
 						accesskey="s" />
 					<h:commandButton
 						action="#{SyllabusTool.processReadPreview}"

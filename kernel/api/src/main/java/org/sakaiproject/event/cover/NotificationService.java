@@ -21,6 +21,8 @@
 
 package org.sakaiproject.event.cover;
 
+import java.util.List;
+
 import org.sakaiproject.component.cover.ComponentManager;
 
 /**
@@ -64,6 +66,8 @@ public class NotificationService
 	public static java.lang.String SECURE_UPDATE_NOTIFICATION = org.sakaiproject.event.api.NotificationService.SECURE_UPDATE_NOTIFICATION;
 
 	public static java.lang.String SECURE_REMOVE_NOTIFICATION = org.sakaiproject.event.api.NotificationService.SECURE_REMOVE_NOTIFICATION;
+
+	public static final int NOTI_IGNORE = org.sakaiproject.event.api.NotificationService.NOTI_IGNORE;
 
 	public static int NOTI_NONE = org.sakaiproject.event.api.NotificationService.NOTI_NONE;
 
@@ -162,6 +166,14 @@ public class NotificationService
 		if (service == null) return null;
 
 		return service.findNotification(param0, param1);
+	}
+	
+	public static List<org.sakaiproject.event.api.Notification> findNotifications(java.lang.String param0, java.lang.String param1)
+	{
+		org.sakaiproject.event.api.NotificationService service = getInstance();
+		if (service == null) return null;
+		
+		return service.findNotifications(param0, param1);
 	}
 
 	public static boolean isNotificationToReplyable()

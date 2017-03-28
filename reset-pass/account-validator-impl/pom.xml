@@ -10,16 +10,16 @@
 	</organization>
 	<inceptionYear>2007</inceptionYear>
 	<description>Account Validator implementation</description>
-	<packaging>jar</packaging>
+	<packaging>sakai-component</packaging>
 	<properties>
-		<deploy.target />
+		<deploy.target>components</deploy.target>
 	</properties>
 
    <!-- the base is parent -->
 	<parent>
 		<groupId>org.sakaiproject.reset-pass</groupId>
 		<artifactId>reset-pass</artifactId>
-		<version>11-SNAPSHOT</version>
+		<version>12-SNAPSHOT</version>
 	</parent>
 	<dependencies>
 
@@ -33,15 +33,14 @@
 
 	  <!-- email dependencies -->
 		<dependency>
-			<groupId>javax.mail</groupId>
-			<artifactId>mail</artifactId>
+			<groupId>com.sun.mail</groupId>
+			<artifactId>javax.mail</artifactId>
 		</dependency>
 
       <!-- generic DAO -->
 		<dependency>
-			<groupId>org.sakaiproject</groupId>
+			<groupId>org.sakaiproject.genericdao</groupId>
 			<artifactId>generic-dao</artifactId>
-			<version>${generic-dao.version}</version>
 		</dependency>
 
       <!-- spring and hibernate -->
@@ -87,6 +86,10 @@
 			<artifactId>sakai-util-api</artifactId> </dependency>
 		-->
 		<dependency>
+			<groupId>commons-lang</groupId>
+			<artifactId>commons-lang</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.sakaiproject.entitybroker
 			</groupId>
 			<artifactId>entitybroker-api</artifactId>
@@ -122,10 +125,8 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>jta</groupId>
+			<groupId>javax.transaction</groupId>
 			<artifactId>jta</artifactId>
-			<version>h2.1.8</version>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>cglib</groupId>
@@ -138,7 +139,6 @@
 		<dependency>
 			<groupId>commons-collections</groupId>
 			<artifactId>commons-collections</artifactId>
-			<version>3.2</version>
 		</dependency>
 		<dependency>
 			<groupId>easymock</groupId>
@@ -147,14 +147,8 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>3.8.1</version>
-		</dependency>
-		<dependency>
 			<groupId>commons-validator</groupId>
 			<artifactId>commons-validator</artifactId>
-			<version>1.3.1</version>
 		</dependency>
 		<dependency>
 			<groupId>oro</groupId>

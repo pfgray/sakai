@@ -41,7 +41,10 @@ import org.sakaiproject.lessonbuildertool.SimplePagePeerEval;
 import org.sakaiproject.lessonbuildertool.SimplePagePeerEvalResult;
 import org.sakaiproject.lessonbuildertool.SimplePageProperty;
 
-import org.springframework.orm.hibernate3.HibernateTemplate;
+import org.sakaiproject.lessonbuildertool.SimpleChecklistItem;
+import org.sakaiproject.lessonbuildertool.ChecklistItemStatus;
+
+import org.springframework.orm.hibernate4.HibernateTemplate;
 
 public interface SimplePageToolDao {
 
@@ -57,6 +60,9 @@ public interface SimplePageToolDao {
 	public boolean canEditPage(long pageid);
 
     public HibernateTemplate getDaoHibernateTemplate();
+
+    // set refresh mode for the session, so all queries come from the database
+	public void setRefreshMode();
 
     // session flush
 	public void flush();
@@ -166,6 +172,9 @@ public interface SimplePageToolDao {
     //   to use this convoluted approach to getting back errors
 	public boolean saveItem(Object o, List<String> elist, String nowriteerr, boolean requiresEditPermission);
 
+    // like saveItem but uses saveOrUpdate
+	public boolean saveOrUpdate(Object o, List<String> elist, String nowriteerr, boolean requiresEditPermission);
+
     // just do the save, no permission checking and no logging
 	public boolean quickSaveItem(Object o);
 
@@ -266,11 +275,11 @@ public interface SimplePageToolDao {
     
     //public List<SimplePageItem> getPeerEvalItems (SimplePageItem item);
     
-    public SimplePagePeerEvalResult makePeerEvalResult(long pageId, String gradee, String grader, String rowText, int columnValue);
+    public SimplePagePeerEvalResult makePeerEvalResult(long pageId, String gradee, String gradeeGroup, String grader, String rowText, long rowId, int columnValue);
     
-    public List<SimplePagePeerEvalResult> findPeerEvalResult(long pageId, String userId, String gradee);
+    public List<SimplePagePeerEvalResult> findPeerEvalResult(long pageId, String userId, String gradee, String gradeeGroup);
     
-    public List<SimplePagePeerEvalResult> findPeerEvalResultByOwner(long pageId,String grader);
+    public List<SimplePagePeerEvalResult> findPeerEvalResultByOwner(long pageId,String gradee,String gradeeGroup);
     
     public List<SimplePageItem>findGradebookItems(String gradebookUid);
 
@@ -278,6 +287,34 @@ public interface SimplePageToolDao {
 
     // items in lesson_builder_groups for specified site, map of itemId to groups
     public Map<String,String> getExternalAssigns(String siteId);
+
+    // Returns all of the checklist list items for a given checklist
+    public List<SimpleChecklistItem> findChecklistItems(SimplePageItem checklist);
+
+    // get a specific checklist item for a checklist
+    public SimpleChecklistItem findChecklistItem(SimplePageItem checklist, long checklistItemId);
+
+    public boolean deleteAllSavedStatusesForChecklist(SimplePageItem checklist);
+
+    public boolean deleteAllSavedStatusesForChecklistItem(long checklistId, long checklistItemId);
+
+    public void clearChecklistItems(SimplePageItem checklist);
+
+    public Long maxChecklistItem(SimplePageItem checklist);
+
+    public Long addChecklistItem(SimplePageItem checklist, Long id, String name);
+
+    public boolean isChecklistItemChecked(long checklistId, long checklistItemId, String userId);
+
+    public List<ChecklistItemStatus> findChecklistItemStatusesForChecklist(long checklistId);
+
+    public List<ChecklistItemStatus> findChecklistItemStatusesForChecklistItem(long checklistId, long checklistItemId);
+
+    public ChecklistItemStatus findChecklistItemStatus(long checklistId, long checklistItemId, String userId);
+
+    public boolean saveChecklistItemStatus(ChecklistItemStatus checklistItemStatus);
+
+    public List<SimplePageItem> findAllChecklistsInSite(String siteId);
 
     public int clearNeedsFixup(String siteId);
 

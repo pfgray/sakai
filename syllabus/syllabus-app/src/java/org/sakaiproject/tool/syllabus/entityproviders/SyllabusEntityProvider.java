@@ -1,9 +1,8 @@
 package org.sakaiproject.tool.syllabus.entityproviders;
 
-import java.io.Serializable;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -15,8 +14,7 @@ import java.util.Set;
 
 import lombok.Getter;
 import lombok.Setter;
-import lombok.extern.apachecommons.CommonsLog;
-
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.api.app.syllabus.SyllabusAttachment;
@@ -40,7 +38,9 @@ import org.sakaiproject.entitybroker.entityprovider.search.Search;
 import org.sakaiproject.entitybroker.exception.EntityNotFoundException;
 import org.sakaiproject.entitybroker.util.AbstractEntityProvider;
 import org.sakaiproject.exception.IdUnusedException;
+import org.sakaiproject.exception.InUseException;
 import org.sakaiproject.exception.PermissionException;
+import org.sakaiproject.exception.TypeException;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.SiteService;
 import org.sakaiproject.site.api.ToolConfiguration;
@@ -50,7 +50,7 @@ import org.sakaiproject.util.FormattedText;
 /**
  * Entity provider for the Syllabus tool
  */
-@CommonsLog
+@Slf4j
 public class SyllabusEntityProvider extends AbstractEntityProvider implements EntityProvider, AutoRegisterEntityProvider, ActionsExecutable, Outputable, Describeable, RESTful, DescribePropertiesable
 {
 
@@ -63,6 +63,8 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 
 	/**
 	 * site/siteId
+	 * @param view
+	 * @return 
 	 */
 	@EntityCustomAction(action = "site", viewKey = EntityView.VIEW_LIST)
 	public Syllabus getSyllabusForSite(EntityView view) {
@@ -111,13 +113,14 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 		}
 		
 		//setup for checking items
-		boolean isMaintain = isMaintainer(siteId);
+		boolean isMaintain = syllabusService.checkAddOrEdit(siteService.siteReference(siteId));
+
 		long currentTime = Calendar.getInstance().getTimeInMillis();
 		
 		//Get the data
 		Set syllabusData = syllabusManager.getSyllabiForSyllabusItem(siteSyllabus);
 		
-		List<Item> items = new ArrayList<Item>();
+		List<Item> items = new ArrayList<>();
 		Iterator iter = syllabusData.iterator();
 		while(iter.hasNext()) {
 			SyllabusData sd = (SyllabusData)iter.next();
@@ -154,7 +157,7 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 			item.setEndDate(endDate);
 			
 			//get the attachments
-			List<Attachment> attachments = new ArrayList<Attachment>();
+			List<Attachment> attachments = new ArrayList<>();
 			Set syllabusAttachments = syllabusManager.getSyllabusAttachmentsForSyllabusData(sd);
 			Iterator iter2 = syllabusAttachments.iterator();
 			while(iter2.hasNext()) {
@@ -254,11 +257,6 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 		private String type;
 	}
 	
-	//same logic as the tool uses
-	private boolean isMaintainer(String siteId) {
-		return siteService.allowUpdateSite(siteId);
-	}
-
 	//conert date to long milliseconds, nullsafe.
 	private long dateToLong(Date d) {
 		if(d != null) {
@@ -278,15 +276,26 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 				String siteId = (String) params.get("siteId");
 				if(!"".equals(siteId.trim())){
 					//check that this user is truly the maintainer
-					if(!isMaintainer(siteId)){
+					if(!(syllabusService.checkAddOrEdit(siteService.siteReference(siteId))))
+					{
 						throw new IllegalArgumentException("User doesn't have access to modify this site.");
 					}
 					String title = (String) params.get("title");
 					title = title.trim();
 					if(!"".equals(title)){
 						SyllabusItem item = syllabusManager.getSyllabusItemByContextId(siteId);
-						int initPosition = syllabusManager.findLargestSyllabusPosition(item).intValue() + 1;
-						String published = ServerConfigurationService.getBoolean("syllabus.new.published.default", false) ? SyllabusData.ITEM_POSTED : SyllabusData.ITEM_DRAFT; 
+						int initPosition = syllabusManager.findLargestSyllabusPosition(item) + 1;
+
+						String published;
+						if( params.containsKey( "published" ) )
+						{
+							published = Boolean.parseBoolean( params.get( "published" ).toString() ) ? SyllabusData.ITEM_POSTED : SyllabusData.ITEM_DRAFT;
+						}
+						else
+						{
+							published = ServerConfigurationService.getBoolean("syllabus.new.published.default", false) ? SyllabusData.ITEM_POSTED : SyllabusData.ITEM_DRAFT; 
+						}
+
 						SyllabusData data = syllabusManager.createSyllabusDataObject(title, new Integer(initPosition), null, null, published, "none", null, null, Boolean.FALSE, null, null);
 						data.setView("no");
 						try {
@@ -315,7 +324,8 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 				SyllabusItem item = syllabusManager.getSyllabusItem(data.getSyllabusItem().getSurrogateKey());
 				data.setSyllabusItem(item);
 				//now that we have an obj that has SiteId, let's verify that the user has access to modify it:
-				if(!isMaintainer(item.getContextId())){
+				if(!(syllabusService.checkAddOrEdit(siteService.siteReference(item.getContextId())))) {
+
 					throw new IllegalArgumentException("User doesn't have access to modify this site.");
 				}
 
@@ -328,7 +338,7 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 						if(data != null){
 							boolean foundItem = false;
 							int arrayCount = 0;
-							List<SyllabusData> movedData = new ArrayList<SyllabusData>();
+							List<SyllabusData> movedData = new ArrayList<>();
 							String error = "";
 							Set syllabusData = syllabusManager.getSyllabiForSyllabusItem(item);
 							if(syllabusData != null){
@@ -362,8 +372,8 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 											//but can be a random pattern like 1,4,5,6,9...  This means we can only swap positions
 											Integer p1 = data.getPosition();
 											Integer p2 = d.getPosition();
-											data.setPosition(new Integer(p2));
-											d.setPosition(new Integer(p1));
+											data.setPosition(p2);
+											d.setPosition(p1);
 										}else{
 											//this isn't being moved
 											iterator.remove();
@@ -393,7 +403,7 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 					}else if("body".equals(params.get("name"))){
 						String body = (String) params.get("value");
 						StringBuilder alertMsg = new StringBuilder();
-			        	String cleanedText = null;
+			        	String cleanedText;
 			    		try
 			    		{
 			    			cleanedText  =  FormattedText.processFormattedText(body, alertMsg);
@@ -419,7 +429,7 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 								}else{
 									throw new IllegalArgumentException("End Date must be after start date");
 								}
-							}catch(Exception e){
+							}catch(ParseException | IllegalArgumentException e){
 								log.error(e.getMessage(), e);
 								throw new IllegalArgumentException("Date isn't in the correct format: " + startDate + ", should be: yyyy-MM-dd HH:mm");
 							}
@@ -437,7 +447,7 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 								}else{
 									throw new IllegalArgumentException("End Date must be after start date");
 								}
-							} catch (Exception e) {
+							} catch (ParseException | IllegalArgumentException e) {
 								log.error(e.getMessage(), e);
 								throw new IllegalArgumentException("Date isn't in the correct format: " + endDate + ", should be: yyyy-MM-dd HH:mm");
 							}
@@ -487,7 +497,7 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 						if(id.toLowerCase().startsWith("/attachment"))
 							try{
 								contentHostingService.removeResource(id);
-							}catch(Exception e){
+							}catch(PermissionException | IdUnusedException | TypeException | InUseException e){
 								log.error(e.getMessage(), e);
 							}
 					}
@@ -512,7 +522,7 @@ public class SyllabusEntityProvider extends AbstractEntityProvider implements En
 						if(attachmentIdStr.toLowerCase().startsWith("/attachment")){
 							try{
 								contentHostingService.removeResource(attachmentIdStr);
-							}catch(Exception e){
+							}catch(PermissionException | IdUnusedException | TypeException | InUseException e){
 								log.error(e.getMessage(), e);
 							}
 						}

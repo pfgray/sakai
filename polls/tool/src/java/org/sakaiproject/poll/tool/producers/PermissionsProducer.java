@@ -26,14 +26,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.PermissionsHelper;
 import org.sakaiproject.poll.logic.ExternalLogic;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.tool.api.ToolSession;
 
-import uk.ac.cam.caret.sakai.rsf.helper.HelperViewParameters;
+import org.sakaiproject.rsf.helper.HelperViewParameters;
 import uk.org.ponder.localeutil.LocaleGetter;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.rsf.components.UICommand;
@@ -64,7 +64,7 @@ public class PermissionsProducer implements ViewComponentProducer,NavigationCase
 	public static final String HELPER = "sakai.permissions.helper";
 
 	
-	private static final Log LOG = LogFactory.getLog(PermissionsProducer.class);
+	private static final Logger LOG = LoggerFactory.getLogger(PermissionsProducer.class);
 
 	public String getViewID() {
 		// TODO Auto-generated method stub

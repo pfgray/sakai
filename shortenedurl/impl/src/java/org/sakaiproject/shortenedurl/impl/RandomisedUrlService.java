@@ -21,28 +21,23 @@
 
 package org.sakaiproject.shortenedurl.impl;
 
-import java.net.MalformedURLException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.sql.SQLException;
 
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.hibernate.Hibernate;
-import org.hibernate.HibernateException;
 import org.hibernate.Query;
-import org.hibernate.Session;
+import org.hibernate.type.StringType;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.event.api.EventTrackingService;
 import org.sakaiproject.memory.api.Cache;
 import org.sakaiproject.memory.api.MemoryService;
 import org.sakaiproject.shortenedurl.api.ShortenedUrlService;
 import org.sakaiproject.shortenedurl.model.RandomisedUrl;
-import org.springframework.orm.hibernate3.HibernateCallback;
-import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.orm.hibernate4.HibernateCallback;
+import org.springframework.orm.hibernate4.support.HibernateDaoSupport;
 
 /**
  * An implementation of {@link org.sakaiproject.shortenedurl.api.ShortenedUrlService} to provide randomised URLs
@@ -57,7 +52,7 @@ import org.springframework.orm.hibernate3.support.HibernateDaoSupport;
  */
 public class RandomisedUrlService extends HibernateDaoSupport implements ShortenedUrlService {
 
-	private static Log log = LogFactory.getLog(RandomisedUrlService.class);
+	private static Logger log = LoggerFactory.getLogger(RandomisedUrlService.class);
 	
 	//Hibernate stored queries
 	private static final String QUERY_GET_URL = "getUrl";
@@ -115,7 +110,7 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 		
 		//check values
 		if(StringUtils.isBlank(url)){
-			log.error("URL was empty, aborting...");
+			log.warn("URL was empty, aborting...");
 			return null;
 		}
 		
@@ -124,7 +119,7 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 		String key = getExistingKey(url);
 		if(key != null) {
 			//log
-			log.info("Returning existing key: " + key);
+			log.debug("Returning existing key: " + key);
 			
 			//post event
 			postEvent(ShortenedUrlService.EVENT_CREATE_EXISTS, PREFIX+key, false);
@@ -148,10 +143,7 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 			attempts++;
 		}
 		
-		//new key created so post event
-		if(log.isDebugEnabled()) {
-			log.debug("Created:" + newKey + " for URL: " + url);
-		}
+		log.debug("Created:" + newKey + " for URL: " + url);
 		postEvent(ShortenedUrlService.EVENT_CREATE_OK, PREFIX + newKey, true);
 		
 		//save 
@@ -165,34 +157,36 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 	
 	
 	/**
-	 * Gets the original URL for the given shortened URL.
+	 * Gets the encoded URL for the given shortened URL.
 	 * This is used by the RandomisedUrlService servlet to translate short URLs back into their original URLs. 
 	 * 
 	 * @param key - the key value, eg 6whjq
-	 * @return the original URL mapped to this record or null if errors
+	 * @return the original encoded URL mapped to this record or null if errors
 	 */
 	public String resolve(final String key) {
 		
+		if (StringUtils.isBlank(key)) {
+			return null;
+		}
+
 		//first check cache
-		if(cache.containsKey(key)){
-			log.debug("Fetching url from cache for key: " + key);
-			return (String)cache.get(key);
+		String value = (String) cache.get(key);
+		if (value != null) {
+			return encodeUrl(value);
 		}
 		
 		//then check db
 		RandomisedUrl randomisedUrl = null;
 		
-		HibernateCallback hcb = new HibernateCallback() {
-	  		public Object doInHibernate(Session session) throws HibernateException, SQLException {
-	  			Query q = session.getNamedQuery(QUERY_GET_URL);
-	  			q.setParameter(KEY, key, Hibernate.STRING);
-	  			q.setMaxResults(1);
-	  			return q.uniqueResult();
-			}
-		};
+		HibernateCallback<RandomisedUrl> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_GET_URL);
+            q.setParameter(KEY, key, StringType.INSTANCE);
+            q.setMaxResults(1);
+            return (RandomisedUrl) q.uniqueResult();
+      };
 	
 		//will be either a RandomisedUrl or null
-		randomisedUrl = (RandomisedUrl) getHibernateTemplate().execute(hcb);
+		randomisedUrl = getHibernateTemplate().execute(hcb);
 		if(randomisedUrl == null) {
 			//log
 			log.warn("Request for invalid record: " + key);
@@ -204,23 +198,21 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 		}
 		
 		//log
-		log.info("Request for valid record: " + key);
+		log.debug("Request for valid record: " + key);
 		
 		//post success event
 		postEvent(ShortenedUrlService.EVENT_GET_URL_OK, PREFIX+key, false);
 		
 		//add to cache
 		String url = randomisedUrl.getUrl();
-		
-		//SHORTURL-39 encode it, reutn null if failure
+		addToCache(key, url);
+
 		String encodedUrl = encodeUrl(url);
 		if(StringUtils.isBlank(encodedUrl)) {
 			return null;
 		}
 		
-		log.debug("Encoded URL: " + encodedUrl);
-		
-		addToCache(key, encodedUrl);
+		log.debug("URL: " + encodedUrl);
 		
 		return encodedUrl;
 	}
@@ -235,27 +227,29 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 	 * @return
 	 */
 	private String getExistingKey(final String url) {
+
+		if (StringUtils.isBlank(url)) {
+			return null;
+		}
 		
 		//first check cache
-		if(cache.containsKey(url)){
-			log.debug("Fetching key from cache for URL: " + url);
-			return (String)cache.get(url);
+		String value = (String) cache.get(url);
+		if (value != null) {
+			return value;
 		}
 		
 		//then check db
 		RandomisedUrl randomisedUrl = null;
 		
-		HibernateCallback hcb = new HibernateCallback() {
-	  		public Object doInHibernate(Session session) throws HibernateException, SQLException {
-	  			Query q = session.getNamedQuery(QUERY_GET_KEY);
-	  			q.setParameter(URL, url, Hibernate.STRING);
-	  			q.setMaxResults(1);
-	  			return q.uniqueResult();
-			}
-		};
+		HibernateCallback<RandomisedUrl> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_GET_KEY);
+            q.setParameter(URL, url, StringType.INSTANCE);
+            q.setMaxResults(1);
+            return (RandomisedUrl) q.uniqueResult();
+      };
 	
 		//will be either a RandomisedUrl or null
-		randomisedUrl = (RandomisedUrl) getHibernateTemplate().execute(hcb);	
+		randomisedUrl = getHibernateTemplate().execute(hcb);
 		if(randomisedUrl == null) {
 			return null;
 		}
@@ -285,17 +279,15 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 		
 		RandomisedUrl randomisedUrl = null;
 		
-		HibernateCallback hcb = new HibernateCallback() {
-	  		public Object doInHibernate(Session session) throws HibernateException, SQLException {
-	  			Query q = session.getNamedQuery(QUERY_GET_URL);
-	  			q.setParameter(KEY, key, Hibernate.STRING);
-	  			q.setMaxResults(1);
-	  			return q.uniqueResult();
-			}
-		};
+		HibernateCallback<RandomisedUrl> hcb = session -> {
+            Query q = session.getNamedQuery(QUERY_GET_URL);
+            q.setParameter(KEY, key, StringType.INSTANCE);
+            q.setMaxResults(1);
+            return (RandomisedUrl) q.uniqueResult();
+      };
 	
 		//if null then it doesn't exist
-		randomisedUrl = (RandomisedUrl) getHibernateTemplate().execute(hcb);
+		randomisedUrl = getHibernateTemplate().execute(hcb);
 		if(randomisedUrl == null) {
 			return true;
 		}
@@ -361,7 +353,7 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
 			//add to db
 			RandomisedUrl randomisedUrl = new RandomisedUrl(key, url);
 			getHibernateTemplate().save(randomisedUrl);
-			log.info("RandomisedUrl saved as: " + key);
+			log.debug("RandomisedUrl saved as: " + key);
 			
 			//and put it in the cache, both ways
 			addToCache(key, url);
@@ -403,22 +395,24 @@ public class RandomisedUrlService extends HibernateDaoSupport implements Shorten
   		log.debug("Added entry to cache, key: " + k +", value: " + v);
 		cache.put(k, v);
   	}
-  	
+
   	/**
   	 * Encodes a full URL.
   	 * 
   	 * @param rawUrl the URL to encode.
   	 */
   	private String encodeUrl(String rawUrl) {
-  		
+  		if (StringUtils.isBlank(rawUrl)) {
+  			return null;
+  		}
   		String encodedUrl = null;
   		
   		try {
 	  		URL url = new URL(rawUrl);
 	  		URI uri = new URI(url.getProtocol(), url.getUserInfo(), url.getHost(), url.getPort(), url.getPath(), url.getQuery(), url.getRef());
-	  		encodedUrl = uri.toURL().toString();
+	  		encodedUrl = uri.toASCIIString();
   		} catch (Exception e) {
-	  		log.debug("Error encoding url: " + rawUrl +". " + e.getClass() + ": " + e.getMessage());
+  			log.warn("encoding url: " + rawUrl + ", " + e.getMessage(), e);
 		}
   		
   		return encodedUrl;

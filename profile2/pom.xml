@@ -4,14 +4,13 @@
 	<parent>
 		<groupId>org.sakaiproject</groupId>
 		<artifactId>master</artifactId>
-		<version>11-SNAPSHOT</version>
+		<version>12-SNAPSHOT</version>
 		<relativePath>../master/pom.xml</relativePath>
 	</parent>
 	<name>Profile2</name>
 	<groupId>org.sakaiproject.profile2</groupId>
 	<artifactId>profile2</artifactId>
 	<packaging>pom</packaging>
-	<version>11-SNAPSHOT</version>
 	<!-- ProjectVersion -->
 	<organization>
 		<name>The Sakai Foundation</name>
@@ -20,22 +19,15 @@
 	<inceptionYear>2008</inceptionYear>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<wicket.version>6.26.0</wicket.version>
 	</properties>
 	<modules>
 		<module>api</module>
 		<module>impl</module>
 		<module>util</module>
-		<module>pack</module>
 		<module>tool</module>
 		<module>bundle</module>
 	</modules>
-	<distributionManagement>
-		<site>
-			<id>sakai-site</id>
-			<name>Sakai release Site</name>
-			<url>scpexe://source.sakaiproject.org/var/www/html/release/profile2/${project.version}</url>
-		</site>
-	</distributionManagement>
 	<dependencyManagement>
 		<dependencies>
 			<!-- internal -->
@@ -65,23 +57,23 @@
 			<dependency>
 				<groupId>org.apache.wicket</groupId>
 				<artifactId>wicket</artifactId>
-				<version>6.20.0</version>
+				<version>${wicket.version}</version>
 				<type>pom</type>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.wicket</groupId>
 				<artifactId>wicket-spring</artifactId>
-				<version>6.20.0</version>
+				<version>${wicket.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.wicket</groupId>
 				<artifactId>wicket-extensions</artifactId>
-				<version>6.20.0</version>
+				<version>${wicket.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.twitter4j</groupId>
 				<artifactId>twitter4j-core</artifactId>
-				<version>3.0.5</version>
+				<version>4.0.6</version>
 			</dependency>
 			<dependency>
 				<groupId>org.wicketstuff</groupId>
@@ -89,40 +81,11 @@
 				<version>6.18.0</version>
 			</dependency>
 			<dependency>
-				<groupId>org.sakaiproject</groupId>
-				<artifactId>generic-dao</artifactId>
-				<version>${generic-dao.version}</version>
-			</dependency>
-			<dependency>
 				<groupId>org.imgscalr</groupId>
 				<artifactId>imgscalr-lib</artifactId>
 				<version>4.2</version>
 				<scope>compile</scope>
 			</dependency>
-			<dependency>
-				<groupId>net.sf.opencsv</groupId>
-				<artifactId>opencsv</artifactId>
-				<version>2.3</version>
-				<scope>compile</scope>
-			</dependency>
 		</dependencies>
 	</dependencyManagement>
-	<issueManagement>
-		<system>JIRA</system>
-		<url>http://jira.sakaiproject.org/browse/SAK</url>
-	</issueManagement>
-	
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.3</version>
-				<configuration>
-				  <source>1.7</source>
-				  <target>1.7</target>
-				</configuration>
-		  	</plugin>
-		</plugins>
-	</build>
 </project>

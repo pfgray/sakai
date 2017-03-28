@@ -21,8 +21,8 @@
 
 package org.sakaiproject.user.impl;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.FunctionManager;
 import org.sakaiproject.authz.api.SecurityService;
 import org.sakaiproject.component.api.ServerConfigurationService;
@@ -68,17 +68,13 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 	 */
 	private static final String LOCALE_PREFERENCE_KEY = "sakai:resourceloader";
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(BasePreferencesService.class);
+	private static Logger M_log = LoggerFactory.getLogger(BasePreferencesService.class);
 	/** Storage manager for this service. */
 	protected Storage m_storage = null;
 	/** The initial portion of a relative access point URL. */
 	protected String m_relativeAccessPoint = null;
-	/** The session cache variable for current user's preferences */
-	protected String ATTR_PREFERENCE = "attr_preference";
-	/** The session cache variable for indicating whether the current user's preference was null when last looked */
-	protected String ATTR_PREFERENCE_IS_NULL = "attr_preference_is_null";
 	/** the cache for Preference objects **/
-	private Cache m_cache;
+	private Cache<String, BasePreferences> m_cache;
 	/**********************************************************************************************************************************************************************************************************************************************************
 	 * Abstractions, etc.
 	 *********************************************************************************************************************************************************************************************************************************************************/
@@ -232,7 +228,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 
 			
 			//register a cache
-			m_cache = memoryService().newCache(BasePreferencesService.class.getName() +".preferences");
+			m_cache = memoryService().getCache(BasePreferencesService.class.getName() +".preferences");
 			
 			M_log.info("init()");
 		}
@@ -285,7 +281,16 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 		// check for existance
 		if (!m_storage.check(id))
 		{
-			throw new IdUnusedException(id);
+			//Try to add and return this value
+			try {
+				return add(id);
+			}
+			catch (IdUsedException e) {
+				//This should never happen
+				M_log.warn("Could not add "+id+" even after checking that it didn't exist in storage. Throwing IdUnusedException but this shouldn't be possible.",e);
+				throw new IdUnusedException(id);
+			
+			}
 		}
 
 		// ignore the cache - get the user with a lock from the info store
@@ -330,13 +335,6 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 			SessionManager sManager = sessionManager();
 			Session s = sManager.getCurrentSession();
 		
-			// update the session cache if the preference is for current session user
-			if (sManager.getCurrentSessionUserId().equals(edit.getId()))
-			{
-				s.setAttribute(ATTR_PREFERENCE, new BasePreferences((BasePreferences) edit));
-				s.setAttribute(ATTR_PREFERENCE_IS_NULL, Boolean.FALSE);
-			}
-
 			// track it
 			eventTrackingService()
 					.post(eventTrackingService().newEvent(((BasePreferences) edit).getEvent(), edit.getReference(), true));
@@ -415,7 +413,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 	}
 
 	/**
-	 * Find the preferences object, in cache or storage.
+	 * Find the preferences object in cache or storage.
 	 * 
 	 * @param id
 	 *        The preferences id.
@@ -423,70 +421,24 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 	 */
 	protected BasePreferences findPreferences(String id)
 	{
-		BasePreferences prefs = null;
-		
-		if (id != null)
-		{
-			Session session = sessionManager().getCurrentSession();
-			
-			if (id.equals(sessionManager().getCurrentSessionUserId()))
-			{
-				// if the preference is for current user
-				if (session.getAttribute(ATTR_PREFERENCE_IS_NULL)!=null)
-				{
-					if (!((Boolean) session.getAttribute(ATTR_PREFERENCE_IS_NULL)).booleanValue())
-					{
-						// if the session cache indicate the preference is not null, get the preferences from cache
-						prefs = new BasePreferences((BasePreferences) session.getAttribute(ATTR_PREFERENCE));
-					}
-				}
-				else
-				{
-					//is the preference in the cache?
-					if (m_cache.containsKey(id))
-					{
-						prefs = (BasePreferences) m_cache.get(id);
-					}
-					else
-					//otherwise, get preferences from storage and update caches
-					{
-						prefs = (BasePreferences) m_storage.get(id);
-					}
-					//its possible either call above returned null if the user has the default preferences
-					if (prefs != null)
-					{
-						session.setAttribute(ATTR_PREFERENCE_IS_NULL, Boolean.FALSE);
-						session.setAttribute(ATTR_PREFERENCE, new BasePreferences(prefs));
-						m_cache.put(id, prefs);
-					}
-					else
-					{
-						session.setAttribute(ATTR_PREFERENCE_IS_NULL, Boolean.TRUE);
-						session.removeAttribute(ATTR_PREFERENCE);
-						m_cache.put(id, null);
-					}
-				}
-			}
-			else
-			{
-				//is the preference in the cache
-				if (m_cache.containsKey(id))
-				{
-					prefs = (BasePreferences) m_cache.get(id);
-				}
-				else
-				{
-					// uf the preference is not for current user, ignore sessioncache completely
-					prefs = (BasePreferences) m_storage.get(id);
-				}
-				
-				m_cache.put(id, prefs);
-			}
+		if (id == null) {
+			return null;
+		}
+
+		// Try the cache
+		BasePreferences prefs = m_cache.get(id);
+
+		// Failing that, try the storage
+		if (prefs == null) {
+			prefs = (BasePreferences) m_storage.get(id);
+		}
+
+		if (prefs != null) {
+			m_cache.put(id, prefs);
 		}
 		
 		return prefs;
 	}
-
 	
 	
 	/**
@@ -628,12 +580,12 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 	/**
 	 * @inheritDoc
 	 */
-	public Collection getEntityAuthzGroups(Reference ref, String userId)
+	public Collection<String> getEntityAuthzGroups(Reference ref, String userId)
 	{
 		// double check that it's mine
 		if (!APPLICATION_ID.equals(ref.getType())) return null;
 
-		Collection rv = new Vector();
+		Collection<String> rv = new Vector<String>();
 
 		// for preferences access: no additional role realms
 		try
@@ -831,7 +783,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 		protected ResourcePropertiesEdit m_properties = null;
 
 		/** The sets of keyed ResourceProperties. */
-		protected Map m_props = null;
+		protected Map<String, ResourcePropertiesEdit> m_props = null;
 		/** The event code for this edit. */
 		protected String m_event = null;
 		/** Active flag. */
@@ -851,7 +803,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 			ResourcePropertiesEdit props = new BaseResourcePropertiesEdit();
 			m_properties = props;
 
-			m_props = new Hashtable();
+			m_props = new Hashtable<>();
 
 			// if the id is not null (a new user, rather than a reconstruction)
 			// and not the anon (id == "") user,
@@ -881,7 +833,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 			// setup for properties
 			m_properties = new BaseResourcePropertiesEdit();
 
-			m_props = new Hashtable();
+			m_props = new Hashtable<>();
 
 			m_id = el.getAttribute("id");
 
@@ -938,7 +890,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 					else if (key.endsWith("sitenav"))
 					{
 						// matches Charon portal's value
-						key = "sakai:portal:sitenav";
+						key = SITENAV_PREFS_KEY;
 					}
 					else if (key.endsWith("ResourceLoader"))
 					{
@@ -986,14 +938,14 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 			m_properties.addAll(prefs.getProperties());
 
 			// %%% is this deep enough? -ggolden
-			m_props = new Hashtable();
+			m_props = new Hashtable<>();
 			m_props.putAll(((BasePreferences) prefs).m_props);
 		}
 
 		/**
 		 * @inheritDoc
 		 */
-		public Element toXml(Document doc, Stack stack)
+		public Element toXml(Document doc, Stack<Element> stack)
 		{
 			Element prefs = doc.createElement("preferences");
 
@@ -1003,7 +955,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 			}
 			else
 			{
-				((Element) stack.peek()).appendChild(prefs);
+				stack.peek().appendChild(prefs);
 			}
 
 			stack.push(prefs);
@@ -1089,7 +1041,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 		 */
 		public ResourceProperties getProperties(String key)
 		{
-			ResourceProperties rv = (ResourceProperties) m_props.get(key);
+			ResourceProperties rv = m_props.get(key);
 			if (rv == null)
 			{
 				// new, throwaway empty one
@@ -1102,7 +1054,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 		/**
 		 * @inheritDoc
 		 */
-		public Collection getKeys()
+		public Collection<String> getKeys()
 		{
 			return m_props.keySet();
 		}
@@ -1151,7 +1103,7 @@ public abstract class BasePreferencesService implements PreferencesService, Sing
 		{
 			synchronized (m_props)
 			{
-				ResourcePropertiesEdit rv = (ResourcePropertiesEdit) m_props.get(key);
+				ResourcePropertiesEdit rv = m_props.get(key);
 				if (rv == null)
 				{
 					// new one saved in the map

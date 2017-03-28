@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.sakaiproject.samigo</groupId>
 		<artifactId>samigo</artifactId>
-		<version>11-SNAPSHOT</version>
+		<version>12-SNAPSHOT</version>
 	</parent>
     
 	<name>Sakai Samigo QTI Services (samigo-qti)</name>
@@ -29,10 +29,6 @@
 		</dependency>
 		<dependency>
 			<groupId>org.sakaiproject.kernel</groupId>
-			<artifactId>sakai-kernel-api</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.sakaiproject.kernel</groupId>
 			<artifactId>sakai-component-manager</artifactId>
 		</dependency>
         <dependency>
@@ -53,29 +49,22 @@
 			<groupId>${project.groupId}</groupId>
 			<artifactId>samigo-hibernate</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>log4j</groupId>
-			<artifactId>log4j</artifactId>
-			<version>1.2.8</version>
-		</dependency>
+        <dependency>
+            <groupId>org.sakaiproject.tags</groupId>
+            <artifactId>tags-api</artifactId>
+        </dependency>
 		<dependency>
 			<groupId>commons-beanutils</groupId>
 			<artifactId>commons-beanutils</artifactId>
-			<version>1.7.0</version>
 		</dependency>
 		<dependency>
 			<groupId>commons-collections</groupId>
 			<artifactId>commons-collections</artifactId>
-			<version>3.1</version>
 		</dependency>
 		<dependency>
 			<groupId>commons-lang</groupId>
 			<artifactId>commons-lang</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>commons-logging</groupId>
-			<artifactId>commons-logging</artifactId>
-       		</dependency>
 		<dependency>
 			<groupId>jaxen</groupId>
 			<artifactId>jaxen</artifactId>
@@ -101,6 +90,10 @@
             <groupId>OKI</groupId>
             <artifactId>OkiOSID</artifactId>
         </dependency>
+        <dependency>
+        	<groupId>org.sakaiproject.common</groupId>
+        	<artifactId>import-impl</artifactId>
+        </dependency>
 	</dependencies>
 	<build>
 		<resources />
@@ -109,6 +102,7 @@
 				<directory>src/test</directory>
 				<includes>
 					<include>**/*.xml</include>
+					<include>**/log4j.properties</include>
 				</includes>
 				<excludes>
 					<exclude>**/*.java</exclude>

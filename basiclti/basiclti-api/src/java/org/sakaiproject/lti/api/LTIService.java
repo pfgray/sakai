@@ -27,6 +27,7 @@ import java.util.Properties;
 
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.PermissionException;
+import org.sakaiproject.lti.api.LTIExportService.ExportType;
 import org.sakaiproject.site.api.Site;
 
 /**
@@ -201,6 +202,15 @@ public interface LTIService {
 	 * @return
 	 */
 	public String getToolLaunch(Map<String, Object> tool, String siteId);
+	
+	/**
+	 * 
+	 * @param siteId
+	 * @param filterId
+	 * @param exportType
+	 * @return
+	 */
+	public String getExportUrl(String siteId, String filterId, ExportType exportType);
 
 	/**
 	 * 
@@ -278,6 +288,11 @@ public interface LTIService {
 	 * Get a list of tools that can return a FileItem
 	 */
 	public List<Map<String, Object>> getToolsFileItem();
+
+	/**
+	 * Get a list of tools that can return an imported Common Cartridge
+	 */
+	public List<Map<String, Object>> getToolsImportItem();
 
 	/**
 	 * Get a list of tools that can return content for the editor
@@ -470,6 +485,17 @@ public interface LTIService {
 	 */
 	public List<Map<String, Object>> getContents(String search, String order, int first, int last);
 
+
+	/**
+	 * This finds a set of LTI Contents objects.
+	 * @param search The SQL search string to limit the results
+	 * @param order The SQL order by string.
+	 * @param first The first item that should be returned.
+	 * @param last The last item that should be returned.
+	 * @param siteId The site ID or null to search as admin.
+	 * @return A List of LTI Contents objects.
+	 */
+	public List<Map<String, Object>> getContentsDao(String search, String order, int first, int last, String siteId);
 	/**
 	 * 
 	 * @param search
@@ -481,6 +507,22 @@ public interface LTIService {
 	 * @return
 	 */
         public  List<Map<String, Object>> getContentsDao(String search, String order, int first, int last, String siteId, boolean isAdminRole);
+    
+    /**
+	 * 
+	 * @param search
+	 * @return
+	 */
+    public int countContents(String search);
+    
+    /**
+	 * 
+	 * @param search
+	 * @param siteId
+	 * @param isAdminRole
+	 * @return
+	 */
+    public int countContentsDao(String search, String siteId, boolean isAdminRole);
 
 	/**
 	 * 
@@ -710,6 +752,15 @@ public interface LTIService {
 		"oldplacementsecret:text:hidden=true:maxlength=512",
 		"created_at:autodate",
 		"updated_at:autodate" };
+	
+    public static final String[] CONTENT_EXTRA_FIELDS = { 
+    	"SITE_TITLE:text:table=SAKAI_SITE:realname=TITLE", 
+    	"SITE_CONTACT_NAME:text:table=ssp1:realname=VALUE", 
+    	"SITE_CONTACT_EMAIL:text:table=ssp2:realname=VALUE", 
+    	"ATTRIBUTION:text:table=ssp3:realname=VALUE",
+    	"URL:text:table=lti_tools:realname=launch",
+    	"searchURL:text:table=NULL" //no realname and table is NULL for this, it just exists in the select
+    };
 
 	/**
 	 * 
@@ -745,9 +796,10 @@ public interface LTIService {
 		"allowroster:checkbox:label=bl_allowroster",
 		"allowsettings:checkbox:label=bl_allowsettings",
 		// Hide these from end users until they are working in the various Sakai tools
-		"pl_header:header:fields=pl_launch,pl_linkselection,pl_fileitem,pl_contenteditor,pl_assessmentselection",
+		"pl_header:header:fields=pl_launch,pl_linkselection,pl_importitem,pl_fileitem,pl_contenteditor,pl_assessmentselection",
 		"pl_launch:checkbox:label=bl_pl_launch",
 		"pl_linkselection:checkbox:label=bl_pl_linkselection",
+		"pl_importitem:checkbox:label=bl_pl_importitem:role=admin",
 		"pl_fileitem:checkbox:label=bl_pl_fileitem:role=admin",
 		"pl_contenteditor:checkbox:label=bl_pl_contenteditor:role=admin",
 		"pl_assessmentselection:checkbox:label=bl_pl_assessmentselection:role=admin",
@@ -880,7 +932,21 @@ public interface LTIService {
 	static final String LTI_PL_LAUNCH = "pl_launch";
 	static final String LTI_PL_LINKSELECTION = "pl_linkselection";
 	static final String LTI_PL_FILEITEM = "pl_fileitem";
+	static final String LTI_PL_IMPORTITEM = "pl_importitem";
 	static final String LTI_PL_CONTENTEDITOR = "pl_contenteditor";
 	static final String LTI_PL_ASSESSMENTSELECTION = "pl_assessmentselection";
+	
+	public static final String LTI_SEARCH_TOKEN_SEPARATOR_AND = "#&#";
+	public static final String LTI_SEARCH_TOKEN_SEPARATOR_OR = "#|#";
+	public static final String ESCAPED_LTI_SEARCH_TOKEN_SEPARATOR_AND = "\\#\\&\\#";
+	public static final String ESCAPED_LTI_SEARCH_TOKEN_SEPARATOR_OR = "\\#\\|\\#";
+	public static final String LTI_SEARCH_TOKEN_NULL = "#null#";
+	public static final String LTI_SEARCH_TOKEN_DATE = "#date#";
+	public static final String LTI_SEARCH_TOKEN_EXACT = "#exact#";
+	public static final String LTI_SEARCH_INTERNAL_DATE_FORMAT = "dd/MM/yyyy H:mm:ss";
+	public static final String LTI_SITE_ATTRIBUTION_PROPERTY_KEY = "basiclti.tool.site.attribution.key";
+	public static final String LTI_SITE_ATTRIBUTION_PROPERTY_KEY_DEFAULT = "Department";
+	public static final String LTI_SITE_ATTRIBUTION_PROPERTY_NAME = "basiclti.tool.site.attribution.name";
+	public static final String LTI_SITE_ATTRIBUTION_PROPERTY_NAME_DEFAULT = "content.attribution";
 
 }

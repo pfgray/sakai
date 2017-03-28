@@ -5,13 +5,12 @@
 
     <groupId>org.sakaiproject.oauth</groupId>
     <artifactId>oauth-base</artifactId>
-    <version>1.2-SNAPSHOT</version>
     <packaging>pom</packaging>
     
     <parent>
         <groupId>org.sakaiproject</groupId>
         <artifactId>master</artifactId>
-        <version>11-SNAPSHOT</version>
+        <version>12-SNAPSHOT</version>
         <relativePath>../master/pom.xml</relativePath>
     </parent>
 
@@ -22,13 +21,6 @@
         <url>http://www.sakaiproject.org/sakai-foundation</url>
     </organization>
     <inceptionYear>2009</inceptionYear>
-    <licenses>
-        <license>
-            <name>ECL-2.0</name>
-            <url>http://opensource.org/licenses/ECL-2.0</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
 
     <developers>
         <developer>
@@ -56,9 +48,6 @@
         <module>api</module>
         <module>impl</module>
         <module>dao-hbm</module>
-        <module>dao-memory</module>
-        <module>dao-server-config</module>
-        <module>pack</module>
         <module>tool</module>
     </modules>
 
@@ -71,10 +60,8 @@
 
         <!-- dependencies versions -->
         <oauth.version>20100527</oauth.version>
-        <joda-time.version>2.2</joda-time.version>
-        <commons-logging.version>1.1.1</commons-logging.version>
         <servlet-api.version>2.5</servlet-api.version>
-        <wicket.version>1.4.20</wicket.version>
+        <wicket.version>7.6.0</wicket.version>
         <slf4j.version>1.7.5</slf4j.version>
     </properties>
 
@@ -93,17 +80,17 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>oauth-dao-hbm</artifactId>
+                <artifactId>oauth-org.sakaiproject.oauth.dao-hbm</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>oauth-dao-server-config</artifactId>
+                <artifactId>oauth-org.sakaiproject.oauth.dao-server-config</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>oauth-dao-memory</artifactId>
+                <artifactId>oauth-org.sakaiproject.oauth.dao-memory</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -123,7 +110,7 @@
             <dependency>
                 <groupId>joda-time</groupId>
                 <artifactId>joda-time</artifactId>
-                <version>${joda-time.version}</version>
+                <version>${joda.time.version}</version>
             </dependency>
             <dependency>
                 <groupId>net.oauth.core</groupId>
@@ -134,27 +121,6 @@
                 <groupId>net.oauth.core</groupId>
                 <artifactId>oauth-provider</artifactId>
                 <version>${oauth.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>commons-logging</groupId>
-                <artifactId>commons-logging</artifactId>
-                <version>${commons-logging.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-api</artifactId>
-                <version>${slf4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-log4j12</artifactId>
-                <version>${slf4j.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>log4j</groupId>
-                        <artifactId>log4j</artifactId>
-                    </exclusion>
-                </exclusions>
             </dependency>
 
             <!-- Wicket -->
@@ -173,8 +139,6 @@
 
     <build>
         <plugins>
-            
-            <!-- enforce Java 6 compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -187,30 +151,4 @@
             
         </plugins>
     </build>
-
-<!--
-    <repositories> 
-        <repository> 
-            <id>sonatype-nexus-snapshots</id> 
-            <name>Sonatype Nexus Snapshots</name> 
-            <url> https://oss.sonatype.org/content/repositories/snapshots </url> 
-            <releases> 
-                <enabled>false</enabled> 
-            </releases> 
-            <snapshots> 
-                <enabled>true</enabled> 
-            </snapshots> 
-        </repository> 
-    </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>Sakai Plugin Repo</id>
-            <url>http://source.sakaiproject.org/maven2</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-        </pluginRepository>
-    </pluginRepositories>
-    -->
 </project>

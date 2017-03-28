@@ -47,17 +47,26 @@ import org.sakaiproject.tool.assessment.facade.AssessmentFacade;
 import org.sakaiproject.tool.assessment.facade.ItemFacade;
 import org.sakaiproject.tool.assessment.facade.SectionFacade;
 import org.sakaiproject.tool.assessment.services.ItemService;
+import org.sakaiproject.tool.assessment.facade.AgentFacade;
 import org.sakaiproject.tool.assessment.services.SectionService;
 import org.sakaiproject.tool.assessment.services.assessment.AssessmentService;
 import org.sakaiproject.tool.cover.SessionManager;
 import org.sakaiproject.tool.cover.ToolManager;
+import org.sakaiproject.event.cover.EventTrackingService;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.SectionDataIfc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
 public class SamigoAssessmentHandler implements HandlesImportable {
+	private static Logger log = LoggerFactory.getLogger(SamigoAssessmentHandler.class);
+    
 	// Samigo identifies each question type with an int
 	public static final int TRUE_FALSE = 4;
 	public static final int FILL_BLANK = 8;
 	public static final int MATCHING = 9;
+	public static final int FILL_BLANK_PLUS = 11;
 	
 	public static final String QUIZ_TYPE = "62";
 	public static final String QUIZ_TEMPLATE = "3";
@@ -123,6 +132,7 @@ public class SamigoAssessmentHandler implements HandlesImportable {
 				item.setSequence(Integer.valueOf(i + 1));
 				item.setSection(section);
 				section.addItem(itemService.saveItem(item));
+				EventTrackingService.post(EventTrackingService.newEvent("sam.assessment.saveitem", "/sam/" + AgentFacade.getCurrentSiteId() + "/saved itemId=" + item.getItemId().toString(), true));
 			}
 			data.setSectionSet(sectionSet);
 			assessment.setData(data);
@@ -156,6 +166,7 @@ public class SamigoAssessmentHandler implements HandlesImportable {
 			questionCount++;
 			Set correctAnswerIDs = importableQuestion.getCorrectAnswerIDs();
 			itemFacade = new ItemFacade();
+			itemFacade.setTypeId(new Long(importableQuestion.getQuestionType()));
 			textSet = new HashSet();
 			questionTextString = contextualizeUrls(importableQuestion.getQuestionText(), siteId);
 			if (importableQuestion.getQuestionType() == SamigoPoolHandler.MATCHING) {
@@ -213,6 +224,13 @@ public class SamigoAssessmentHandler implements HandlesImportable {
 					if (importableQuestion.getQuestionType() == SamigoPoolHandler.TRUE_FALSE) {
 						// Samigo only understands True/False answers in lower case
 						answer.setText(importableAnswer.getAnswerText().toLowerCase());
+					} else if (importableQuestion.getQuestionType() == SamigoPoolHandler.FILL_BLANK_PLUS) {
+						answer.setText(importableAnswer.getAnswerText());
+						Pattern pattern = Pattern.compile("_+|<<.*>>");
+						Matcher matcher = pattern.matcher(questionTextString);
+						if (matcher.find()) questionTextString = questionTextString.replaceFirst(matcher.group(),"{}");
+						text.setText(questionTextString);
+						itemFacade.setTypeId(Long.valueOf(SamigoPoolHandler.FILL_BLANK));
 					} else if (importableQuestion.getQuestionType() == SamigoPoolHandler.FILL_BLANK) {
 						if (j.hasNext()) continue;
 						answer.setText(answerBuffer.toString());

@@ -48,8 +48,8 @@ import javax.faces.context.FacesContext;
 import javax.faces.event.ActionEvent;
 import javax.faces.event.ValueChangeEvent;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.myfaces.component.html.ext.HtmlDataTable;
 import org.apache.myfaces.custom.sortheader.HtmlCommandSortHeader;
 import org.sakaiproject.jsf.spreadsheet.SpreadsheetDataFileWriterCsv;
@@ -79,7 +79,7 @@ import org.sakaiproject.component.cover.ServerConfigurationService;
  * Backing bean for the visible list of assignments in the gradebook.
  */
 public class RosterBean extends EnrollmentTableBean implements Serializable, Paging {
-	private static final Log logger = LogFactory.getLog(RosterBean.class);
+	private static final Logger logger = LoggerFactory.getLogger(RosterBean.class);
 
 	// Used to generate IDs for the dynamically created assignment columns.
 	private static final String ASSIGNMENT_COLUMN_PREFIX = "asg_";
@@ -259,7 +259,7 @@ public class RosterBean extends EnrollmentTableBean implements Serializable, Pag
 				for (Category category : categories) {
 					catIds.add(category.getId());
 				}
-				List<Long> viewableCats = getGradebookPermissionService().getCategoriesForUser(getGradebookId(), getUserUid(), catIds, getGradebook().getCategory_type());
+				List<Long> viewableCats = getGradebookPermissionService().getCategoriesForUser(getGradebookId(), getUserUid(), catIds);
 				List<Category> tmpCatList = new ArrayList<Category>();
 				for (Category category : categories) {
 					if(viewableCats.contains(category.getId())){
@@ -937,7 +937,7 @@ public class RosterBean extends EnrollmentTableBean implements Serializable, Pag
 				for (Category category : (List<Category>) categoriesFilter) {
 					catIds.add(category.getId());
 				}
-				List<Long> viewableCats = getGradebookPermissionService().getCategoriesForUser(getGradebookId(), getUserUid(), catIds, getGradebook().getCategory_type());
+				List<Long> viewableCats = getGradebookPermissionService().getCategoriesForUser(getGradebookId(), getUserUid(), catIds);
 				List<Category> tmpCatList = new ArrayList<Category>();
 				for (Category category : (List<Category>) categoriesFilter) {
 					if(viewableCats.contains(category.getId())){

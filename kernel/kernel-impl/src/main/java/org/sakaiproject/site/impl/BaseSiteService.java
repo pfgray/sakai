@@ -21,14 +21,17 @@
 
 package org.sakaiproject.site.impl;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.*;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.entity.api.*;
 import org.sakaiproject.event.api.Event;
 import org.sakaiproject.event.api.EventTrackingService;
+import org.sakaiproject.event.api.Notification;
+import org.sakaiproject.event.api.NotificationAction;
+import org.sakaiproject.event.api.NotificationService;
 import org.sakaiproject.exception.IdInvalidException;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.IdUsedException;
@@ -56,6 +59,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
+
 import org.sakaiproject.component.cover.ComponentManager;
 
 /**
@@ -66,7 +70,7 @@ import org.sakaiproject.component.cover.ComponentManager;
 public abstract class BaseSiteService implements SiteService, Observer
 {
 	/** Our logger. */
-	private static Log M_log = LogFactory.getLog(BaseSiteService.class);
+	private static Logger M_log = LoggerFactory.getLogger(BaseSiteService.class);
 
 
 	/**
@@ -418,6 +422,12 @@ public abstract class BaseSiteService implements SiteService, Observer
 	 * @return the IdManager collaborator.
 	 */
 	protected abstract IdManager idManager();
+	
+	/**
+	 * 
+	 * @return the NotificationService collaborator
+	 */
+	protected abstract NotificationService notificationService();
 
 	/**********************************************************************************************************************************************************************************************************************************************************
 	 * Init and Destroy
@@ -961,7 +971,13 @@ public abstract class BaseSiteService implements SiteService, Observer
 
 		// Give the site advisors, if any, a chance to make last minute changes to the site
 		for(Iterator<SiteAdvisor> iter = siteAdvisors.iterator(); iter.hasNext();) {
-			iter.next().update(site);
+			try {
+				iter.next().update(site);
+			}
+			catch (Exception e)
+			{
+				M_log.error("Advisor error in doSave()", e);
+			}
 		}
 
 		site.setFullyLoaded(true);
@@ -1331,7 +1347,7 @@ public abstract class BaseSiteService implements SiteService, Observer
 	public boolean allowRemoveSite(String id)
 	{
 		String lock = SECURE_REMOVE_SITE;
-		if(serverConfigurationService().getBoolean("site.soft.deletion", false))
+		if(serverConfigurationService().getBoolean("site.soft.deletion", true))
 		{
 			try
 			{
@@ -1358,7 +1374,7 @@ public abstract class BaseSiteService implements SiteService, Observer
 		unlock(SECURE_REMOVE_SITE, site.getReference());
 
 		// if soft site deletes are active
-		if(serverConfigurationService().getBoolean("site.soft.deletion", false)) {
+		if(serverConfigurationService().getBoolean("site.soft.deletion", true)) {
 			
 			M_log.debug("Soft site deletes are enabled.");
 			
@@ -3491,6 +3507,11 @@ public abstract class BaseSiteService implements SiteService, Observer
 		{
 			clearUserCacheForUser(event.getUserId());
 		}
+		else if(SiteService.SECURE_UPDATE_SITE_MEMBERSHIP.equals(eventType) || SiteService.SECURE_UPDATE_GROUP_MEMBERSHIP.equals(eventType)
+				|| SiteService.SECURE_UPDATE_SITE.equals(eventType))
+		{
+			notifySiteParticipant("/gradebook/" + event.getContext() + "/");
+		}
 	}
 	protected Storage storage() {
 		return m_storage;
@@ -3536,15 +3557,41 @@ public abstract class BaseSiteService implements SiteService, Observer
 	/**
 	 * {@inheritDoc}
 	 */
-	public String getUserSpecificSiteTitle( Site site, String userID )
+	public String getUserSpecificSiteTitle(Site site, String userID)
+	{
+		return getUserSpecificSiteTitle(site, userID, null);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public String getUserSpecificSiteTitle(Site site, String userID, List<String> siteProviders)
 	{
 		if( m_siteTitleAdvisor != null )
 		{
-			return m_siteTitleAdvisor.getUserSpecificSiteTitle( site, userID );
+			return m_siteTitleAdvisor.getUserSpecificSiteTitle( site, userID, siteProviders );
 		}
 		else
 		{
 			return site.getTitle();
+		}
+	}
+	
+	public void notifySiteParticipant(String filter) {		
+		List<Notification> notifications = notificationService().findNotifications(
+				"gradebook.updateItemScore", 
+				filter);
+		
+		for (Notification notification : notifications) {
+			String eventDataString = notification.getProperties().getProperty("SAKAI:conditionEventState");
+			
+			Event event = eventTrackingService().newEvent(
+					"cond+" + notification.getFunction(), 
+					notification.getResourceFilter() + eventDataString, 
+					false);
+			
+			NotificationAction action = notification.getAction();
+			action.notify(notification, event);
 		}
 	}
 }

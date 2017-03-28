@@ -16,14 +16,18 @@
 
 package org.sakaiproject.delegatedaccess.tool.pages;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.Component;
 import org.apache.wicket.behavior.AttributeAppender;
-import org.apache.wicket.behavior.SimpleAttributeModifier;
 import org.apache.wicket.feedback.FeedbackMessage;
+import org.apache.wicket.markup.head.CssHeaderItem;
+import org.apache.wicket.markup.head.IHeaderResponse;
+import org.apache.wicket.markup.head.JavaScriptHeaderItem;
+import org.apache.wicket.markup.head.OnDomReadyHeaderItem;
+import org.apache.wicket.markup.head.StringHeaderItem;
 import org.apache.wicket.markup.html.IHeaderContributor;
-import org.apache.wicket.markup.html.IHeaderResponse;
 import org.apache.wicket.markup.html.WebPage;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.link.Link;
@@ -50,7 +54,7 @@ import org.sakaiproject.entitybroker.DeveloperHelperService;
  */
 public class BasePage extends WebPage implements IHeaderContributor {
 
-	private static final Logger log = Logger.getLogger(BasePage.class); 
+	private static final Logger log = LoggerFactory.getLogger(BasePage.class); 
 
 	@SpringBean(name="org.sakaiproject.delegatedaccess.logic.SakaiProxy")
 	protected SakaiProxy sakaiProxy;
@@ -192,9 +196,9 @@ public class BasePage extends WebPage implements IHeaderContributor {
 						message.getLevel() == FeedbackMessage.DEBUG ||
 						message.getLevel() == FeedbackMessage.FATAL ||
 						message.getLevel() == FeedbackMessage.WARNING){
-					add(new SimpleAttributeModifier("class", "alertMessage"));
+					add(new AttributeModifier("class", "alertMessage"));
 				} else if(message.getLevel() == FeedbackMessage.INFO){
-					add(new SimpleAttributeModifier("class", "success"));        			
+					add(new AttributeModifier("class", "success"));        			
 				} 
 
 				return newMessageDisplayComponent;
@@ -223,7 +227,7 @@ public class BasePage extends WebPage implements IHeaderContributor {
 	 */
 	public void clearFeedback(FeedbackPanel f) {
 		if(!f.hasFeedbackMessage()) {
-			f.add(new SimpleAttributeModifier("class", ""));
+			f.add(new AttributeModifier("class", ""));
 		}
 	}
 
@@ -241,26 +245,25 @@ public class BasePage extends WebPage implements IHeaderContributor {
 		String toolBaseCSS = skinRepo + "/tool_base.css";
 
 		//Sakai additions
-		response.renderJavascriptReference("/library/js/headscripts.js");
-		response.renderCSSReference(toolBaseCSS);
-		response.renderCSSReference(toolCSS);
-		response.renderOnLoadJavascript("setMainFrameHeight( window.name )");
+		response.render(JavaScriptHeaderItem.forUrl("/library/js/headscripts.js"));
+		response.render(CssHeaderItem.forUrl(toolBaseCSS));
+		response.render(CssHeaderItem.forUrl(toolCSS));
+		response.render(OnDomReadyHeaderItem.forScript("setMainFrameHeight( window.name )"));
 
 		//Tool additions (at end so we can override if required)
-		response.renderString("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />");
+		response.render(StringHeaderItem.forString("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />"));
 		//response.renderCSSReference("css/my_tool_styles.css");
 		//response.renderJavascriptReference("js/my_tool_javascript.js");
 
 		//for jQuery
-		response.renderJavascriptReference("/library/js/jquery/jquery-1.11.3.min.js");
-		response.renderJavascriptReference("/library/js/jquery/ui/1.11.3/jquery-ui.min.js");
+		response.render(JavaScriptHeaderItem.forUrl("/library/webjars/jquery/1.11.3/jquery.min.js"));
+		response.render(JavaScriptHeaderItem.forUrl("/library/webjars/jquery-ui/1.11.3/jquery-ui.min.js"));
 
 		//for datepicker
-		response.renderCSSReference("/library/js/jquery/ui/1.11.3/css/smoothness/jquery-ui.min.css");
-		response.renderCSSReference("/library/js/jquery/ui/1.11.3/css/smoothness/jquery.ui.theme.css");
-		response.renderJavascriptReference("javascript/delegated-access.js");
-		response.renderJavascriptReference("javascript/jquery.asmselect.js");
-		response.renderCSSReference("css/jquery.asmselect.css");
+		response.render(CssHeaderItem.forUrl("/library/webjars/jquery-ui/1.11.3/jquery-ui.css"));
+		response.render(JavaScriptHeaderItem.forUrl("javascript/delegated-access.js"));
+		response.render(JavaScriptHeaderItem.forUrl("javascript/jquery.asmselect.js"));
+		response.render(CssHeaderItem.forUrl("css/jquery.asmselect.css"));
 	}
 
 

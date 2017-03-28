@@ -8,9 +8,10 @@ import java.util.Map;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.configuration.reloading.InvariantReloadingStrategy;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.api.app.help.TutorialEntityProvider;
+import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.entitybroker.EntityReference;
 import org.sakaiproject.entitybroker.entityprovider.capabilities.AutoRegisterEntityProvider;
 import org.sakaiproject.entitybroker.entityprovider.capabilities.RESTful;
@@ -21,7 +22,7 @@ import org.sakaiproject.util.ResourceLoader;
 
 public class TutorialEntityProviderImpl implements TutorialEntityProvider, AutoRegisterEntityProvider, RESTful{
 
-	protected final Log log = LogFactory.getLog(getClass());
+	protected final Logger log = LoggerFactory.getLogger(getClass());
 	private ResourceLoader msgs = new ResourceLoader("TutorialMessages");
 	private static PropertiesConfiguration tutorialProps;
 	
@@ -72,26 +73,33 @@ public class TutorialEntityProviderImpl implements TutorialEntityProvider, AutoR
 		}
 		String previousUrl = tutorialProps.getString(ref.getId() + ".previousUrl");
 		String nextUrl = tutorialProps.getString(ref.getId() + ".nextUrl");
+		String sakaiInstanceName = ServerConfigurationService.getString("ui.service", "Sakai");
+		String selection = tutorialProps.getString(ref.getId() + ".selection");
+
 		Map valuesMap = new HashMap<String, String>();
-		valuesMap.put("selection", tutorialProps.getString(ref.getId() + ".selection"));
-		valuesMap.put("title", msgs.get(ref.getId() + ".title"));
+		valuesMap.put("selection", selection);
+		valuesMap.put("title", msgs.getFormattedMessage(ref.getId() + ".title", sakaiInstanceName));
 		valuesMap.put("dialog", tutorialProps.getString(ref.getId() + ".dialog"));
 		valuesMap.put("positionTooltip", tutorialProps.getString(ref.getId() + ".positionTooltip"));
 		valuesMap.put("positionTarget", tutorialProps.getString(ref.getId() + ".positionTarget"));
 		valuesMap.put("fadeout", tutorialProps.getString(ref.getId() + ".fadeout"));
 		valuesMap.put("previousUrl", previousUrl);
 		valuesMap.put("nextUrl", nextUrl);
-		
+                	
 		//build the body html:
-		String body = msgs.getString(ref.getId() + ".body");
+		//String body = msgs.getString(ref.getId() + ".body");
+                
+                String body = msgs.getFormattedMessage(ref.getId() + ".body", sakaiInstanceName);
 		
 		//build footer html:
-		String footerHtml = "<br/><br/><div style='min-width: 120px; background: #ddd;'>";
+		String footerHtml = "<div class='tut-footer'>";
 		if(previousUrl != null && !"".equals(previousUrl)){
-			footerHtml += "<div style='float:left'><a href='#' class='qtipLinkButton' onclick='previousClicked=true;showTutorialPage(\"" + previousUrl + "\");'><img src='/library/image/silk/arrow_left-grey.png'>&nbsp;" + msgs.getString("previous") + "</a></div>";
+			footerHtml += "<div class='tut-previous'><a href='#' class='qtipLinkButton' onclick='previousClicked=true;showTutorialPage(\"" + previousUrl + "\");'><i class='fa fa-arrow-left'></i>&nbsp;" + msgs.getString("previous") + "</a></div>";
 		}
 		if(nextUrl != null && !"".equals(nextUrl)){
-			footerHtml += "<div style='float:right'><a href='#' class='qtipLinkButton' onclick='showTutorialPage(\"" + nextUrl + "\");'>" + msgs.getString("next") + "&nbsp;<img src='/library/image/silk/arrow_right-grey.png'></a></div>";
+			footerHtml += "<div class='tut-next'><a href='#' class='qtipLinkButton' onclick='showTutorialPage(\"" + nextUrl + "\");'>" + msgs.getString("next") + "&nbsp;<i class='fa fa-arrow-right'></i></a></div>";
+		}else{
+			footerHtml += "<a href='#' class='btn-primary tut-close' onclick='endTutorial(\"" + selection + "\");' >"+ msgs.getString("endTutorial") +"</a>";
 		}
 		footerHtml += "</div>";
 		body += footerHtml;

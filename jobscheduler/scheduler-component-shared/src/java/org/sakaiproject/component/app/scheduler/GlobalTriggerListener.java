@@ -27,6 +27,7 @@ import java.util.List;
 
 import org.quartz.JobExecutionContext;
 import org.quartz.Trigger;
+import org.quartz.Trigger.CompletedExecutionInstruction;
 import org.quartz.TriggerListener;
 import org.sakaiproject.api.app.scheduler.events.TriggerEvent;
 import org.sakaiproject.api.app.scheduler.events.TriggerEventManager;
@@ -61,28 +62,28 @@ public class GlobalTriggerListener implements TriggerListener
   private String getServerId() {
 	  return serverConfigurationService.getServerId();
   }
-  
-  public void triggerFired(Trigger trigger,
-      JobExecutionContext jobExecutionContext)
+
+  @Override
+  public void triggerFired(Trigger trigger, JobExecutionContext jobExecutionContext)
   {
-	  
-      eventManager.createTriggerEvent (TriggerEvent.TRIGGER_EVENT_TYPE.FIRED, jobExecutionContext.getJobDetail().getName(), trigger.getName(), new Date(), "Trigger fired", getServerId());
+      Date fired = jobExecutionContext.getFireTime();
+      eventManager.createTriggerEvent (TriggerEvent.TRIGGER_EVENT_TYPE.FIRED, jobExecutionContext.getJobDetail().getKey(), trigger.getKey(), fired, "Trigger fired", getServerId());
   }
 
-  public boolean vetoJobExecution(Trigger trigger,
-      JobExecutionContext jobExecutionContext)
+  public boolean vetoJobExecution(Trigger trigger, JobExecutionContext jobExecutionContext)
   {
     return false;
   }
 
   public void triggerMisfired(Trigger trigger)
   {
+    eventManager.createTriggerEvent (TriggerEvent.TRIGGER_EVENT_TYPE.ERROR, trigger.getJobKey(), trigger.getKey(), new Date(), "Trigger misfired", getServerId());
   }
-
-  public void triggerComplete(Trigger trigger,
-      JobExecutionContext jobExecutionContext, int triggerInstructionCode)
-  {
-      eventManager.createTriggerEvent (TriggerEvent.TRIGGER_EVENT_TYPE.COMPLETE, jobExecutionContext.getJobDetail().getName(), trigger.getName(), new Date(), "Trigger complete", getServerId());
+  
+  @Override
+  public void triggerComplete(Trigger trigger, JobExecutionContext context, CompletedExecutionInstruction triggerInstructionCode) {
+      Date complete = Date.from(context.getFireTime().toInstant().plusMillis(context.getJobRunTime()));
+      eventManager.createTriggerEvent (TriggerEvent.TRIGGER_EVENT_TYPE.COMPLETE, context.getJobDetail().getKey(), trigger.getKey(), complete, "Trigger complete", getServerId());
   }
 
   /**
@@ -100,8 +101,8 @@ public class GlobalTriggerListener implements TriggerListener
       cal.set(Calendar.HOUR_OF_DAY, 0);
       cal.set(Calendar.MINUTE, 0);
       cal.set(Calendar.SECOND, 0);
-      
-      Date midnightToday = new Date(cal.getTimeInMillis());      
+
+      Date midnightToday = new Date(cal.getTimeInMillis());
 
       return eventManager.getTriggerEvents (midnightToday, null, null, null, null);
 /*

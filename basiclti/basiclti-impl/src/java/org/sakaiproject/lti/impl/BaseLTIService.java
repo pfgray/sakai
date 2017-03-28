@@ -25,14 +25,16 @@ import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.SecurityService;
+import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.event.api.EventTrackingService;
 import org.sakaiproject.event.api.UsageSessionService;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.PermissionException;
+import org.sakaiproject.lti.api.LTIExportService.ExportType;
 import org.sakaiproject.lti.api.LTIService;
 import org.sakaiproject.site.api.SiteService;
 import org.sakaiproject.site.api.Site;
@@ -45,7 +47,6 @@ import org.sakaiproject.util.ResourceLoader;
 import org.sakaiproject.util.foorm.SakaiFoorm;
 
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -55,7 +56,7 @@ import java.util.Properties;
  */
 public abstract class BaseLTIService implements LTIService {
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(BaseLTIService.class);
+	private static Logger M_log = LoggerFactory.getLogger(BaseLTIService.class);
 
 	/** Constants */
 	private final String ADMIN_SITE = "!admin";
@@ -134,6 +135,11 @@ public abstract class BaseLTIService implements LTIService {
 	protected ToolManager toolManager = null;
 
 	/**
+	 * 
+	 */
+	protected ServerConfigurationService serverConfigurationService;
+
+	/**
 	 * Pull in any necessary services using factory pattern
 	 */
 	protected void getServices() {
@@ -146,6 +152,9 @@ public abstract class BaseLTIService implements LTIService {
 		if (toolManager == null)
 			toolManager = (ToolManager) ComponentManager
 				.get("org.sakaiproject.tool.api.ToolManager");
+		if (serverConfigurationService == null)
+            serverConfigurationService = (ServerConfigurationService) ComponentManager
+                .get("org.sakaiproject.component.api.ServerConfigurationService");
 	}
 
 	/**********************************************************************************************************************************************************************************************************************************************************
@@ -276,6 +285,19 @@ public abstract class BaseLTIService implements LTIService {
 			return null;
 		return LAUNCH_PREFIX + siteId + "/tool:" + key;
 	}
+
+	/**
+	 * 
+	 * {@inheritDoc}
+	 * 
+	 * @see org.sakaiproject.lti.api.LTIService#getExportUrl(java.lang.String, java.lang.String, org.sakaiproject.lti.api.LTIExportService.ExportType)
+	 */
+	public String getExportUrl(String siteId, String filterId, ExportType exportType) {
+        if (siteId == null) {
+            return null;
+        }
+        return "/access/basiclti/site/" + siteId + "/export:" + exportType + ((filterId != null && !"".equals(filterId)) ? (":" + filterId) : "");
+    }
 
 	/**
 	 * 
@@ -484,14 +506,13 @@ public abstract class BaseLTIService implements LTIService {
 			frameHeight = contentHeight;
 		content.put(LTIService.LTI_FRAMEHEIGHT, new Integer(frameHeight));
 
-		Integer newProp = null;
-		newProp = getCorrectProperty("debug", content, tool);
-		if (newProp != null)
-			content.put("debug", newProp);
+		int debug = getInt(tool.get(LTIService.LTI_DEBUG));
+		if ( debug == 2 ) debug = getInt(content.get(LTIService.LTI_DEBUG));
+		content.put(LTIService.LTI_DEBUG, debug+"");
 
-		newProp = getCorrectProperty(LTIService.LTI_NEWPAGE, content, tool);
-		if (newProp != null)
-			content.put(LTIService.LTI_NEWPAGE, newProp);
+		int newpage = getInt(tool.get(LTIService.LTI_NEWPAGE));
+		if ( newpage == 2 ) newpage = getInt(content.get(LTIService.LTI_NEWPAGE));
+		content.put(LTIService.LTI_NEWPAGE, newpage+"");
 	}
 
 	/**
@@ -603,6 +624,7 @@ public abstract class BaseLTIService implements LTIService {
 		return getTools( "lti_tools."+LTIService.LTI_PL_LAUNCH+" = 1 OR ( " +
 			"( lti_tools."+LTIService.LTI_PL_LINKSELECTION+" IS NULL OR lti_tools."+LTIService.LTI_PL_LINKSELECTION+" = 0 ) and " + 
 			"( lti_tools."+LTIService.LTI_PL_FILEITEM+" IS NULL OR lti_tools."+LTIService.LTI_PL_FILEITEM+" = 0 ) and " + 
+			"( lti_tools."+LTIService.LTI_PL_IMPORTITEM+" IS NULL OR lti_tools."+LTIService.LTI_PL_IMPORTITEM+" = 0 ) and " + 
 			"( lti_tools."+LTIService.LTI_PL_CONTENTEDITOR+" IS NULL OR lti_tools."+LTIService.LTI_PL_CONTENTEDITOR+" = 0 ) and " + 
 			"( lti_tools."+LTIService.LTI_PL_ASSESSMENTSELECTION+" IS NULL OR lti_tools."+LTIService.LTI_PL_ASSESSMENTSELECTION+" = 0 ) " +
 			" ) ", null, 0, 0);
@@ -615,6 +637,11 @@ public abstract class BaseLTIService implements LTIService {
         public List<Map<String, Object>> getToolsFileItem() {
 		return getTools("lti_tools."+LTIService.LTI_PL_FILEITEM+" = 1",null,0,0);
 	}
+
+        public List<Map<String, Object>> getToolsImportItem() {
+		return getTools("lti_tools."+LTIService.LTI_PL_IMPORTITEM+" = 1",null,0,0);
+	}
+
 
         public List<Map<String, Object>> getToolsContentEditor() {
 		return getTools("lti_tools."+LTIService.LTI_PL_CONTENTEDITOR+" = 1",null,0,0);
@@ -661,6 +688,10 @@ public abstract class BaseLTIService implements LTIService {
 
 	public List<Map<String, Object>> getContentsDao(String search, String order, int first, int last, String siteId) {
 		return getContentsDao(search, order, first, last, siteId, true);
+	}
+
+	public int countContents(final String search) {
+		return countContentsDao(search, getContext(), isAdmin());
 	}
 
 	public Object insertToolContent(String id, String toolId, Properties reqProps)

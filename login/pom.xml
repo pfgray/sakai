@@ -4,21 +4,18 @@
     <parent>
       <groupId>org.sakaiproject</groupId>
       <artifactId>master</artifactId>
-      <version>11-SNAPSHOT</version>
+      <version>12-SNAPSHOT</version>
       <relativePath>../master/pom.xml</relativePath>
     </parent>
 	<name>Sakai Login Project</name>
 	<groupId>org.sakaiproject.login</groupId>
 	<artifactId>login</artifactId>
-  <version>11-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<modules>
 		<module>login-api/api</module>
 		<module>login-authn-tool/tool</module>
 		<module>login-impl/impl</module>
-		<module>login-impl/pack</module>
 		<module>login-render-engine-impl/impl</module>
-		<module>login-render-engine-impl/pack</module>
 		<module>login-tool/tool</module>
 	</modules>
 	<dependencyManagement>

@@ -27,32 +27,28 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.text.ParseException;
-import java.util.Collections;
-import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
 import javax.sql.DataSource;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.quartz.CronTrigger;
+import org.quartz.spi.JobFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.quartz.CronScheduleBuilder;
 import org.quartz.Job;
+import org.quartz.JobBuilder;
 import org.quartz.JobDataMap;
 import org.quartz.JobDetail;
+import org.quartz.JobKey;
 import org.quartz.JobListener;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.SchedulerFactory;
 import org.quartz.Trigger;
+import org.quartz.TriggerBuilder;
 import org.quartz.TriggerListener;
 import org.quartz.impl.StdSchedulerFactory;
+import org.quartz.impl.matchers.GroupMatcher;
 import org.sakaiproject.api.app.scheduler.ConfigurableJobProperty;
 import org.sakaiproject.api.app.scheduler.ConfigurableJobPropertyValidationException;
 import org.sakaiproject.api.app.scheduler.ConfigurableJobPropertyValidator;
@@ -64,11 +60,12 @@ import org.sakaiproject.component.app.scheduler.jobs.SpringConfigurableJobBeanWr
 import org.sakaiproject.component.app.scheduler.jobs.SpringInitialJobSchedule;
 import org.sakaiproject.component.app.scheduler.jobs.SpringJobBeanWrapper;
 import org.sakaiproject.db.api.SqlService;
+import org.springframework.context.Lifecycle;
 
-public class SchedulerManagerImpl implements SchedulerManager
+public class SchedulerManagerImpl implements SchedulerManager, SchedulerFactory, Lifecycle
 {
 
-  private static final Log LOG = LogFactory.getLog(SchedulerManagerImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SchedulerManagerImpl.class);
   public final static String
         SCHEDULER_LOADJOBS      = "scheduler.loadjobs";
   private DataSource dataSource;
@@ -79,7 +76,6 @@ public class SchedulerManagerImpl implements SchedulerManager
   private String qrtzPropFile;
   /** The properties file from sakai.home */
   private String qrtzPropFileSakai;
-  private Properties qrtzProperties;
   private TriggerListener globalTriggerListener;
   private Boolean autoDdl;
   private boolean startScheduler = true;
@@ -91,10 +87,10 @@ public class SchedulerManagerImpl implements SchedulerManager
 
   // Service dependencies
   private ServerConfigurationService serverConfigurationService;
-  private SchedulerFactory schedFactory;
-  private Scheduler scheduler;
   private SqlService sqlService;
 
+  private Scheduler scheduler;
+  private JobFactory jobFactory;
 
   private LinkedList<TriggerListener>
       globalTriggerListeners = new LinkedList<TriggerListener>();
@@ -104,11 +100,15 @@ public class SchedulerManagerImpl implements SchedulerManager
   private LinkedList<SpringInitialJobSchedule>
       initialJobSchedule = null;
 
-public void init()
+
+  // Map from a spring bean ID to a job class.
+  private HashMap<String,Class<? extends Job>> migration;
+
+  public void init()
   {
     try
     {
-      qrtzProperties = initQuartzConfiguration();
+      Properties qrtzProperties = initQuartzConfiguration();
 
       qrtzProperties.setProperty("org.quartz.scheduler.instanceId", serverId);
 
@@ -149,7 +149,7 @@ public void init()
       if (autoDdl.booleanValue()){
         try
         {
-           sqlService.ddl(this.getClass().getClassLoader(), "quartz");
+           sqlService.ddl(this.getClass().getClassLoader(), "quartz2");
         }
         catch (Throwable t)
         {
@@ -161,7 +161,7 @@ public void init()
       if (isInitialStartup && autoDdl.booleanValue())
       {
     	  LOG.info("Performing initial population of the Quartz tables.");
-    	  sqlService.ddl(this.getClass().getClassLoader(), "init_locks");
+    	  sqlService.ddl(this.getClass().getClassLoader(), "init_locks2");
       }
       /*
          Determine whether or not to load the jobs defined in the initialJobSchedules list. These jobs will be loaded
@@ -190,41 +190,60 @@ public void init()
 
 
       // start scheduler and load jobs
-      schedFactory = new StdSchedulerFactory(qrtzProperties);
+      SchedulerFactory schedFactory = new StdSchedulerFactory(qrtzProperties);
       scheduler = schedFactory.getScheduler();
+      scheduler.setJobFactory(jobFactory);
 
       // loop through persisted jobs removing both the job and associated
       // triggers for jobs where the associated job class is not found
-      String[] arrJobs = scheduler.getJobNames(Scheduler.DEFAULT_GROUP);
-      for (int i = 0; i < arrJobs.length; i++)
-      {
+      Set<JobKey> jobKeys = scheduler.getJobKeys(GroupMatcher.jobGroupEquals(Scheduler.DEFAULT_GROUP));
+      for (JobKey key : jobKeys) {
         try
         {
-          JobDetail detail = scheduler.getJobDetail(arrJobs[i], Scheduler.DEFAULT_GROUP);
+          JobDetail detail = scheduler.getJobDetail(key);
           String bean = detail.getJobDataMap().getString(JobBeanWrapper.SPRING_BEAN_NAME);
-          Job job = (Job) ComponentManager.get(bean);
-          if (job == null) {
-              LOG.warn("scheduler cannot load class for persistent job:" + arrJobs[i]);
-        	  scheduler.deleteJob(arrJobs[i], Scheduler.DEFAULT_GROUP);
-              LOG.warn("deleted persistent job:" + arrJobs[i]);
+          // We now have jobs that don't explicitly reference a spring bean
+          if (bean != null && !bean.isEmpty()) {
+            Job job = (Job) ComponentManager.get(bean);
+            if (job == null) {
+                // See if we should be migrating this job.
+                Class<? extends Job> newClass = migration.get(bean);
+                if (newClass != null) {
+                    JobDataMap jobDataMap = detail.getJobDataMap();
+                    jobDataMap.remove(JobBeanWrapper.SPRING_BEAN_NAME);
+                    JobDetail newJob = JobBuilder.newJob(newClass)
+                            .setJobData(jobDataMap)
+                            .requestRecovery(detail.requestsRecovery())
+                            .storeDurably(detail.isDurable())
+                            .withDescription(detail.getDescription())
+                            .withIdentity(key).build();
+                    // Update the existing job by replacing it with the same identity.
+                    scheduler.addJob(newJob, true);
+                    LOG.info("Migrated job of {} to {}", detail.getJobClass(), newClass);
+                } else {
+                    LOG.warn("scheduler cannot load class for persistent job:" + key);
+                    scheduler.deleteJob(key);
+                    LOG.warn("deleted persistent job:" + key);
+                }
+            }
           }
         }
         catch (SchedulerException e)
         {
-          LOG.warn("scheduler cannot load class for persistent job:" + arrJobs[i]);
-          scheduler.deleteJob(arrJobs[i], Scheduler.DEFAULT_GROUP);
-          LOG.warn("deleted persistent job:" + arrJobs[i]);
+          LOG.warn("scheduler cannot load class for persistent job:" + key);
+          scheduler.deleteJob(key);
+          LOG.warn("deleted persistent job:" + key);
         }
       }
 
       for (TriggerListener tListener : globalTriggerListeners)
       {
-          scheduler.addGlobalTriggerListener(tListener);
+          scheduler.getListenerManager().addTriggerListener(tListener);
       }
 
       for (JobListener jListener : globalJobListeners)
       {
-          scheduler.addGlobalJobListener(jListener);
+          scheduler.getListenerManager().addJobListener(jListener);
       }
 
       if (loadInitSchedules)
@@ -234,20 +253,13 @@ public void init()
       }
 
       //scheduler.addGlobalTriggerListener(globalTriggerListener);
-      if (isStartScheduler()) {
-          scheduler.start();
-      } else {
-          LOG.info("Scheduler Not Started, startScheduler=false");
-      }
+
     }
     catch (Exception e)
     {
       LOG.error("Failed to start scheduler.", e);
       throw new IllegalStateException("Scheduler cannot start!", e);
     }
-
-    
-
   }
 
   /**
@@ -404,10 +416,13 @@ public void init()
 
           LOG.debug ("Loading schedule for preconfigured job \"" + wrapper.getJobType() + "\"");
 
-          JobDetail
-              jd = new JobDetail (sched.getJobName(), Scheduler.DEFAULT_GROUP, wrapper.getJobClass(), false, true, true);
-          JobDataMap
-              map = jd.getJobDataMap();
+          JobDetail jd = JobBuilder.newJob(wrapper.getJobClass())
+                  .withIdentity(sched.getJobName(), Scheduler.DEFAULT_GROUP)
+                  .storeDurably()
+                  .requestRecovery()
+                  .build();
+
+          JobDataMap map = jd.getJobDataMap();
 
           map.put(JobBeanWrapper.SPRING_BEAN_NAME, wrapper.getBeanId());
           map.put(JobBeanWrapper.JOB_TYPE, wrapper.getJobType());
@@ -479,16 +494,11 @@ public void init()
           }
 
           Trigger trigger = null;
-          try
-          {
-              trigger = new CronTrigger(sched.getTriggerName(), Scheduler.DEFAULT_GROUP,
-                                                jd.getName(), Scheduler.DEFAULT_GROUP,
-                                                sched.getCronExpression());
-          }
-          catch (ParseException e)
-          {
-              LOG.error ("Error parsing cron exception. Failed to schedule job '" + sched.getJobName() + "' of type '" + wrapper.getJobClass() + "'");
-          }
+          trigger = TriggerBuilder.newTrigger()
+                  .withIdentity(sched.getTriggerName(), Scheduler.DEFAULT_GROUP)
+                  .forJob(jd.getKey())
+                  .withSchedule(CronScheduleBuilder.cronSchedule(sched.getCronExpression()))
+                  .build();
 
           try
           {
@@ -508,14 +518,7 @@ public void init()
    */
   public void destroy()
   {
-    try{
-      if (!scheduler.isShutdown()){
-        scheduler.shutdown();
-      }
-    }
-    catch (Throwable t){
-      LOG.error("An error occurred while stopping the scheduler", t);
-    }
+
   }
 
 
@@ -697,6 +700,22 @@ public void init()
     this.scheduler = scheduler;
   }
 
+  @Override
+  public Scheduler getScheduler(String schedName) throws SchedulerException
+  {
+    if (scheduler.getSchedulerName().equals(schedName))
+    {
+      return getScheduler();
+    }
+    return null;
+  }
+
+  @Override
+  public Collection<Scheduler> getAllSchedulers() throws SchedulerException
+  {
+    return Collections.singleton(getScheduler());
+  }
+
   /**
    * @param serverConfigurationService The ServerConfigurationService to get our configuation from.
    */
@@ -722,14 +741,57 @@ public void init()
    }
 
    public JobBeanWrapper getJobBeanWrapper(String beanWrapperId) {
-      return (JobBeanWrapper) getBeanJobs().get(beanWrapperId);
+      return getBeanJobs().get(beanWrapperId);
    }
 
-   public boolean isStartScheduler() {
+    public void setJobFactory(JobFactory jobFactory) {
+        this.jobFactory = jobFactory;
+    }
+
+    public void setMigration(HashMap<String, Class<? extends Job>> migration) {
+        this.migration = migration;
+    }
+
+    public boolean isStartScheduler() {
        return startScheduler;
    }
 
    public void setStartScheduler(boolean startScheduler) {
        this.startScheduler = startScheduler;
    }
+
+    @Override
+    public void start() {
+        if (isStartScheduler()) {
+            try {
+                scheduler.start();
+            } catch (SchedulerException e) {
+                LOG.error("Failed to start the scheduler.", e);
+            }
+        } else {
+            LOG.info("Scheduler Not Started, startScheduler=false");
+        }
+    }
+
+    @Override
+    public void stop() {
+        try{
+            if (!scheduler.isShutdown()){
+                scheduler.shutdown();
+            }
+        }
+        catch (SchedulerException e){
+            LOG.error("Failed to stop the scheduler", e);
+        }
+    }
+
+    @Override
+    public boolean isRunning() {
+        try {
+            return scheduler.isStarted();
+        } catch (SchedulerException e) {
+            LOG.debug("Failed to find if the scheduler is running", e);
+        }
+        return false;
+    }
 }

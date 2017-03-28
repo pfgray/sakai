@@ -24,11 +24,8 @@ package org.sakaiproject.test;
 import java.io.IOException;
 import java.util.Properties;
 
+import org.junit.AfterClass;
 import org.sakaiproject.component.cover.TestComponentManagerContainer;
-import org.sakaiproject.util.NoisierDefaultListableBeanFactory;
-
-import junit.framework.TestCase;
-import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
  * Base class for kernel integration tests, provides methods to bring up the Component manager
@@ -36,12 +33,12 @@ import org.springframework.core.env.ConfigurableEnvironment;
  * @author ieb
  *
  */
-public class SakaiKernelTestBase extends TestCase {
+public class SakaiKernelTestBase {
 
 	/**
 	 * The configuration path of the components file for the kernel component
 	 */
-	private static String CONFIG = "../kernel-component/src/main/webapp/WEB-INF/components.xml";
+	private static String CONFIG = "../kernel-impl/src/main/webapp/WEB-INF/components.xml";
 
 	/**
 	 * The test component manager container
@@ -123,13 +120,11 @@ public class SakaiKernelTestBase extends TestCase {
 	/**
 	 * Pull the component manager down. This is done quietly so as not to alarm users.
 	 */
-	protected static void oneTimeTearDown() {
-		NoisierDefaultListableBeanFactory.noisyClose = false;
-		testComponentManagerContainer.getComponentManager().close();
-		NoisierDefaultListableBeanFactory.noisyClose = true;
-		
-		// TODO Is the next line needed?
-		// TestComponentManagerContainer.setSakaiHome(null);
+	@AfterClass
+	public static void oneTimeTearDown() {
+		if (testComponentManagerContainer != null) {
+			testComponentManagerContainer.getComponentManager().close();
+		}
 	}
 
 }

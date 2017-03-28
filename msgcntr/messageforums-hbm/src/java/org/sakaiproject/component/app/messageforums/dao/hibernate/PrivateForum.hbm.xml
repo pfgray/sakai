@@ -1,9 +1,6 @@
-<?xml version="1.0"?>
-<!DOCTYPE hibernate-mapping
-    PUBLIC "-//Hibernate/Hibernate Mapping DTD//EN"
-    "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
-
-<hibernate-mapping>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="org.sakaiproject.component.app.messageforums.dao.hibernate">
 
   <class name="org.sakaiproject.component.app.messageforums.dao.hibernate.PrivateForumImpl"
     table="MFR_PRIVATE_FORUM_T" optimistic-lock="version">
@@ -116,21 +113,4 @@
     <![CDATA[from org.sakaiproject.component.app.messageforums.dao.hibernate.PrivateForumImpl as pf where pf.owner = :owner and pf.area is null]]>
   </query>
 
-  <query name="findPrivateForumByOwnerAreaWithTopics">
-    <![CDATA[from org.sakaiproject.component.app.messageforums.dao.hibernate.PrivateForumImpl as pf
-    	left join fetch pf.topicsSet as topic
-    	left join fetch topic.childrenFoldersSet
-      where 
-      pf.owner = :owner and pf.area = :area
-    ]]>
-  </query>
-
-  <query name="findPrivateForumByOwnerAreaNullWithAllTopics">
-    <![CDATA[from org.sakaiproject.component.app.messageforums.dao.hibernate.PrivateForumImpl as pf 
-    	left join fetch pf.topicsSet as topic
-    	left join fetch topic.childrenFoldersSet
-    	where 
-    	pf.owner = :owner and pf.area is null
-    ]]>
-  </query>
 </hibernate-mapping>

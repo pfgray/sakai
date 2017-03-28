@@ -22,9 +22,9 @@
 
 package org.sakaiproject.user.impl;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.*;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.component.cover.ComponentManager;
@@ -66,7 +66,7 @@ import java.util.*;
 public abstract class BaseUserDirectoryService implements UserDirectoryService, UserFactory
 {
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(BaseUserDirectoryService.class);
+	private static Logger M_log = LoggerFactory.getLogger(BaseUserDirectoryService.class);
 
 	/** Storage manager for this service. */
 	protected Storage m_storage = null;
@@ -87,7 +87,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 	protected final String M_curUserKey = getClass().getName() + ".currentUser";
 
 	/** A cache of users */
-	protected Cache m_callCache = null;
+	protected Cache<String, UserEdit> m_callCache = null;
 	
 	/** Optional service to provide site-specific aliases for a user's display ID and display name. */
 	protected ContextualUserDisplayService m_contextualUserDisplayService = null;
@@ -144,7 +144,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 	        }
 	        // Try getting the default impl via ComponentManager
 	        if ( m_passwordPolicyProvider == null ) {
-	            m_passwordPolicyProvider = (PasswordPolicyProvider) ComponentManager.get(PasswordPolicyProvider.class);
+	            m_passwordPolicyProvider = ComponentManager.get(PasswordPolicyProvider.class);
 	        }
 	        // If all else failed, manually instantiate default implementation
 	        if ( m_passwordPolicyProvider == null ) {
@@ -235,7 +235,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 
 		while(locksIterator.hasNext()) {
 
-			if(securityService().unlock((String) locksIterator.next(), resource))
+			if(securityService().unlock(locksIterator.next(), resource))
 					return true;
 
 		}
@@ -331,7 +331,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 		StringBuilder  locksFailedSb = new StringBuilder();
 		while (locksIterator.hasNext()) {
 
-			String lock = (String) locksIterator.next();
+			String lock = locksIterator.next();
 
 			if (unlockCheck(lock, resource))
 			{
@@ -576,7 +576,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 			// Check for optional contextual user display service.
 			if (m_contextualUserDisplayService == null)
 			{
-				m_contextualUserDisplayService = (ContextualUserDisplayService) ComponentManager.get(ContextualUserDisplayService.class);
+				m_contextualUserDisplayService = ComponentManager.get(ContextualUserDisplayService.class);
 			}
 			
 			// Fallback to the default password service.
@@ -852,7 +852,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 		Set<String> searchIds = new HashSet<String>();
 		for (Iterator<String> idIter = ids.iterator(); idIter.hasNext(); )
 		{
-			String id = (String)idIter.next();
+			String id = idIter.next();
 			id = cleanEid(id);
 			if (id != null) searchIds.add(id);
 		}
@@ -1375,10 +1375,12 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 	 * @inheritDoc
 	 */
 	@SuppressWarnings("unchecked")
-	public Collection findUsersByEmail(String email)
+	public Collection<User> findUsersByEmail(String email)
 	{
+		Set<User> users = new HashSet<User>();
+
 		// check internal users
-		Collection users = m_storage.findUsersByEmail(email);
+		users.addAll(m_storage.findUsersByEmail(email));
 
 		// add in provider users
 		if (m_provider != null)
@@ -1893,12 +1895,12 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 	/**
 	 * @inheritDoc
 	 */
-	public Collection getEntityAuthzGroups(Reference ref, String userId)
+	public Collection<String> getEntityAuthzGroups(Reference ref, String userId)
 	{
 		// double check that it's mine
 		if (!APPLICATION_ID.equals(ref.getType())) return null;
 
-		Collection rv = new Vector();
+		Collection<String> rv = new Vector<String>();
 
 		// for user access: user and template realms
 		try
@@ -1962,6 +1964,42 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 		checkAndEnsureMappedIdForProvidedUser(u);
 		return u;
 	}
+
+	public boolean updateUserId(String id,String newEmail)
+	{
+		try {
+			List<String> locksSucceeded = new ArrayList<String>();
+			// own or any
+			List<String> locks = new ArrayList<String>();
+			locks.add(SECURE_UPDATE_USER_ANY);
+			locks.add(SECURE_UPDATE_USER_OWN);
+			locks.add(SECURE_UPDATE_USER_OWN_EMAIL);
+			locksSucceeded = unlock(locks, userReference(id));
+
+			if(!locksSucceeded.isEmpty()) {
+				UserEdit user = m_storage.edit(id);
+				if (user == null) {
+					M_log.warn("Can't find user " + id + " when trying to update email address");
+					return false;
+				}
+				user.setEid(newEmail);
+				user.setEmail(newEmail);
+				commitEdit(user);
+				return true;
+			}
+			else {
+				M_log.warn("User with id: "+id+" failed permission checks" );
+				return false;
+			}
+		} catch (UserPermissionException e) {
+			M_log.warn("You do not have sufficient permission to edit the user with Id: "+id, e);
+			return false;
+		} catch (UserAlreadyDefinedException e) {
+			M_log.error("A users already exists with EID of: "+id +"having email :"+ newEmail, e);
+			return false;
+		}
+	}
+
 
 	/**********************************************************************************************************************************************************************************************************************************************************
 	 * UserEdit implementation
@@ -2244,7 +2282,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 		/**
 		 * @inheritDoc
 		 */
-		public Element toXml(Document doc, Stack stack)
+		public Element toXml(Document doc, Stack<Element> stack)
 		{
 			Element user = doc.createElement("user");
 
@@ -2254,7 +2292,7 @@ public abstract class BaseUserDirectoryService implements UserDirectoryService, 
 			}
 			else
 			{
-				((Element) stack.peek()).appendChild(user);
+				stack.peek().appendChild(user);
 			}
 
 			stack.push(user);

@@ -25,8 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.cheftool.Context;
 import org.sakaiproject.cheftool.VelocityPortletPaneledAction;
 import org.sakaiproject.component.cover.ComponentManager;
@@ -54,7 +54,7 @@ public class ResourceConditionsHelper {
 	 */
 	private static final long serialVersionUID = -3875833398687224551L;
 
-	static final Log logger = LogFactory.getLog(ResourceConditionsHelper.class);
+	static final Logger logger = LoggerFactory.getLogger(ResourceConditionsHelper.class);
 	
 	static final ConditionService conditionService = (ConditionService)ComponentManager.get("org.sakaiproject.conditions.api.ConditionService");
 	
@@ -119,6 +119,10 @@ public class ResourceConditionsHelper {
 			
 			String containingCollectionId = item.containingCollectionId;
 			String resourceId = item.getId();
+			String extension = params.get("extension" + ListItem.DOT + index);
+			if (extension != null && !extension.equals("")) {
+				resourceId = resourceId + extension;
+			}
 			if (! resourceId.startsWith(containingCollectionId)) {
 				resourceId = containingCollectionId + resourceId;
 				if (item.isCollection() && !resourceId.endsWith("/")) resourceId = resourceId + "/";
@@ -135,7 +139,6 @@ public class ResourceConditionsHelper {
 			notification.setResourceFilter(submittedResourceFilter);
 			if (missingTermQuery.contains("Date")) {
 				notification.addFunction("datetime.update");
-				notification.setResourceFilter(null);
 			}
 			notification.setAction(resourceConditionRule);
 			notification.getProperties().addProperty(ConditionService.PROP_SUBMITTED_FUNCTION_NAME, submittedFunctionName);
@@ -180,7 +183,7 @@ public class ResourceConditionsHelper {
 					item.setConditionArgument(notification.getProperties().getProperty(ConditionService.PROP_CONDITIONAL_RELEASE_ARGUMENT));					
 				}
 			} catch (NotificationNotDefinedException e) {
-				VelocityPortletPaneledAction.addAlert(state, rb.getString("conditions.notification.load.error"));								
+				VelocityPortletPaneledAction.addAlert(state, rb.getString("notification.load.error"));								
 			}					
 		}
 		

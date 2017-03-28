@@ -35,8 +35,8 @@ import java.util.Map;
 import java.util.Stack;
 import java.util.Vector;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.calendar.api.Calendar;
 import org.sakaiproject.calendar.api.CalendarEvent;
 import org.sakaiproject.calendar.api.CalendarEventEdit;
@@ -67,7 +67,7 @@ import org.w3c.dom.Element;
 public class GenericCalendarImporter implements CalendarImporterService
 {
 	/** Our logger. */
-	private static Log M_log = LogFactory.getLog(GenericCalendarImporter.class);
+	private static Logger M_log = LoggerFactory.getLogger(GenericCalendarImporter.class);
 
 	public static final String LOCATION_PROPERTY_NAME = "Location";
 
@@ -89,11 +89,15 @@ public class GenericCalendarImporter implements CalendarImporterService
 
 	public static final String DURATION_DEFAULT_COLUMN_HEADER = "Duration";
 
-	public static final String START_TIME_PROPERTY_NAME = "Start";
+	public static final String START_TIME_PROPERTY_NAME = "Start Time";
+	
+	public static final String START_TIME_CSV_PROPERTY_NAME = "Start";
 
 	public static final String START_TIME_DEFAULT_COLUMN_HEADER = "Start";
 
-	public static final String DATE_PROPERTY_NAME = "Date";
+	public static final String DATE_PROPERTY_NAME = "Start Date";
+	
+	public static final String DATE_CSV_PROPERTY_NAME = "Date";
 
 	public static final String DATE_DEFAULT_COLUMN_HEADER = "Date";
 
@@ -931,15 +935,23 @@ public class GenericCalendarImporter implements CalendarImporterService
 								}else if (cellValue.equals("event.computer")){
 									mapCellValue="Computer Session"; 
 								}else if (cellValue.equals("event.deadline")){
-									mapCellValue="Deadline"; 
+									mapCellValue="Deadline";
+								}else if (cellValue.equals("event.formative")){
+									mapCellValue="Formative Assessment";
 								}else if (cellValue.equals("event.conference")){
 									mapCellValue="Multidisciplinary Conference"; 
 								}else if (cellValue.equals("event.quiz")){
 									mapCellValue="Quiz"; 
 								}else if (cellValue.equals("event.special")){
-									mapCellValue="Special event"; 
+									mapCellValue="Special event";
+								}else if (cellValue.equals("event.submission")){
+									mapCellValue="Submission Date";
+								}else if (cellValue.equals("event.tutorial")){
+									mapCellValue="Tutorial";
 								}else if (cellValue.equals("event.assignment")){
-									mapCellValue="Web Assignment"; 
+									mapCellValue="Web Assignment";
+								}else if (cellValue.equals("event.workshop")){
+									mapCellValue="Workshop"; 
 								}else{ 
 									mapCellValue = cellValue; 
 								}

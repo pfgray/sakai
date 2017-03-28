@@ -4,19 +4,17 @@
   <parent>
     <groupId>org.sakaiproject</groupId>
     <artifactId>master</artifactId>
-    <version>11-SNAPSHOT</version>
+    <version>12-SNAPSHOT</version>
     <relativePath>../master/pom.xml</relativePath>
   </parent>
   <groupId>org.sakaiproject</groupId>
   <artifactId>usermembership-base</artifactId>
-  <version>11-SNAPSHOT</version>
   <name>Sakai User Membership  Project</name>
   <packaging>pom</packaging>
 
   <modules>
     <module>api</module>
     <module>impl</module>
-    <module>pack</module>
     <module>tool</module>
   </modules>
 

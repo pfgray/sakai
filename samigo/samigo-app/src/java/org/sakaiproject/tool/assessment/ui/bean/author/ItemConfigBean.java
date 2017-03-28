@@ -69,6 +69,8 @@ private static final String msgResource =
   private boolean selectFromQuestionBank;
   private boolean showMatrixSurvey;
   private boolean showCalculatedQuestion; // CALCULATED_QUESTION
+  private boolean showImageMapQuestion; //IMAGEMAP_QUESTION
+  private boolean showSearchQuestion; //SEARCH QUESTION
 
   /**
    * Should we show extended matching items question?
@@ -291,6 +293,40 @@ private static final String msgResource =
   }
   
   /**
+    * Should we show ImageMapQuestion?
+    * @return if true
+    */
+  public boolean isShowImageMapQuestion()
+  {
+	  return ServerConfigurationService.getBoolean("samigo.question.show.showImageMapQuestion",showImageMapQuestion); 
+  }
+  /**
+    * Set whether ImageMap should be shown.
+    * @param showImageMap if this type should be shown
+    */
+  public void setShowImageMapQuestion(boolean showImageMapQuestion)
+  {
+      this.showImageMapQuestion = showImageMapQuestion;
+  }
+
+  /**
+   * Should we show the search question option?
+   * @return if true
+   */
+  public boolean isShowSearchQuestion()
+  {
+    return ServerConfigurationService.getBoolean("samigo.question.show.showSearchQuestion",false);
+  }
+  /**
+   * Set whether search question option should be shown.
+   * @param showSearchQuestion if this type should be shown
+   */
+  public void setShowSearchQuestion(boolean showSearchQuestion)
+  {
+    this.showSearchQuestion = showSearchQuestion;
+  }
+
+  /**
    * Derived property.  Get arraylist of item type SelectItems.
    * We are not lazy loading this so that we can change these dynamically.
    * Most are being injected from the faces-config, but whether we select from
@@ -356,6 +392,12 @@ private static final String msgResource =
     if (isShowCalculatedQuestion())
         list.add(new SelectItem(String.valueOf(TypeIfc.CALCULATED_QUESTION), getResourceDisplayName("calculated_question"))); // CALCULATED_QUESTION
 
+    if (isShowImageMapQuestion())
+    	list.add(new SelectItem(String.valueOf(TypeIfc.IMAGEMAP_QUESTION), getResourceDisplayName("image_map_question"))); // IMAGEMAP_QUESTION
+
+    if (isShowSearchQuestion())
+      list.add(new SelectItem("17", getResourceDisplayName("search_question"))); // SEARCH IN THE LIST OF QUESTIONS
+    
     if (isSelectFromQuestionBank()) {
     	// Check if the question bank tool is installed and not stealthed or hidden
     	// and only show the option if it's reasonable, such as when questionpools are

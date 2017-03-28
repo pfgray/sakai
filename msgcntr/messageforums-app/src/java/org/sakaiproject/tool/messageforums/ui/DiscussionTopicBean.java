@@ -30,15 +30,16 @@ import java.util.List;
 import javax.faces.context.FacesContext;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.api.app.messageforums.Attachment;
 import org.sakaiproject.api.app.messageforums.DiscussionForum;
 import org.sakaiproject.api.app.messageforums.DiscussionTopic;
 import org.sakaiproject.api.app.messageforums.ui.DiscussionForumManager;
 import org.sakaiproject.api.app.messageforums.ui.UIPermissionsManager;
 
-import org.sakaiproject.time.cover.TimeService;
+import org.sakaiproject.component.cover.ComponentManager;
+import org.sakaiproject.time.api.TimeService;
 import org.sakaiproject.util.ResourceLoader;
 
 /**
@@ -47,8 +48,8 @@ import org.sakaiproject.util.ResourceLoader;
  */
 public class DiscussionTopicBean
 {
-  private static final Log LOG = LogFactory
-  .getLog(DiscussionTopicBean.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DiscussionTopicBean.class);
+  private static TimeService timeService = (TimeService)ComponentManager.get(TimeService.class);
   private DiscussionTopic topic;
   private int totalNoMessages;
   private int unreadNoMessages;
@@ -84,18 +85,26 @@ public class DiscussionTopicBean
   private String locked = "";
   private String moderated = "";
   private String postFirst = "";
+  private String postAnonymous = "";
+  private String revealIDsToRoles = "";
   private String mustRespondBeforeReading = "";
   private String parentForumId = "";
   
   private String openDate = "";
   private String closeDate = "";
 
-  private SimpleDateFormat datetimeFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+  private SimpleDateFormat datetimeFormat = ourDateFormat();
   
   private static final String MESSAGECENTER_BUNDLE = "org.sakaiproject.api.app.messagecenter.bundle.Messages";
   private static final ResourceLoader rb = new ResourceLoader(MESSAGECENTER_BUNDLE);
   
   private List messages = new ArrayList();
+
+  private SimpleDateFormat ourDateFormat() {
+      SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+      df.setTimeZone(timeService.getLocalTimeZone());
+      return df;
+  }
 
   public DiscussionTopicBean(DiscussionTopic topic, DiscussionForum forum,
       UIPermissionsManager uiPermissionsManager, DiscussionForumManager forumManager)
@@ -556,6 +565,62 @@ public class DiscussionTopicBean
       topic.setPostFirst(Boolean.valueOf(false));
     }
   }
+
+  /**
+   * @return Returns the postAnonymous status.
+   */
+  public String getPostAnonymous()
+  {
+    LOG.debug("getPostAnonymous()");
+    if ("".equals(postAnonymous))
+    {
+      boolean isAnonymous = topic != null && topic.getPostAnonymous() != null && topic.getPostAnonymous().booleanValue();
+      postAnonymous = Boolean.valueOf(isAnonymous).toString();
+    }
+    return postAnonymous;
+  }
+
+  /**
+   * @param postAnonymous
+   * Set the postAnonymous status
+   */
+  public void setPostAnonymous(String postAnonymous)
+  {
+    if (LOG.isDebugEnabled())
+    {
+      LOG.debug("setPostAnonymous(String " + postAnonymous + ")");
+    }
+    boolean isAnonymous = Boolean.TRUE.toString().equals(postAnonymous);
+    topic.setPostAnonymous(Boolean.valueOf(isAnonymous));
+  }
+
+  /**
+   * @return Returns the revealIDsToRoles status.
+   */
+  public String getRevealIDsToRoles()
+  {
+    LOG.debug("getRevealIDsToRoles()");
+    if ("".equals(revealIDsToRoles))
+    {
+      boolean isRevealIDsToRoles = topic != null && topic.getRevealIDsToRoles() != null && topic.getRevealIDsToRoles().booleanValue();
+      revealIDsToRoles = Boolean.valueOf(isRevealIDsToRoles).toString();
+    }
+    return revealIDsToRoles;
+  }
+
+  /**
+   * @param revelIDsToRoles
+   * Set the revealIDsToRoles status
+   */
+  public void setRevealIDsToRoles(String revealIDsToRoles)
+  {
+    if (LOG.isDebugEnabled())
+    {
+      LOG.debug("setRevealIDsToRoles(String " + revealIDsToRoles + ")");
+    }
+    boolean isRevealIDsToRoles = Boolean.TRUE.toString().equals(revealIDsToRoles);
+    topic.setRevealIDsToRoles(Boolean.valueOf(isRevealIDsToRoles));
+  }
     
 
   /**
@@ -614,6 +679,60 @@ public class DiscussionTopicBean
        LOG.debug("setTopicPostFirst(String "+ postFirst+")");
     }
     topic.setPostFirst(postFirst);    
+  }
+
+  /**
+   * @return Returns boolean value of postAnonymous status.
+   */
+  public Boolean getTopicPostAnonymous()
+  {
+    LOG.debug("getTopicPostAnonymous()");
+    if ("".equals(postAnonymous))
+    {
+      boolean isPostAnonymous = topic != null && topic.getPostAnonymous() != null && topic.getPostAnonymous();
+      postAnonymous = Boolean.valueOf(isPostAnonymous).toString();
+    }
+    return Boolean.parseBoolean(postAnonymous);
+  }
+
+  /**
+   * @param Boolean postAnonymous
+   * Set the postAnonymous staus.
+   */
+  public void setTopicPostAnonymous(Boolean postAnonymous)
+  {
+    if (LOG.isDebugEnabled())
+    {
+      LOG.debug("setTopicPostAnonymous(String " + postAnonymous + ")");
+    }
+    topic.setPostAnonymous(postAnonymous);
+  }
+
+  /**
+   * @return Returns boolean value of revealIDsToRoles status.
+   */
+  public Boolean getTopicRevealIDsToRoles()
+  {
+    LOG.debug("getTopicRevealIDsToRoles()");
+    if ("".equals(revealIDsToRoles))
+    {
+      boolean isRevealIDsToRoles = topic != null && topic.getRevealIDsToRoles() != null && topic.getRevealIDsToRoles();
+      revealIDsToRoles = Boolean.valueOf(isRevealIDsToRoles).toString();
+    }
+    return Boolean.parseBoolean(revealIDsToRoles);
+  }
+
+  /**
+   * @param Boolean revealIDsToRoles
+   * Set the revealIDsToRoles status.
+   */
+  public void setTopicRevealIDsToRoles(Boolean revealIDsToRoles)
+  {
+    if (LOG.isDebugEnabled())
+    {
+      LOG.debug("setTopicRevealIDsToRoles(String " + revealIDsToRoles + ")");
+    }
+    topic.setRevealIDsToRoles(revealIDsToRoles);
   }
     
 
@@ -1140,7 +1259,7 @@ public class DiscussionTopicBean
 			return "";
 		}else{
 			SimpleDateFormat formatter_date = new SimpleDateFormat(rb.getString("date_format"), new ResourceLoader().getLocale());
-			formatter_date.setTimeZone(TimeService.getLocalTimeZone());
+			formatter_date.setTimeZone(timeService.getLocalTimeZone());
 			String formattedCloseDate = formatter_date.format(topic.getCloseDate());
 			return formattedCloseDate;
 		}
@@ -1151,7 +1270,7 @@ public class DiscussionTopicBean
 			return "";
 		}else{
 			SimpleDateFormat formatter_date = new SimpleDateFormat(rb.getString("date_format"), new ResourceLoader().getLocale());
-			formatter_date.setTimeZone(TimeService.getLocalTimeZone());
+			formatter_date.setTimeZone(timeService.getLocalTimeZone());
 			String formattedOpenDate = formatter_date.format(topic.getOpenDate());
 			return formattedOpenDate;
 		}

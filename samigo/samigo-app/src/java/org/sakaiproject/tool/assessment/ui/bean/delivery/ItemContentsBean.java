@@ -33,14 +33,15 @@ import java.util.Map;
 import javax.faces.model.SelectItem;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.commons.math.util.MathUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.commons.math3.util.Precision;
 import org.sakaiproject.event.cover.EventTrackingService;
 import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingData;
 import org.sakaiproject.tool.assessment.data.dao.grading.MediaData;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemDataIfc;
+import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTagIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTextIfc;
 import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 import org.sakaiproject.tool.assessment.facade.AgentFacade;
@@ -68,7 +69,7 @@ public class ItemContentsBean implements Serializable {
 	 */
 	private static final long serialVersionUID = 6270034338280029897L;
 
-	private static Log log = LogFactory.getLog(ItemContentsBean.class);
+	private static Logger log = LoggerFactory.getLogger(ItemContentsBean.class);
 
 	private static ResourceLoader rb = new ResourceLoader("org.sakaiproject.tool.assessment.bundle.DeliveryMessages");
 
@@ -168,6 +169,11 @@ public class ItemContentsBean implements Serializable {
 	private String commentField;
 	private boolean addComment;
 	private String studentComment;
+	
+	private String imageSrc = "";
+
+	private Set<ItemTagIfc> tagsList;
+	private String tagsListToJson;
 
 	public ItemContentsBean() {
 	}
@@ -182,9 +188,53 @@ public class ItemContentsBean implements Serializable {
 		} else {
 			setNumber(1);
 		}
+		this.tagsList = itemData.getItemTagSet();
+		this.tagsListToJson = tagListToJsonString(this.tagsList);
 	}
-	
-    public boolean getIsMultipleItems() {
+
+
+
+
+	private String tagListToJsonString(Set<ItemTagIfc> tagsListToConvert){
+
+		String tagsListToJson = "[";
+		if (tagsListToConvert!=null) {
+			Iterator<ItemTagIfc> i = tagsListToConvert.iterator();
+			Boolean more = false;
+			while (i.hasNext()) {
+				if (more) {
+					tagsListToJson += ",";
+				}
+				ItemTagIfc tagToShow = (ItemTagIfc) i.next();
+				String tagId = tagToShow.getTagId();
+				String tagLabel = tagToShow.getTagLabel();
+				String tagCollectionName = tagToShow.getTagCollectionName();
+				tagsListToJson += "{\"tagId\":\"" + tagId + "\",\"tagLabel\":\"" + tagLabel + "\",\"tagCollectionName\":\"" + tagCollectionName + "\"}";
+				more = true;
+			}
+		}
+		tagsListToJson += "]";
+		return tagsListToJson;
+	}
+
+
+	public String getTagsListToJson(){
+		return this.tagsListToJson;
+	}
+
+	public void setTagsListToJson(String tagsListToJson)
+	{
+		this.tagsListToJson = tagsListToJson;
+	}
+
+	public Set<ItemTagIfc> getTagsList() {
+		return tagsList;
+	}
+
+	public void setTagsList(Set tagsList){ this.tagsList = tagsList;}
+
+
+	public boolean getIsMultipleItems() {
 		return this.isMultipleItems;
 	}
 
@@ -250,7 +300,7 @@ public class ItemContentsBean implements Serializable {
 	 * @return String representation of the points.
 	 */
 	public double getPoints() {
-		return MathUtils.round(points, 2);
+		return Precision.round(points, 2);
 	}
 
 	/**
@@ -306,7 +356,7 @@ public class ItemContentsBean implements Serializable {
      * @return String representation of the discount.
      */
     public double getDiscount() {
-    	 return MathUtils.round(discount, 2);
+    	 return Precision.round(discount, 2);
     }
 
     /**
@@ -473,7 +523,7 @@ public class ItemContentsBean implements Serializable {
 	 * @return String representation of the max points.
 	 */
 	public double getRoundedMaxPoints() {
-		return MathUtils.round(maxPoints, 2);
+		return Precision.round(maxPoints, 2);
 	}
 
 	/**
@@ -870,6 +920,37 @@ public class ItemContentsBean implements Serializable {
 		matchingArray = newArray;
 	}
 
+	public String getSerializedImageMap() {
+		StringBuffer ret = new StringBuffer();
+		List<ImageMapQuestionBean> list = getMatchingArray();
+		for (ImageMapQuestionBean ib : list) {
+			if (ret.length() > 0)
+				ret.append("#-#");
+
+			ret.append(ib.serialize());
+		}
+		return ret.toString();
+	}
+
+	public void setSerializedImageMap(String serializedString) {
+		if (serializedString != null) {
+			HashMap<String, String> map = new HashMap<String, String>();
+			List<ImageMapQuestionBean> list = getMatchingArray();
+
+			for (String str : serializedString.split("#-#")) {
+				String[] tokens = str.split("#:#");
+				if (tokens.length == 2) {
+					map.put(tokens[0], (tokens[1] != null) ? tokens[1] : "");
+				}
+			}
+
+			for (ImageMapQuestionBean ib : list) {
+				if (map.get(ib.getItemText().getId().toString()) != null)
+					ib.setResponse(map.get(ib.getItemText().getId().toString()));
+			}
+		}
+	}
+
 	public List getFibArray() {
 		return fibArray;
 	}
@@ -1144,8 +1225,8 @@ public class ItemContentsBean implements Serializable {
 		duration = param;
 	}
 
-	public ArrayList getMediaArray() {
-		ArrayList mediaArray = new ArrayList();
+	public List<MediaData> getMediaArray() {
+		List<MediaData> mediaArray = new ArrayList<>();
 		ItemGradingData itemGradingData = null;
 		try {
 			Iterator<ItemGradingData> iter = getItemGradingDataArray().iterator();
@@ -1168,7 +1249,7 @@ public class ItemContentsBean implements Serializable {
 		return mediaArray;
 	}
 
-  private void setDurationIsOver(ItemDataIfc item, ArrayList mediaList){
+  private void setDurationIsOver(ItemDataIfc item, List<MediaData> mediaList){
     // we set maxDurationAllowed = 60s for audio question published without
     // a duration. This is created from imported assessment when duration for
     // audio question was not set correctly. Note that this is just a work 
@@ -1237,10 +1318,8 @@ public class ItemContentsBean implements Serializable {
 	 */
 	public String getPointsDisplayString() {
 		String pointsDisplayString = "";
-System.out.println("zz01: " + points);
 		if (showStudentQuestionScore) {
-			pointsDisplayString = MathUtils.round(points, 2)
-					+ "/";
+			pointsDisplayString = Precision.round(points, 2) + "/";
 		}
 		return pointsDisplayString;
 	}
@@ -1287,7 +1366,10 @@ System.out.println("zz01: " + points);
   }
 
   public Double getUpdatedScore () {
-	  return MathUtils.round(itemData.getScore(), 2);
+      if (itemData.getScore() == null)
+	  return 0.0;
+      else
+	  return Precision.round(itemData.getScore(), 2);
   }
 	 
   public void setUpdatedScore(Double score) {
@@ -1415,7 +1497,7 @@ System.out.println("zz01: " + points);
   public void setAttachment(Long itemGradingId){
 	  List itemGradingAttachmentList = new ArrayList();
 	  DeliveryBean dbean = (DeliveryBean) ContextUtil.lookupBean("delivery");
-	  HashMap itemContentsMap = dbean.getItemContentsMap();
+	  Map itemContentsMap = dbean.getItemContentsMap();
       if (itemContentsMap != null)
       {
         ItemContentsBean itemContentsBean = (ItemContentsBean) itemContentsMap.get(itemGradingId);
@@ -1500,6 +1582,14 @@ System.out.println("zz01: " + points);
   public void setSaCharCount(String saCharCount)
   {
 	  this.saCharCount = saCharCount;
+  }
+  
+  public String getImageSrc() {
+	  return imageSrc;
+  }
+
+  public void setImageSrc(String imageSrc) {
+	  this.imageSrc = imageSrc;
   }
   
   // SAM-2368

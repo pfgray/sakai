@@ -7,16 +7,18 @@ import java.util.Map;
 
 import javax.faces.model.SelectItem;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.tool.assessment.data.dao.assessment.EventLogData;
 
 public class EventLogBean implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-	private static Log log = LogFactory.getLog(EventLogBean.class);
+	private static Logger log = LoggerFactory.getLogger(EventLogBean.class);
 
+	public static final int DELETED_STATUS=2;
+	
 	private String siteId;
 	private  Map pageDataMap;
 	private int pageNumber=0;
@@ -32,6 +34,8 @@ public class EventLogBean implements Serializable {
 	private String filteredUser;
 
 	private String siteTitle;
+	
+	private Map<Long,Integer> statusMap;
 	
 	/**
 	 * Set the site Title
@@ -125,6 +129,15 @@ public class EventLogBean implements Serializable {
    }
    public void setAssessments(List<SelectItem> assessments) {
       this.assessments = assessments;
+   }
+   public Map<Long, Integer> getStatusMap() {
+	   return statusMap;
+   }
+   public void setStatusMap(Map<Long, Integer> statusMap) {
+	   this.statusMap = statusMap;
+   }
+   public boolean isDeleted(Long id){
+	   return statusMap.get(id)==DELETED_STATUS;
    }
 
 }

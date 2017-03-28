@@ -17,7 +17,7 @@
 	<sakai:view title="#{msgs.pvt_reply}">
 		<link rel="stylesheet" href="/library/js/jquery/select2/4.0.0/select2.css" type="text/css" />
 		<link rel="stylesheet" href="/messageforums-tool/css/messages.css" type="text/css" />
-		<link rel="stylesheet" href="/library/js/jquery/ui/1.11.3/themes/ui-lightness/jquery-ui.min.css" type="text/css" />
+		<link rel="stylesheet" href="/library/webjars/jquery-ui/1.11.3/jquery-ui.min.css" type="text/css" />
 		<script type="text/javascript">includeLatestJQuery("msgcntr");</script>
 		<script type="text/javascript" src="/library/js/jquery/select2/4.0.0/select2.min.js"></script>
 		<sakai:script contextBase="/messageforums-tool" path="/js/sak-10625.js"/>
@@ -221,7 +221,6 @@
 	        <sakai:panel_edit>
 	          <sakai:doc_section>
 			  <sakai:inputRichText textareaOnly="#{PrivateMessagesTool.mobileSession}" rows="#{ForumTool.editorRows}" cols="132" id="df_compose_body" value="#{PrivateMessagesTool.replyToBody}">	 
-				  <f:validateLength maximum="65000"/>
 			  </sakai:inputRichText>
 	         </sakai:doc_section>    
 	        </sakai:panel_edit>
@@ -240,7 +239,7 @@
 								</h:column>
 							</h:dataTable>  
 					--%>	
-	        	<p class="instruction"><h:outputText value="#{msgs.pvt_noatt}" rendered="#{empty PrivateMessagesTool.allAttachments}"/></p>	        
+	        	<h:outputText value="#{msgs.pvt_noatt}" rendered="#{empty PrivateMessagesTool.allAttachments}"/>
 	          <sakai:button_bar>
 	          	<sakai:button_bar_item action="#{PrivateMessagesTool.processAddAttachmentRedirect}" value="#{msgs.cdfm_button_bar_add_attachment_redirect}" accesskey="a" />
 	          </sakai:button_bar>

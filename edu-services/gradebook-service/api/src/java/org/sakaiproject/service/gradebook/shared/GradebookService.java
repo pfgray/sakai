@@ -24,8 +24,12 @@ package org.sakaiproject.service.gradebook.shared;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.lang.StringUtils;
 
 /**
  * This is the externally exposed API of the gradebook application.
@@ -42,9 +46,11 @@ import java.util.Map;
  */
 public interface GradebookService {
 	// Application service hooks.
-	public static final int GRADE_TYPE_POINTS = 1;
-	public static final int GRADE_TYPE_PERCENTAGE = 2;
-	public static final int GRADE_TYPE_LETTER = 3;
+	
+	// These have been deprecated in favour of the {@link GradingType} enum
+	@Deprecated public static final int GRADE_TYPE_POINTS = 1;
+	@Deprecated public static final int GRADE_TYPE_PERCENTAGE = 2;
+	@Deprecated public static final int GRADE_TYPE_LETTER = 3;
 	
 	public static final int CATEGORY_TYPE_NO_CATEGORY = 1;
 	public static final int CATEGORY_TYPE_ONLY_CATEGORY = 2;
@@ -88,40 +94,50 @@ public interface GradebookService {
          */
         INVALID_DECIMAL
     }
+    
+    /**
+     * Array of chars that are not allowed in a gb item title
+     */
+    public static final char[] INVALID_CHARS_IN_GB_ITEM_NAME = {'*', '#', '[', ']'};
 	
-	@SuppressWarnings("rawtypes")
-	public static Comparator lettergradeComparator = new Comparator() 
-	{
-		public int compare(Object o1, Object o2) 
-		{
-			if(((String)o1).toLowerCase().charAt(0) == ((String)o2).toLowerCase().charAt(0))
-			{
-				if(((String)o1).length() == 2 && ((String)o2).length() == 2)
-				{
-					if(((String)o1).charAt(1) == '+')
-						return 0;
-					else
+    /**
+     * Comparator to ensure correct ordering of letter grades, catering for + and - in the grade
+     * This is duplicated in GradebookNG. If changing here, please change there as well.
+     * TODO combine them
+     */
+    public static Comparator<String> lettergradeComparator = new Comparator<String>() {
+		@Override
+    	public int compare(String o1, String o2){
+			if(o1.toLowerCase().charAt(0) == o2.toLowerCase().charAt(0)) {
+				//only take the first 2 chars, to cater for GradePointsMapping as well
+				final String s1 = StringUtils.trim(StringUtils.left(o1, 2));
+				final String s2 = StringUtils.trim(StringUtils.left(o2, 2));
+				
+				if (s1.length() == 2 && s2.length() == 2) {
+					if (s1.charAt(1) == '+') {
+						return -1; // SAK-30094
+					} else {
 						return 1;
+					}
 				}
-				if(((String)o1).length() == 1 && ((String)o2).length() == 2)
-				{
-					if(((String)o2).charAt(1) == '+')
-						return 1;
-					else
-						return 0;
+				if (s1.length() == 1 && s2.length() == 2) {
+					if (o2.charAt(1) == '+') {
+						return 1; // SAK-30094
+					} else {
+						return -1;
+					}
 				}
-				if(((String)o1).length() == 2 && ((String)o2).length() == 1)
-				{
-					if(((String)o1).charAt(1) == '+')
-						return 0;
-					else
+				if (s1.length() == 2 && s2.length() == 1) {
+					if (s1.charAt(1) == '+') {
+						return -1; // SAK-30094
+					} else {
 						return 1;
+					}
 				}
 				return 0;
 			}
-			else
-			{
-				return ((String)o1).toLowerCase().compareTo(((String)o2).toLowerCase());
+			else {
+				return o1.toLowerCase().compareTo(o2.toLowerCase());
 			}
 		}
 	};
@@ -270,8 +286,12 @@ public interface GradebookService {
 	 * to specific students or instructors (such as scores) are not.
 	 * @param gradebookUid
 	 * @return a versioned XML string
+	 * 
+	 * @deprecated This is used by the old gradebook1 entityproducer and will soon be redundant
 	 */
+	@Deprecated
 	public String getGradebookDefinitionXml(String gradebookUid);
+	
 	
 	/**
 	 * Attempt to transfer gradebook data with Category and weight and settings
@@ -279,8 +299,20 @@ public interface GradebookService {
 	 * @param fromGradebookUid
 	 * @param toGradebookUid
 	 * @param fromGradebookXml
+	 * 
+	 * @deprecated This is used by the old gradebook1 entityproducer and will soon be redundant
 	 */
+	@Deprecated
 	public void transferGradebookDefinitionXml(String fromGradebookUid, String toGradebookUid, String fromGradebookXml);
+	
+	/**
+	 * Transfer the gradebook information and assignments from one gradebook to another
+	 * 
+	 * @param gradebookInformation GradebookInformation to copy
+	 * @param assignments list of Assignments to copy
+	 * @param toGradebookUid target gradebook uid
+	 */
+	public void transferGradebook(final GradebookInformation gradebookInformation, final List<Assignment> assignments, final String toGradebookUid);
 	
 	/**
 	 * 
@@ -336,6 +368,7 @@ public interface GradebookService {
      * 
      * @deprecated 
      */
+    @Deprecated
     public List getCategories(final Long gradebookId);
     
     /**
@@ -366,14 +399,14 @@ public interface GradebookService {
 	public Long addAssignment(String gradebookUid, Assignment assignmentDefinition);
 	
 	/**
-	 * Modify the definition of an existing Gradebook-managed assignment.
+	 * Modify the definition of an existing Gradebook item.
 	 * 
 	 * Clients should be aware that it's allowed to change the points value of an
 	 * assignment even if students have already been scored on it. Any existing
 	 * scores will not be adjusted.
 	 * 
-	 * This method cannot be used to modify the definitions of externally-managed
-	 * assessments or to make Gradebook-managed assignments externally managed. 
+	 * This method can be used to manage both internal and external gradebook items,
+	 * however the title, due date and total points will not be edited for external gradebook items.
 	 * 
 	 * @param assignmentId the id of the assignment that needs to be changed
 	 * @param assignmentDefinition the new properties of the assignment
@@ -394,6 +427,21 @@ public interface GradebookService {
 	 */
 	public List<Assignment> getViewableAssignmentsForCurrentUser(String gradebookUid);
 	
+	/**
+	 *
+	 * @param gradebookUid
+	 * @return list of gb items that the current user is authorized to view
+	 * sorted by the provided SortType.
+	 * If user has gradeAll permission, returns all gb items.
+	 * If user has gradeSection perm with no grader permissions,
+	 * returns all gb items.
+	 * If user has gradeSection with grader perms, returns only the items that
+	 * the current user is authorized to view or grade.
+	 * If user does not have grading privileges but does have viewOwnGrades perm,
+	 * will return all released gb items.
+	 */
+	public List<Assignment> getViewableAssignmentsForCurrentUser(String gradebookUid, SortType sortBy);
+
 	/**
 	 * 
 	 * @param gradebookUid
@@ -519,6 +567,11 @@ public interface GradebookService {
 	public boolean currentUserHasViewOwnGradesPerm(String gradebookUid);
 	
 	/**
+	 * Get the grade records for the given list of students and the given assignment.
+	 * This can only be called by an instructor or TA that has access, not student.
+	 * 
+	 * See {@link #getGradeDefinitionForStudentForItem} for the method call that can be made as a student.
+	 * 
 	 * @param gradebookUid
 	 * @param assignmentId
 	 * @param studentIds
@@ -528,6 +581,20 @@ public interface GradebookService {
 	 * or grade a student in the passed list
 	 */
 	public List<GradeDefinition> getGradesForStudentsForItem(String gradebookUid, Long assignmentId, List<String> studentIds);
+
+	/**
+	 * This method gets grades for multiple gradebook items with emphasis on performance. This is particularly useful for reporting tools
+	 * @param gradebookUid
+	 * @param gradableObjectIds
+	 * @param studentIds
+	 * @return a Map of GradableObjectIds to a List of GradeDefinitions containing the grade information for the given
+	 * students for the given gradableObjectIds. Comments are excluded which can be useful for performance.
+	 * If a student does not have a grade on a gradableObject, the GradeDefinition will be omitted
+	 * @throws SecurityException if the current user is not authorized with gradeAll in this gradebook
+	 * @throws IllegalArgumentException if gradableObjectIds is null/empty,
+	 * or if gradableObjectIds contains items that are not members of the gradebook with uid = gradebookUid
+	 */
+	public Map<Long, List<GradeDefinition>> getGradesWithoutCommentsForStudentsForItems(String gradebookUid, List<Long> gradableOjbectIds, List<String> studentIds);
 	
 	/**
 	 * 
@@ -720,22 +787,48 @@ public interface GradebookService {
 	public List getGradingEvents(final String studentId, final long assignmentId);
     
     /**
-     * Calculate a student's score for a category given the category definition and grades for that student.
+     * Calculate the category score for the given gradebook, student and category, looking up the grades.
+     * Safe to call in context of a student.
      * 
-     * @param category category to perform the calculations for
+     * @param gradebookId Id of the gradebook
+     * @param studentUuid uuid of the student
+     * @param categoryId id of category
+     * @return percentage or null if no calculations were made
+     * 
+     */
+	Double calculateCategoryScore(Long gradebookId, String studentUuid, Long categoryId);
+	
+	/**
+     * Calculate the category score for the given gradebook, category, assignments in the category and grade map.
+     * This doesn't do any additional grade lookups.
+     * Safe to call in context of a student.
+     * 
+     * @param gradebook the gradebook. As this method is called for every student at once, this is passed in to save additional lookups by id.
+     * @param studentUuid uuid of the student
+     * @param categoryId id of category
+     * @param categoryAssignments list of assignments the student can view, and are in the category
      * @param gradeMap map of assignmentId to grade, to use for the calculations
      * @return percentage or null if no calculations were made
      */
-    Double calculateCategoryScore(CategoryDefinition category, Map<Long,String> gradeMap);
+	Double calculateCategoryScore(Object gradebook, String studentUuid, CategoryDefinition category, final List<Assignment> categoryAssignments, Map<Long,String> gradeMap);
 
     /**
      * Get the course grade for a student
      * 
      * @param gradebookUid
      * @param userUuid uuid of the user
-     * @return The CourseGrade for the student
+     * @return The {@link CourseGrade} for the student
      */
 	CourseGrade getCourseGradeForStudent(String gradebookUid, String userUuid);
+	
+	 /**
+     * Get the course grade for a list of students
+     * 
+     * @param gradebookUid
+     * @param userUuids uuids of the users
+     * @return a Map of {@link CourseGrade} for the students. Key is the student uuid.
+     */
+	Map<String,CourseGrade> getCourseGradeForStudents(String gradebookUid, List<String> userUuids);
 	
 	/**
 	 * Get a list of CourseSections that the current user has access to in the given gradebook.
@@ -745,4 +838,53 @@ public interface GradebookService {
 	 */
 	@SuppressWarnings("rawtypes")
 	List getViewableSections(String gradebookUid);
+
+	/**
+	 * Update the settings for this gradebook
+	 * 
+	 * @param gradebookUid
+	 * @param gbInfo GradebookInformation object
+	 */
+	void updateGradebookSettings(String gradebookUid, GradebookInformation gbInfo);
+
+	/**
+	 * Return the GradeMappings for the given gradebook. The normal getGradebook(siteId)
+	 * doesn't return the GradeMapping.
+	 * @param gradebookId
+	 * @return Set of GradeMappings for the gradebook
+	 */
+	Set getGradebookGradeMappings(Long gradebookId);
+	
+	/**
+	 * Return the GradeMappings for the given gradebook.
+	 * @param gradebookUid
+	 * @return Set of GradeMappings for the gradebook
+	 */
+	Set getGradebookGradeMappings(String gradebookUid);
+	
+	/**
+	 * Allows an instructor to set a course grade override for the given student
+	 * @param gradebookUid 	uuid of the gradebook
+	 * @param studentUuid	uuid of the student
+	 * @param grade			the new course grade
+	 */
+	void updateCourseGradeForStudent(String gradebookUid, String studentUuid, String grade);
+
+	/**
+	 * Updates the categorized order of an assignment
+	 * @param gradebookUid 	uuid of the gradebook
+	 * @param categoryId	id of the category
+	 * @param assignmentId	id of the assignment
+	 * @param order	new position of the assignment
+	 */
+	void updateAssignmentCategorizedOrder(final String gradebookUid, final Long categoryId, final Long assignmentId, Integer order);
+
+	/**
+	 * Return the grade changes made since a given time
+	 * @param assignmentIds	list of assignment ids to check
+	 * @param since	timestamp from which to check for changes
+	 * @return set of changes made
+	 */
+	List getGradingEvents(final List<Long> assignmentIds, final Date since);
+
 }

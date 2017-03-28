@@ -2,12 +2,11 @@ package org.sakaiproject.content.impl.test;
 
 import java.nio.ByteBuffer;
 
-import junit.extensions.TestSetup;
-import junit.framework.Test;
-import junit.framework.TestSuite;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.content.api.ContentHostingService;
 import org.sakaiproject.content.api.ResourceTypeRegistry;
@@ -16,7 +15,7 @@ import org.sakaiproject.test.SakaiKernelTestBase;
 
 public class ContentIntegrationTestDisabled extends SakaiKernelTestBase
 {
-	private static final Log log = LogFactory.getLog(ContentIntegrationTestDisabled.class);
+	private static final Logger log = LoggerFactory.getLogger(ContentIntegrationTestDisabled.class);
 	
 	private AuthzGroupService authzGroupService;
 	private SiteService siteService;
@@ -31,26 +30,18 @@ public class ContentIntegrationTestDisabled extends SakaiKernelTestBase
 	protected byte[] byteArray = new byte[4096];
 
 
-	public static Test suite()
-	{
-		TestSetup setup = new TestSetup(new TestSuite(ContentIntegrationTestDisabled.class))
-		{
-			protected void setUp() throws Exception 
-			{
-				log.debug("starting oneTimeSetup");
-				oneTimeSetup(null);
-				log.debug("finished oneTimeSetup");
-			}
-			protected void tearDown() throws Exception 
-			{
-				log.debug("starting tearDown");
-				oneTimeTearDown();
-				log.debug("finished tearDown");
-			}
-		};
-		return setup;
+	@BeforeClass
+	public static void beforeClass() {
+		try {
+            log.debug("starting oneTimeSetup");
+			oneTimeSetup();
+            log.debug("finished oneTimeSetup");
+		} catch (Exception e) {
+			log.warn(e.getMessage(), e);
+		}
 	}
 	
+	@Before
 	public void setUp() throws Exception 
 	{
 		log.debug("Setting up a ContentIntegrationTest test");
@@ -77,6 +68,7 @@ public class ContentIntegrationTestDisabled extends SakaiKernelTestBase
 		log.debug("Done setting up a ContentIntegrationTest test");
 	}
 	
+	@After
 	public void tearDown() throws Exception 
 	{
 		log.debug("Tearing down a ContentIntegrationTest test");

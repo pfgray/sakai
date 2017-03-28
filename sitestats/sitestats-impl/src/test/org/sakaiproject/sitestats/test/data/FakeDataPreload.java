@@ -18,13 +18,13 @@
  */
 package org.sakaiproject.sitestats.test.data;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.springframework.test.AbstractTransactionalSpringContextTests;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.test.context.junit4.AbstractJUnit4SpringContextTests;
 
 
-public class FakeDataPreload extends AbstractTransactionalSpringContextTests {
-	private static Log	log	= LogFactory.getLog(FakeDataPreload.class);
+public class FakeDataPreload extends AbstractJUnit4SpringContextTests {
+	private static Logger	log	= LoggerFactory.getLogger(FakeDataPreload.class);
 
 	public void init() {
 		log.info("FakeDataPreload.init()");

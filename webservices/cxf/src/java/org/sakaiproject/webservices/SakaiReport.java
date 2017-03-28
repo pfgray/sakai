@@ -1,9 +1,24 @@
+/**
+ * Copyright (c) 2005 The Apereo Foundation
+ *
+ * Licensed under the Educational Community License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *             http://opensource.org/licenses/ecl2
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.sakaiproject.webservices;
 
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.xml.serializer.utils.XMLChar;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -54,7 +69,7 @@ import java.text.SimpleDateFormat;
 @SOAPBinding(style = SOAPBinding.Style.RPC, use = SOAPBinding.Use.LITERAL)
 
 public class SakaiReport extends AbstractWebService {
-    private static final Log LOG = LogFactory.getLog(SakaiReport.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SakaiReport.class);
 
     private SqlService sqlService;
 
@@ -146,9 +161,20 @@ public class SakaiReport extends AbstractWebService {
 
     protected String executeQueryInternal(String sessionid, String query, String hash, int rowCount, String format) {
         Session session = establishSession(sessionid);
+
+        boolean isEnabled = serverConfigurationService.getBoolean("webservice.report.enabled", false);
+        if (isEnabled == false) {
+            LOG.warn("Report service not enabled, use webservice.report.enabled=true to enable");
+            throw new RuntimeException("Report service not enabled.");
+        }
         if (session == null) {
-            LOG.warn("No session: " + session.getUserId());
-            throw new RuntimeException("No session: " + session.getUserId());
+            LOG.warn("No session for: " + sessionid);
+            throw new RuntimeException("No session for " + sessionid);
+        }
+        
+        if (!securityService.isSuperUser()) {
+            LOG.warn("Non super user attempted access to report service: " + session.getUserId());
+            throw new RuntimeException("Non super user attempted to access report service: " + session.getUserId());
         }
 
         // validate hash

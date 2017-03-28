@@ -3,6 +3,8 @@
 <%@ taglib uri="http://sakaiproject.org/jsf/sakai" prefix="sakai" %>
 <%@ taglib uri="http://sakaiproject.org/jsf/syllabus" prefix="syllabus" %>
 <%@ taglib uri="http://myfaces.apache.org/tomahawk" prefix="t"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+
 <% response.setContentType("text/html; charset=UTF-8"); %>
 <f:view>
 
@@ -23,12 +25,11 @@
 
 <script>includeLatestJQuery('main.jsp');</script>
 <script type="text/javascript" src="js/jqueryui-editable.js"></script>
-<script type="text/javascript" src="/library/js/moment/2.4.0/moment.min.js"></script>
+<script type="text/javascript" src="/library/webjars/momentjs/2.11.1/min/moment.min.js"></script>
 <script type="text/javascript" src="js/syllabus.js"></script>
 <sakai:stylesheet path="/syllabus/css/jqueryui-editable.css" />
 <script type="text/javascript" src="js/jquery-ui-timepicker-addon.js"></script>
-<link rel="stylesheet" href="/library/js/jquery/ui/1.11.3/themes/ui-lightness/jquery-ui.min.css" type="text/css" />
-<sakai:stylesheet path="/syllabus/css/syllabus.css" />
+<link rel="stylesheet" href="/library/webjars/jquery-ui/1.11.3/jquery-ui.min.css" type="text/css" />
 
 <script type="text/javascript">
 	var msgs;
@@ -50,6 +51,7 @@
 				syllabus_content: $("#messages #syllabus_content").html(),
 				clickToAddTitle: $("#messages #clickToAddTitle").html(),
 				startdatetitle: $("#messages #startdatetitle").html(),
+				enddatetitle: $("#messages #enddatetitle").html(),
 				clickToAddStartDate: $("#messages #clickToAddStartDate").html(),
 				clickToAddEndDate: $("#messages #clickToAddEndDate").html(),
 				clickToAddBody: $("#messages #clickToAddBody").html(),
@@ -65,7 +67,9 @@
 				deleteItemTitle: $("#messages #deleteItemTitle").html(),
 				deleteAttachmentTitle: $("#messages #deleteAttachmentTitle").html(),
 				bar_new: $("#messages #bar_new").html(),
-				addItemTitle: $("#messages #addItemTitle").html()
+				bar_publish: $("#messages #bar_publish").html(),
+				addItemTitle: $("#messages #addItemTitle").html(),
+				draftTitlePrefix: $("#messages #draftTitlePrefix").html()
 			};
 		setupAccordion('<%= org.sakaiproject.util.Web.escapeJavascript(thisId)%>',<h:outputText value="#{SyllabusTool.editAble == 'true' ? true : false}"/>, msgs, 
 							'<h:outputText value="#{SyllabusTool.openDataId}"/>');
@@ -117,8 +121,9 @@
 	<h:form id="syllabus">
 		<%--gsilver: would be best if used all sakai tags, or none, 2 blocks
 		following just gets tries to get around the mix --%>		
-		<syllabus:syllabus_ifnot test="#{SyllabusTool.editAble}">
-			<f:verbatim><ul class="navIntraTool actionToolbar">
+		<f:verbatim><ul class="navIntraTool actionToolbar"></f:verbatim>
+				<c:if test="${SyllabusTool.addItem}">
+				<f:verbatim>
 				<li class="firstToolBarItem">
 					<span>
 							<a href="javascript:void(0)" onclick="showConfirmAddHelper();">
@@ -126,7 +131,10 @@
 							</a>
 							<input type="hidden" id="siteId" value="</f:verbatim><h:outputText value="#{SyllabusTool.siteId}"/><f:verbatim>">
 					</span>
-				</li>
+				</li></f:verbatim>
+				</c:if>
+				<c:if test="${SyllabusTool.bulkAddItem}">
+				<f:verbatim>
 				<li>
 					<span>
 					</f:verbatim>
@@ -136,6 +144,10 @@
 					<f:verbatim>
 					</span>
 				</li>
+				</f:verbatim>
+				</c:if>
+				<c:if test="${SyllabusTool.bulkEdit}">
+				<f:verbatim>
 				<li>
 					<span>
 					</f:verbatim>
@@ -145,6 +157,10 @@
 					<f:verbatim>
 					</span>
 				</li>
+				</f:verbatim>
+				</c:if>
+				<c:if test="${SyllabusTool.redirect}">
+				<f:verbatim>
 				<li>
 					<span>
 					</f:verbatim>
@@ -154,16 +170,19 @@
 					<f:verbatim>
 					</span>
 				</li>
+				</f:verbatim>
+				</c:if>
+				<f:verbatim>
 				<li>
 					<span>
 							<a href="javascript:void(0)" id="expandLink" onclick="expandAccordion('<%= org.sakaiproject.util.Web.escapeJavascript(thisId)%>')">
-								<img src="/library/image/silk/arrow_out.png"/>&nbsp;&nbsp;
+								<img src="/library/image/silk/arrow_out.png" alt=""/>&nbsp;&nbsp;
 								</f:verbatim>
 									<h:outputText value="#{msgs.expandAll}"/>
 								<f:verbatim>
 							</a>
 							<a href="javascript:void(0)" id="collapseLink" style="display:none" onclick="collapseAccordion('<%= org.sakaiproject.util.Web.escapeJavascript(thisId)%>')">
-								<img src="/library/image/silk/arrow_in.png"/>&nbsp;&nbsp;
+								<img src="/library/image/silk/arrow_in.png" alt=""/>&nbsp;&nbsp;
 								</f:verbatim>
 									<h:outputText value="#{msgs.collapseAll}"/>
 								<f:verbatim>
@@ -179,43 +198,7 @@
 					<f:verbatim>
 					</span>
 				</li>
-			</ul></f:verbatim>			
-		
-		</syllabus:syllabus_ifnot>
-
-		<syllabus:syllabus_if test="#{SyllabusTool.editAble}" >
-
-			<f:verbatim>
-				<ul class="navIntraTool actionToolbar">
-					<li class="firstToolBarItem">
-						<span>
-								<a href="javascript:void(0)" id="expandLink" onclick="expandAccordion('<%= org.sakaiproject.util.Web.escapeJavascript(thisId)%>')">
-									<img src="/library/image/silk/arrow_out.png"/>&nbsp;&nbsp;
-									</f:verbatim>
-										<h:outputText value="#{msgs.expandAll}"/>
-									<f:verbatim>
-								</a>
-								<a href="javascript:void(0)" id="collapseLink" style="display:none" onclick="collapseAccordion('<%= org.sakaiproject.util.Web.escapeJavascript(thisId)%>')">
-									<img src="/library/image/silk/arrow_in.png"/>&nbsp;&nbsp;
-									</f:verbatim>
-										<h:outputText value="#{msgs.collapseAll}"/>
-									<f:verbatim>
-								</a>
-						</span>
-					</li>
-					<li>
-						<span>
-							</f:verbatim>
-								<h:outputLink id="printIcon" value="javascript:printFriendly('#{SyllabusTool.printFriendlyUrl}');">
-									<h:outputText value="#{msgs.printView}"/>
-								</h:outputLink>
-							<f:verbatim>
-						</span>
-					</li>
-				</ul>
-			</f:verbatim>			
-				
-			</syllabus:syllabus_if>
+				</ul></f:verbatim>
 			<syllabus:syllabus_if test="#{SyllabusTool.syllabusItem.redirectURL}">
 					<f:verbatim>
 						<div>
@@ -232,13 +215,13 @@
 						<h:outputText value="#{eachEntry.entry.syllabusId}"/>
 						<f:verbatim>"><h3></f:verbatim>
 						<f:subview id="actionIcons" rendered="#{SyllabusTool.editAble == 'true'}">
-							<h:graphicImage url="/images/cursor_drag_arrow.png" title="#{msgs.dragToReorder}"  styleClass="actionIcon"/>
-							<h:graphicImage url="/images/lightbulb.gif" styleClass="actionIcon publish publishOn" title="#{msgs.clickToUnpublish}" style="#{eachEntry.status == eachEntry.draftStatus ? 'display:none' : ''}"/>
-							<h:graphicImage url="/images/lightbulb_off.gif" styleClass="actionIcon publish publishOff" title="#{msgs.clickToPublish}" style="#{eachEntry.status == eachEntry.draftStatus ? '' : 'display:none'}"/>
-							<h:graphicImage url="/images/calendar_view_month.png" rendered="#{SyllabusTool.calendarExistsForSite}" title="#{msgs.clickToRemoveCal}" styleClass="actionIcon linkCal linkCalOn" style="#{eachEntry.entry.linkCalendar ? '' : 'display:none'}"/>
-							<h:graphicImage url="/images/calendar_view_month_no.png" rendered="#{SyllabusTool.calendarExistsForSite}" title="#{msgs.clickToAddCal}" styleClass="actionIcon linkCal linkCalOff" style="#{eachEntry.entry.linkCalendar ? 'display:none' : ''}"/>
-							<h:graphicImage url="/images/world.png" title="#{msgs.clickToHideWorld}" styleClass="actionIcon linkWorld linkWorldOn" style="#{eachEntry.entry.view == 'yes' ? '' : 'display:none'}"/>
-							<h:graphicImage url="/images/world_off.png" title="#{msgs.clickToAddWorld}" styleClass="actionIcon linkWorld linkWorldOff" style="#{eachEntry.entry.view == 'no' ? '' : 'display:none'}"/>
+							<h:graphicImage url="/images/cursor_drag_arrow.png" alt="#{msgs.dragToReorder}" title="#{msgs.dragToReorder}"  styleClass="actionIcon"/>
+							<h:graphicImage url="/images/lightbulb.gif" styleClass="actionIcon publish publishOn" alt="#{msgs.clickToUnpublish}" title="#{msgs.clickToUnpublish}" style="#{eachEntry.status == eachEntry.draftStatus ? 'display:none' : ''}"/>
+							<h:graphicImage url="/images/lightbulb_off.gif" styleClass="actionIcon publish publishOff" alt="#{msgs.clickToPublish}" title="#{msgs.clickToPublish}" style="#{eachEntry.status == eachEntry.draftStatus ? '' : 'display:none'}"/>
+							<h:graphicImage url="/images/calendar_view_month.png" rendered="#{SyllabusTool.calendarExistsForSite}" alt="#{msgs.clickToRemoveCal}" title="#{msgs.clickToRemoveCal}" styleClass="actionIcon linkCal linkCalOn" style="#{eachEntry.entry.linkCalendar ? '' : 'display:none'}"/>
+							<h:graphicImage url="/images/calendar_view_month_no.png" rendered="#{SyllabusTool.calendarExistsForSite}" alt="#{msgs.clickToAddCal}" title="#{msgs.clickToAddCal}" styleClass="actionIcon linkCal linkCalOff" style="#{eachEntry.entry.linkCalendar ? 'display:none' : ''}"/>
+							<h:graphicImage url="/images/world.png" alt="#{msgs.clickToHideWorld}" title="#{msgs.clickToHideWorld}" styleClass="actionIcon linkWorld linkWorldOn" style="#{eachEntry.entry.view == 'yes' ? '' : 'display:none'}"/>
+							<h:graphicImage url="/images/world_off.png" alt="#{msgs.clickToAddWorld}" title="#{msgs.clickToAddWorld}" styleClass="actionIcon linkWorld linkWorldOff" style="#{eachEntry.entry.view == 'no' ? '' : 'display:none'}"/>
 							<f:verbatim>
 								<img src="/library/image/silk/cross.png" class="actionImage delete" onclick="showConfirmDeleteHelper(this, event);" title="</f:verbatim><h:outputText value="#{msgs.clickToDelete}"/><f:verbatim>">
 							</f:verbatim>
@@ -248,6 +231,7 @@
 								<f:verbatim>class="draft"</f:verbatim>
 							</f:subview>
 							<f:verbatim>></f:verbatim>
+							<h:outputText styleClass="draftTitlePrefix" rendered="#{eachEntry.status == eachEntry.draftStatus}" value="#{msgs.draftTitlePrefix}" />
 							<h:outputText styleClass="editItem editItemTitle" value="#{eachEntry.entry.title}" />
 							<f:subview id="dateStudent" rendered="#{!SyllabusTool.editAble && (eachEntry.entry.startDate != null || eachEntry.entry.endDate != null)}">
 								<f:verbatim><span style="font-weight: normal; color: grey; float: right"></f:verbatim>
@@ -298,7 +282,7 @@
 										&nbsp;
 											<a attachmentId='</f:verbatim><h:outputText value="#{eachAttach.syllabusAttachId}"/><f:verbatim>' 
 												href="javascript:void(0)" onclick="showConfirmDeleteAttachmentHelper(this, event);" title="</f:verbatim><h:outputText value="#{msgs.clickToRemoveAttachment}"/><f:verbatim>">
-												<img src="/library/image/silk/cross.png">
+												<img src="/library/image/silk/cross.png" alt="</f:verbatim><h:outputText value="#{msgs.clickToRemoveAttachment}"/><f:verbatim>">
 											</a>
 										</f:verbatim>
 									</f:subview>
@@ -310,7 +294,7 @@
 								</f:verbatim>
 								<h:commandLink action="#{SyllabusTool.processAddAttachRedirect}">
 									<f:verbatim>
-										<img src="/library/image/silk/add.png">
+										<img src="/library/image/silk/add.png" alt="">
 									</f:verbatim>
 									<h:outputText value="#{msgs.add_attach}"/>
 									<f:param name="itemId" value="#{eachEntry.entry.syllabusId}"></f:param>
@@ -325,7 +309,7 @@
 			</syllabus:syllabus_if>				
 			<syllabus:syllabus_ifnot test="#{SyllabusTool.syllabusItem.redirectURL}">
                <syllabus:syllabus_if test="#{SyllabusTool.openInNewWindowAsString}">
-  			     <syllabus:syllabus_iframe redirectUrl="#{SyllabusTool.syllabusItem.redirectURL}" width="100%" height="500"/>
+  			     <syllabus:syllabus_iframe redirectUrl="#{SyllabusTool.syllabusItem.redirectURL}" width="100%"/>
                </syllabus:syllabus_if>
                 <syllabus:syllabus_ifnot test="#{SyllabusTool.openInNewWindowAsString}">
                     <h:outputText escape="false" value="<script>javascript:printFriendly('#{SyllabusTool.syllabusItem.redirectURL}');</script>" />
@@ -364,6 +348,7 @@
                 <span id="syllabus_content"></f:verbatim><h:outputText value="#{msgs.syllabus_content}"/><f:verbatim></span>
 				<span id="clickToAddTitle"></f:verbatim><h:outputText value="#{msgs.clickToAddTitle}"/><f:verbatim></span>
 				<span id="startdatetitle"></f:verbatim><h:outputText value="#{msgs.startdatetitle}"/><f:verbatim></span>
+				<span id="enddatetitle"></f:verbatim><h:outputText value="#{msgs.enddatetitle}"/><f:verbatim></span>
 				<span id="clickToAddStartDate"></f:verbatim><h:outputText value="#{msgs.clickToAddStartDate}"/><f:verbatim></span>
 				<span id="clickToAddEndDate"></f:verbatim><h:outputText value="#{msgs.clickToAddEndDate}"/><f:verbatim></span>
 				<span id="clickToAddBody"></f:verbatim><h:outputText value="#{msgs.clickToAddBody}"/><f:verbatim></span>
@@ -379,7 +364,9 @@
 				<span id="deleteItemTitle"></f:verbatim><h:outputText value="#{msgs.deleteItemTitle}"/><f:verbatim></span>
 				<span id="deleteAttachmentTitle"></f:verbatim><h:outputText value="#{msgs.addItemTitle}"/><f:verbatim></span>
 				<span id="bar_new"></f:verbatim><h:outputText value="#{msgs.bar_new}"/><f:verbatim></span>
+				<span id="bar_publish"></f:verbatim><h:outputText value="#{msgs.bar_publish}" /><f:verbatim></span>
 				<span id="addItemTitle"></f:verbatim><h:outputText value="#{msgs.addItemTitle}"/><f:verbatim></span>
+				<span id="draftTitlePrefix"></f:verbatim><h:outputText value="#{msgs.draftTitlePrefix}"/><f:verbatim></span>
 			</span>
 		</f:verbatim>
 	</sakai:view_content>

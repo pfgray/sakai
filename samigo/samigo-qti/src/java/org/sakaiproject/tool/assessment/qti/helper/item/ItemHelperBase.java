@@ -29,8 +29,8 @@ import java.util.Iterator;
 import java.util.List;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.w3c.dom.CharacterData;
 import org.w3c.dom.DOMException;
@@ -46,7 +46,7 @@ import org.sakaiproject.tool.assessment.qti.helper.AuthoringXml;
 public abstract class ItemHelperBase
   implements ItemHelperIfc
 {
-  private static Log log = LogFactory.getLog(ItemHelperBase.class);
+  private static Logger log = LoggerFactory.getLogger(ItemHelperBase.class);
 
   protected static final long ITEM_AUDIO = TypeIfc.AUDIO_RECORDING.longValue();
   protected static final long ITEM_ESSAY = TypeIfc.ESSAY_QUESTION.longValue();
@@ -62,6 +62,7 @@ public abstract class ItemHelperBase
   protected static final long ITEM_MATCHING = TypeIfc.MATCHING.longValue();
   protected static final long ITEM_MXSURVEY = TypeIfc.MATRIX_CHOICES_SURVEY.longValue();
   protected static final long ITEM_CALCQ = TypeIfc.CALCULATED_QUESTION.longValue(); // CALCULATED_QUESTION
+  protected static final long ITEM_IMAGMQ = TypeIfc.IMAGEMAP_QUESTION.longValue(); // IMAGEMAP_QUESTION
   protected static final long ITEM_EMI = TypeIfc.EXTENDED_MATCHING_ITEMS.longValue();
 
   /**
@@ -274,6 +275,11 @@ public abstract class ItemHelperBase
     else if (ITEM_CALCQ == typeId)
     {
       template = AuthoringXml.ITEM_CALCQ;
+    }
+    // IMAGEMAP_QUESTION
+    else if (ITEM_IMAGMQ == typeId)
+    {
+      template = AuthoringXml.ITEM_IMAGMQ; //For future use
     }
 
     log.debug("typeId: " + typeId);

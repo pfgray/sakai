@@ -26,8 +26,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.api.ComponentManager;
 
 /**
@@ -37,7 +37,7 @@ import org.sakaiproject.component.api.ComponentManager;
 @SuppressWarnings("rawtypes")
 public class MockCompMgr implements ComponentManager {
 
-    private static Log M_log = LogFactory.getLog(MockCompMgr.class);
+    private static Logger M_log = LoggerFactory.getLogger(MockCompMgr.class);
 
     /**
      * Startup the CM as a mock system for unit tests
@@ -78,9 +78,9 @@ public class MockCompMgr implements ComponentManager {
         return components.contains(key);
     }
 
-    public Object get(Class iface) {
+    public <T> T get(Class<T> iface) {
         String key = iface != null ? iface.getName() : "";
-        return components.get(key);
+        return (T) components.get(key);
     }
 
     public Object get(String ifaceName) {

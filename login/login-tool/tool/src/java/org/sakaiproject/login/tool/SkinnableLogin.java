@@ -23,6 +23,7 @@ package org.sakaiproject.login.tool;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URL;
+import java.util.ArrayList;
 
 import javax.security.auth.login.LoginException;
 import javax.servlet.ServletConfig;
@@ -33,8 +34,8 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.event.cover.UsageSessionService;
@@ -52,6 +53,8 @@ import org.sakaiproject.tool.api.Tool;
 import org.sakaiproject.tool.cover.SessionManager;
 import org.sakaiproject.util.ResourceLoader;
 import org.sakaiproject.util.Web;
+import org.sakaiproject.authz.api.AuthzGroupService;
+import org.sakaiproject.event.api.UsageSession;
 
 import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 
@@ -60,7 +63,10 @@ public class SkinnableLogin extends HttpServlet implements Login {
 	private static final long serialVersionUID = 1L;
 
 	/** Our log (commons). */
-	private static Log log = LogFactory.getLog(SkinnableLogin.class);
+	private static Logger log = LoggerFactory.getLogger(SkinnableLogin.class);
+
+	// Service instance variables
+	private AuthzGroupService authzGroupService = ComponentManager.get(AuthzGroupService.class);
 
 	/** Session attribute used to store a message between steps. */
 	protected static final String ATTR_MSG = "notify";
@@ -165,6 +171,38 @@ public class SkinnableLogin extends HttpServlet implements Login {
 
 		if (parts[1].equals("logout"))
 		{
+
+			// if this is an impersonation, then reset the users old session and
+			if (isImpersonating()) 
+			{
+				UsageSession oldSession = (UsageSession) session.getAttribute(UsageSessionService.USAGE_SESSION_KEY);
+				String impersonatingEid = session.getUserEid();
+				String userId = oldSession.getUserId();
+				String userEid = oldSession.getUserEid();
+				log.info("Exiting impersonation of " + impersonatingEid + " and returning to " + userEid);
+				ArrayList<String> saveAttributes = new ArrayList<>();
+				saveAttributes.add(UsageSessionService.USAGE_SESSION_KEY);
+				saveAttributes.add(UsageSessionService.SAKAI_CSRF_SESSION_ATTRIBUTE);
+				session.clearExcept(saveAttributes);
+
+				// login - set the user id and eid into session, and refresh this user's authz information
+				session.setUserId(userId);
+				session.setUserEid(userEid);
+				authzGroupService.refreshUser(userId);
+
+				try 
+				{
+					res.sendRedirect(serverConfigurationService.getString("portalPath", "/portal"));
+					res.getWriter().close();
+				} 
+				catch (IOException e) 
+				{
+					log.error("failed to redirect after impersonating", e);
+				}
+
+				return;
+			}
+
 			// get the session info complete needs, since the logout will invalidate and clear the session
 			String containerLogoutUrl = serverConfigurationService.getString("login.container.logout.url", null);
 			String containerLogout = getServletConfig().getInitParameter("container-logout");
@@ -412,6 +450,10 @@ public class SkinnableLogin extends HttpServlet implements Login {
 		String uiService = serverConfigurationService.getString("ui.service", "Sakai");
 		String passwordResetUrl = getPasswordResetUrl();
 
+		String xloginChoice = serverConfigurationService.getString("xlogin.choice", null);
+		String containerText = serverConfigurationService.getString("login.text.title", "Container Login");
+		String loginContainerUrl = serverConfigurationService.getString("login.container.url");
+
 		String eidWording = rb.getString("userid");
 		String pwWording = rb.getString("log.pass");
 		String loginRequired = rb.getString("log.logreq");
@@ -424,6 +466,7 @@ public class SkinnableLogin extends HttpServlet implements Login {
 		rcontext.put("pageSkin", skin);
 		rcontext.put("uiService", uiService);
 		rcontext.put("pageScriptPath", getScriptPath());
+		rcontext.put("pageWebjarsPath", getWebjarsPath());
 		rcontext.put("loginEidWording", eidWording);
 		rcontext.put("loginPwWording", pwWording);
 		rcontext.put("loginRequired", loginRequired);
@@ -431,6 +474,9 @@ public class SkinnableLogin extends HttpServlet implements Login {
 		rcontext.put("cancelWording", cancelWording);
 		rcontext.put("passwordResetUrl", passwordResetUrl);
 		rcontext.put("passwordResetWording", passwordResetWording);
+		rcontext.put("xloginChoice", xloginChoice);
+		rcontext.put("containerText", containerText);
+		rcontext.put("loginContainerUrl", loginContainerUrl);
 
 		String eid = StringEscapeUtils.escapeHtml(request.getParameter("eid"));
 		String pw = StringEscapeUtils.escapeHtml(request.getParameter("pw"));
@@ -462,8 +508,12 @@ public class SkinnableLogin extends HttpServlet implements Login {
 		rcontext.put("pageSkin", skin);
 		rcontext.put("uiService", uiService);
 		rcontext.put("pageScriptPath", getScriptPath());
+		rcontext.put("pageWebjarsPath", getWebjarsPath());
 
 		rcontext.put("choiceRequired", rb.getString("log.choicereq"));
+		rcontext.put("loginRequired", rb.getString("log.logreq"));
+		rcontext.put("loginTitle", serverConfigurationService.getString("login.text.title"));
+		rcontext.put("loginTitle2", serverConfigurationService.getString("xlogin.text.title"));
 
 		rcontext.put("containerLoginChoiceIcon", serverConfigurationService.getString("container.login.choice.icon"));
 		rcontext.put("xloginChoiceIcon", serverConfigurationService.getString("xlogin.choice.icon"));
@@ -518,6 +568,10 @@ public class SkinnableLogin extends HttpServlet implements Login {
 	{
 		return "/library/js/";
 	}
+	protected String getWebjarsPath()
+	{
+		return "/library/webjars/";
+	}
 
 	/**
 	 * Gets the password reset URL. If looks for a configured URL, otherwise it looks
@@ -560,4 +614,38 @@ public class SkinnableLogin extends HttpServlet implements Login {
 			log.warn("Login attempt failed. ID=" + StringUtils.abbreviate(credentials.getIdentifier().replaceAll("(\\r|\\n)", ""),255) + ", IP Address=" + credentials.getRemoteAddr());
 		}
 	}
+
+	/**
+	 * Helper to see if this session has used SuTool to become another user
+	 * 
+	 * Returns true if the user is currently impersonating.
+	 */
+	private boolean isImpersonating() 
+	{
+		Session s = SessionManager.getCurrentSession();
+		String  userId = s.getUserId();
+		UsageSession session = (UsageSession) s.getAttribute(UsageSessionService.USAGE_SESSION_KEY);
+
+		if (session != null) 
+		{
+			// If we have a session for this user, simply reuse
+			if (userId != null)
+			{
+				if (userId.equals(session.getUserId()))
+				{
+					return false;
+				} 
+				else 
+				{
+					return true;
+				}
+			}
+			else 
+			{
+				log.error("null userId in check isImpersonating");
+			}
+		}
+		return false;
+	}
+
 }

@@ -25,6 +25,10 @@ import org.w3c.dom.Element;
 
 public class MockAuthzGroupService implements AuthzGroupService {
 
+	public Map<String, List<String>> getProviderIDsForRealms(List<String> realmIDs) {
+		return null;
+	}
+
 	public AuthzGroup addAuthzGroup(String id) throws GroupIdInvalidException,
 			GroupAlreadyDefinedException, AuthzPermissionException {
 		// TODO Auto-generated method stub
@@ -124,7 +128,7 @@ public class MockAuthzGroupService implements AuthzGroupService {
 		return null;
 	}
 	
-	public Set getUsersIsAllowed(String function, Collection azGroups) {
+	public Set<String> getUsersIsAllowed(String function, Collection<String> azGroups) {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -148,6 +152,14 @@ public class MockAuthzGroupService implements AuthzGroupService {
 	public boolean isAllowed(String userId, String function, Collection azGroups) {
 		// TODO Auto-generated method stub
 		return false;
+	}
+	
+	public String encodeDummyUserForRole(String roleId) throws IllegalArgumentException {
+		return roleId;
+	}
+
+	public String decodeRoleFromDummyUser(String dummyUserId) throws IllegalArgumentException {
+		return dummyUserId;
 	}
 
 	public void joinGroup(String authzGroupId, String role)
@@ -288,6 +300,11 @@ public class MockAuthzGroupService implements AuthzGroupService {
 	}
 
 	public String getRoleName(String roleId) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
+	public String getRoleGroupName(String roleGroupId) {
 		// TODO Auto-generated method stub
 		return null;
 	}

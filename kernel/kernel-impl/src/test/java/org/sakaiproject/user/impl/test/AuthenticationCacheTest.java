@@ -22,14 +22,12 @@
 
 package org.sakaiproject.user.impl.test;
 
-
-import junit.extensions.TestSetup;
-import junit.framework.Assert;
-import junit.framework.Test;
-import junit.framework.TestSuite;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.sakaiproject.test.SakaiKernelTestBase;
 import org.sakaiproject.user.api.Authentication;
 import org.sakaiproject.user.api.AuthenticationException;
@@ -39,11 +37,8 @@ import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.user.impl.AuthenticationCache;
 import org.sakaiproject.util.IdPwEvidence;
 
-/**
- *
- */
 public class AuthenticationCacheTest extends SakaiKernelTestBase {
-	private static Log log = LogFactory.getLog(AuthenticationCacheTest.class);
+	private static Logger log = LoggerFactory.getLogger(AuthenticationCacheTest.class);
 	private static String[] USER_DATA_1 = {"localonly1user", null, "First", "Last1", "local1@edu", "local1password"};
 	private static IdPwEvidence USER_EVIDENCE_1 = new IdPwEvidence(USER_DATA_1[0], USER_DATA_1[5]);
 	private static String[] USER_DATA_2 = {"localonly2user", null, "First", "Last2", "local2@edu", "local2password"};
@@ -52,24 +47,18 @@ public class AuthenticationCacheTest extends SakaiKernelTestBase {
 	private UserDirectoryService userDirectoryService;
 
 	
-	public static Test suite() {
-		TestSetup setup = new TestSetup(new TestSuite(AuthenticationCacheTest.class)) {
-			protected void setUp() throws Exception {
-				if (log.isDebugEnabled()) log.debug("starting setup");
-				try {
-					oneTimeSetup("AuthenticationCacheTest");
-				} catch (Exception e) {
-					log.warn(e);
-				}
-				if (log.isDebugEnabled()) log.debug("finished setup");
-			}
-			protected void tearDown() throws Exception {
-				oneTimeTearDown();
-			}
-		};
-		return setup;
+	@BeforeClass
+	public static void beforeClass() {
+		try {
+            log.debug("starting oneTimeSetup");
+			oneTimeSetup("AuthenticationCacheTest");
+            log.debug("finished oneTimeSetup");
+		} catch (Exception e) {
+			log.warn(e.getMessage(), e);
+		}
 	}
 
+	@Before
 	public void setUp() throws Exception {
 		if (log.isDebugEnabled()) log.debug("Setting up AuthenticationCacheTest");
 		authenticationCache = (AuthenticationCache)getService(AuthenticationCache.class.getName());
@@ -87,15 +76,7 @@ public class AuthenticationCacheTest extends SakaiKernelTestBase {
 		USER_DATA_2[1] = localUser.getId();
 	}
 
-	/**
-	 * Because a lot of what we have to test in the legacy user provider service involves
-	 * irreversible side-effects (such as use of in-memory cache), we can't put much
-	 * trust in the "tearDown" approach. Instead, we rely on the "one long
-	 * complex test method" approach.
-	 */
-	public void tearDown() throws Exception {
-	}
-
+	@Test
 	public void testAuthenticationCache() throws Exception {
 		Assert.assertTrue(authenticationCache.getAuthentication(USER_EVIDENCE_1.getIdentifier(), USER_EVIDENCE_1.getPassword()) == null);
 		Authentication authentication = authenticationManager.authenticate(USER_EVIDENCE_1);

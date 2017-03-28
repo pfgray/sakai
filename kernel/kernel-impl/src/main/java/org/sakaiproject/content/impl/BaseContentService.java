@@ -36,11 +36,11 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -65,9 +65,9 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
 import org.sakaiproject.alias.api.AliasService;
 import org.sakaiproject.antivirus.api.VirusFoundException;
@@ -77,6 +77,8 @@ import org.sakaiproject.authz.api.AuthzGroup;
 import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.authz.api.AuthzPermissionException;
 import org.sakaiproject.authz.api.FunctionManager;
+import org.sakaiproject.authz.api.GroupAlreadyDefinedException;
+import org.sakaiproject.authz.api.GroupIdInvalidException;
 import org.sakaiproject.authz.api.GroupNotDefinedException;
 import org.sakaiproject.authz.api.Role;
 import org.sakaiproject.authz.api.RoleAlreadyDefinedException;
@@ -186,7 +188,7 @@ public abstract class BaseContentService implements ContentHostingService, Cache
 SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRefMigrator, HardDeleteAware
 {
 	/** Our logger. */
-	private static Log M_log = LogFactory.getLog(BaseContentService.class);
+	private static Logger M_log = LoggerFactory.getLogger(BaseContentService.class);
 
 	protected static final long END_OF_TIME = 8000L * 365L * 24L * 60L * 60L * 1000L;
 	protected static final long START_OF_TIME = 365L * 24L * 60L * 60L * 1000L;
@@ -203,7 +205,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	private static final String PROP_AVAIL_NOTI = "availableNotified";
 
 	/** MIME multipart separation string */
-    protected static final String MIME_SEPARATOR = "SAKAI_MIME_BOUNDARY";
+	protected static final String MIME_SEPARATOR = "SAKAI_MIME_BOUNDARY";
 
     protected static final String DEFAULT_RESOURCE_QUOTA = "content.quota.";
     protected static final String DEFAULT_DROPBOX_QUOTA = "content.dropbox.quota.";
@@ -229,17 +231,14 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	/** A Storage object for persistent storage. */
 	protected Storage m_storage = null;
 
-	/** A Cache for this service - ContentResource and ContentCollection keyed by reference. */
-	protected Cache m_cache = null;
-
 	/**
 	 * The quota for content resource body bytes (in Kbytes) for any hierarchy in the /user/ or /group/ areas, or 0 if quotas are not enforced.
 	 */
-	protected long m_siteQuota = 0;
+	protected long m_siteQuota = 1048576;
     /**
      * The quota for content dropbox body bytes (in Kbytes), or 0 if quotas are not enforced.
      */
-	protected long m_dropBoxQuota = 0;
+	protected long m_dropBoxQuota = 1048576;
 
 	private boolean m_useSmartSort = true;
 
@@ -537,26 +536,6 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	private UserDirectoryService userDirectoryService;
 	public void setUserDirectoryService(UserDirectoryService userDirectoryService) {
 		this.userDirectoryService = userDirectoryService;
-	}
-
-	/** Configuration: cache, or not. */
-	protected boolean m_caching = false;
-
-	/**
-	 * Configuration: cache, or not. 
-	 * 
-	 * @param value
-	 *        True/false
-	 */
-	public void setCaching(String value)
-	{
-		try
-		{
-			m_caching = Boolean.valueOf(value).booleanValue();
-		}
-		catch (Exception t)
-		{
-		}
 	}
 
 	/** Configuration: Do we protect attachments in sites with the site AuthZGroup. */
@@ -871,15 +850,6 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 
 			M_log.info("Loaded Storage as "+m_storage+" for "+this);
 
-			// make the cache
-			if (m_caching)
-			{
-				m_cache = m_memoryService
-				.newCache(
-						"org.sakaiproject.content.api.ContentHostingService.cache",
-						this, getAccessPoint(true));
-			}
-
 			// register a transient notification for resources
 			NotificationEdit edit = m_notificationService.addTransientNotification();
 
@@ -971,11 +941,6 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			m_storage.close();
 		}
 		m_storage = null;
-
-		if ((m_caching) && (m_cache != null))
-		{
-			m_cache.close();
-		}
 
 		M_log.info("destroy()");
 
@@ -1484,24 +1449,73 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			String[] parts = StringUtil.split(id, "/");
 			if (parts.length >= 3)
 			{
+				boolean authDropboxGroupsCheck=true;
 				String ref = null;
 				if (id != null)
 				{
 					ref = getReference(id);
+				}
+				
+				if (parts.length>=4)
+				{
+					//Http servlet access to dropbox resources
+					String userId=parts[3];
+					if ((userId==null)||(!isDropboxOwnerInCurrentUserGroups(ref,userId)))
+					{
+						authDropboxGroupsCheck=false;
+					}
 				}
 
 				//Before SAK-11647 any dropbox id asked for dropbox.maintain permission.
 				//Now we must support groups permission, so we ask for this permission too.
 				//Groups permission gives full access to dropboxes of users in current user's groups. 
 				//A different logic can be achieved here depending of lock parameter received.
-				if (m_securityService.unlock(AUTH_DROPBOX_MAINTAIN, ref))
+				if (m_securityService.unlock(AUTH_DROPBOX_GROUPS, ref))
+				{
+					if (authDropboxGroupsCheck)
+					{
+						return AUTH_DROPBOX_GROUPS;
+					}
+					else
+					{
+						return AUTH_DROPBOX_MAINTAIN;
+					}
+				}
+				else
+				{
 					return AUTH_DROPBOX_MAINTAIN;
-				else if (m_securityService.unlock(AUTH_DROPBOX_GROUPS, ref))
-					return AUTH_DROPBOX_GROUPS;
+				}
 			}
 		}
 
 		return lock;
+	}
+	
+	/**
+	 * Checks if a dropbox owner is in any group with current user, so AUTH_DROPBOX_GROUPS is rightly applied.
+	 * @return true if the dropbox owner is in the group, false otherwise. 
+	 */
+	public boolean isDropboxOwnerInCurrentUserGroups(String refString, String userId)
+	{
+		String currentUser = sessionManager.getCurrentSessionUserId();
+		
+		List<Group> site_groups = new ArrayList<Group>();
+		Reference ref = m_entityManager.newReference(refString);
+		try
+		{
+			Site site = m_siteService.getSite(ref.getContext());
+	
+			site_groups.addAll(site.getGroupsWithMembers(new String[]{currentUser,userId}));
+			if (site_groups.size()>0)
+			{
+				return true;
+			}
+		}
+		catch (IdUnusedException e)
+		{
+		}
+		
+		return false;
 	}
 
 	/**
@@ -1585,7 +1599,13 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	protected boolean availabilityCheck(String id) throws IdUnusedException
 	{
 		// item is available if avaialability checks are <b>NOT</b> enabled OR if it's in /attachment
-		boolean available = (! m_availabilityChecksEnabled) || isAttachmentResource(id);
+		boolean available = (! m_availabilityChecksEnabled) || (isAttachmentResource(id) && !isCollection(id));
+		// while site owners can validly look at attachment collections, it's odd, and there's no 
+		// way in UI that we know to do it. However admins can definitely see it from resources
+		// so warn except for admins. This check will return true for site owners even though
+		// the warning is issued.
+		if (isAttachmentResource(id) && isCollection(id) && !m_securityService.isSuperUser())
+		    M_log.warn("availability check for attachment collection " + id);
 
 		GroupAwareEntity entity = null;
 		//boolean isCollection = id.endsWith(Entity.SEPARATOR);
@@ -1873,6 +1893,24 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		p.addProperty(ResourceProperties.PROP_CONTENT_TYPE, r.getContentType());
 
 		p.addProperty(ResourceProperties.PROP_IS_COLLECTION, "false");
+
+		if (StringUtils.isBlank(p.getProperty(ResourceProperties.PROP_COPYRIGHT_CHOICE))) {
+			String copyright = m_serverConfigurationService.getString("copyright.type.default", "not_determined");
+			// if copyright is null don't set a default copyright
+			if (copyright != null) {
+				String[] copyrightTypes = m_serverConfigurationService.getStrings("copyright.types");
+				if (copyrightTypes != null && copyrightTypes.length > 0) {
+					List<String> l = Arrays.asList(copyrightTypes);
+					if (l.contains(copyright)) {
+						p.addProperty(ResourceProperties.PROP_COPYRIGHT_CHOICE, copyright);
+					} else {
+						M_log.warn("Cannot set the default copyright " + copyright + " on " + r.getId() + " does not match any copyright types");
+					}
+				} else {
+					M_log.warn("Cannot set the default copyright " + copyright + " on " + r.getId() + " no copyright types are defined");
+				}
+			}
+		}
 
 	} // addLiveResourceProperties
 
@@ -2173,6 +2211,55 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 
 		return edit;
 	}
+	/**
+	 * @param collectionId
+	 * @param name
+	 * @param limit
+	 * @return
+	 * @exception PermissionException
+	 *            if the user does not have permission to add a resource to the containing collection.
+	 * @exception IdUnusedException
+	 *            if the collectionId does not identify an existing collection.
+	 * @exception IdUnusedException
+	 *            if the collection id for the proposed name already exists in this collection.
+	 * @exception IdLengthException
+	 *            if the new collection id exceeds the maximum number of characters for a valid collection id.
+	 * @exception IdInvalidException
+	 *            if the resource id is invalid.
+	 * @exception IdUniquenessException
+	 *            if we still can't find a unique after 99 attempts at incrementing the id.
+	 */
+	public ContentCollectionEdit addCollection(String collectionId, String name, int limit)
+			throws PermissionException, IdUnusedException, IdUsedException,
+			IdLengthException, IdInvalidException, TypeException, IdUniquenessException
+	{
+		String new_name = "";
+
+		try
+		{
+			return addCollection(collectionId, name);
+		}
+		catch (IdUsedException e)
+		{
+			M_log.debug("Failed to create collection with id {} will now try incrementing id", new_name);
+
+			for (int attempts = 1; attempts <= limit; attempts++)
+			{
+				new_name = StringUtils.trim(name) + "-" + attempts;
+				try
+				{
+					return addCollection(collectionId, new_name);
+				}
+				catch (IdUsedException ee)
+				{
+					M_log.debug("Failed to create unique collection with name: {}", new_name);
+				}
+			}
+		}
+
+		throw new IdUniquenessException(new_name);
+	}
+
 	/**
 	 * Create a new collection with the given resource id, locked for update. Must commitCollection() to make official, or cancelCollection() when done!
 	 * 
@@ -4621,6 +4708,24 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			newResource.setAvailability(deleResource.isHidden(), deleResource.getReleaseDate(),deleResource.getRetractDate());
 			newResource.setContent(m_storage.streamDeletedResourceBody(deleResource));
 			try {
+				// If you're storing the file in DB this breaks as it removes the restored file.
+				removeDeletedResource(deleResource);
+				// close the edit object
+				((BaseResourceEdit) deleResource).closeEdit();
+			} catch (PermissionException pe) {
+				M_log.error("restoreResource: access to resource not permitted" + id, pe);
+				try
+				{
+					removeResource(newResource.getId());
+				}
+				catch(Exception e1)
+				{
+					// ignore -- no need to remove the resource if it doesn't exist
+					M_log.debug("Unable to remove partially completed resource: " + deleResource.getId() + "\n" + e1);
+				}
+				throw pe;
+			}
+			try {
 				addProperties(newResource.getPropertiesEdit(), deleResource.getProperties());
 				commitResource(newResource, NotificationService.NOTI_NONE);
 
@@ -4648,24 +4753,6 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 					M_log.debug("Unable to remove partially completed resource: " + newResource.getId() + "\n" + e1);
 				}
 				throw e;
-			}
-			try {
-				// If you're storing the file in DB this breaks as it removes the restored file.
-				removeDeletedResource(deleResource);
-				// close the edit object
-				((BaseResourceEdit) deleResource).closeEdit();
-			} catch (PermissionException pe) {
-				M_log.error("restoreResource: access to resource not permitted" + id, pe);
-				try
-				{
-					removeResource(newResource.getId());
-				}
-				catch(Exception e1)
-				{
-					// ignore -- no need to remove the resource if it doesn't exist
-					M_log.debug("Unable to remove partially completed resource: " + deleResource.getId() + "\n" + e1);
-				}
-				throw pe;
 			}
 		} catch (IdUnusedException iue) {
 			M_log.error("restoreResource: cannot locate deleted resource " + id, iue);
@@ -5930,12 +6017,14 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
         m_ignoreMimeTypes = Arrays.asList(ArrayUtils.nullToEmpty(m_serverConfigurationService.getStrings("content.mimeMagic.ignorecontent.mimetypes")));
 
         if (m_useMimeMagic && DETECTOR != null && !ResourceProperties.TYPE_URL.equals(currentContentType) && !hasContentTypeAlready) {
-            try{
+            try (
+                    TikaInputStream buff = TikaInputStream.get(edit.streamContent());
+            ) {
                 //we have to make the stream resetable so tika can read some of it and reset for saving.
                 //Also have to give the tika stream to the edit object since tika can invalidate the original 
                 //stream and replace it with a new stream.
-                TikaInputStream buff = TikaInputStream.get(edit.streamContent());
                 edit.setContent(buff);
+
                 final Metadata metadata = new Metadata();
                 //This might not want to be set as it would advise the detector
                 metadata.set(Metadata.RESOURCE_NAME_KEY, edit.getId());
@@ -5957,13 +6046,15 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
                     M_log.debug("Magic: Setting content type from " + currentContentType + " to " + newmatch);
                 }
                 edit.setContentType(newmatch);
+                commitResourceEdit(edit, priority);
             } catch (Exception e) {
 				M_log.warn("Exception when trying to get the resource's data: " + e);
 			} 
         }
+        else {
+        	commitResourceEdit(edit, priority);
+        }
         
-		commitResourceEdit(edit, priority);
-
         // Queue up content for virus scanning
         if (virusScanner.getEnabled()) {
             virusScanQueue.add(edit.getId());
@@ -6987,7 +7078,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				{
 					contentType = contentType + "; charset=" + encoding;
 				}
-				
+
 				// KNL-1316 let's see if the user already has a cached copy. Code copied and modified from Tomcat DefaultServlet.java
 				long headerValue = req.getDateHeader("If-Modified-Since");
 				if (headerValue != -1 && (lastModTime < headerValue + 1000)) {
@@ -6996,11 +7087,45 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 					return; 
 				}
 
-				ArrayList<Range> ranges = parseRange(req, res, len);
-				res.addHeader("Accept-Ranges", "bytes");
+				// If there is a direct link to the asset, no sense streaming it.
+				// Send the asset directly to the load-balancer or to the client
+				URI directLinkUri = m_storage.getDirectLink(resource);
 
-		        if (req.getHeader("Range") == null || (ranges == null) || (ranges.isEmpty())) {
-		        	
+				ArrayList<Range> ranges = parseRange(req, res, len);
+				if (directLinkUri != null || req.getHeader("Range") == null || (ranges == null) || (ranges.isEmpty())) {
+					res.addHeader("Accept-Ranges", "none");
+					res.setContentType(contentType);
+					res.addHeader("Content-Disposition", disposition);
+					// http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4187336
+					if (len <= Integer.MAX_VALUE) {
+						res.setContentLength((int)len);
+					} else {
+						res.addHeader("Content-Length", Long.toString(len));
+					}
+					
+					// SAK-30455: Track event now so the direct link still records a content.read
+					eventTrackingService.post(eventTrackingService.newEvent(EVENT_RESOURCE_READ, resource.getReference(null), false));
+
+					// Bypass loading the asset and just send the user a link to it.
+					if (directLinkUri != null) {
+						if (m_serverConfigurationService.getBoolean("cloud.content.sendfile", false)) {
+							int hostLength = new String(directLinkUri.getScheme() + "://" + directLinkUri.getHost()).length();
+							String linkPath = "/sendfile" + directLinkUri.toString().substring(hostLength);
+							if (M_log.isDebugEnabled()) {
+								M_log.debug("X-Sendfile: " + linkPath);
+							}
+
+							// Nginx uses X-Accel-Redirect and Apache and others use X-Sendfile
+							res.addHeader("X-Accel-Redirect", linkPath);
+							res.addHeader("X-Sendfile", linkPath);
+							return;
+						}
+						else if (m_serverConfigurationService.getBoolean("cloud.content.directurl", true)) {
+							res.sendRedirect(directLinkUri.toString());
+							return;
+						}
+					}
+
 					// stream the content using a small buffer to keep memory managed
 					InputStream content = null;
 					OutputStream out = null;
@@ -7012,15 +7137,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 						{
 							throw new IdUnusedException(ref.getReference());
 						}
-	
-						res.setContentType(contentType);
-						res.addHeader("Content-Disposition", disposition);
-						// http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4187336
- 						if (len <= Integer.MAX_VALUE){
- 							res.setContentLength((int)len);
- 						} else {
- 							res.addHeader("Content-Length", Long.toString(len));
- 						}
+
 
 						// set the buffer of the response to match what we are reading from the request
 						if (len < STREAM_BUFFER_SIZE)
@@ -7062,16 +7179,12 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 							}
 						}
 					}
-					
-					// Track event - only for full reads
-					eventTrackingService.post(eventTrackingService.newEvent(EVENT_RESOURCE_READ, resource.getReference(null), false));
-
 		        } 
 		        else 
 		        {
-		        	// Output partial content. Adapted from Apache Tomcat 5.5.27 DefaultServlet.java
-		        	
-		        	res.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
+		            // Output partial content. Adapted from Apache Tomcat 5.5.27 DefaultServlet.java
+		            res.addHeader("Accept-Ranges", "bytes");
+		            res.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
 
 		            if (ranges.size() == 1) {
 
@@ -7378,7 +7491,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			}
 			catch (EntityPropertyTypeException e)
 			{
-				// Log this and assume it's not a collection
+				// Logger this and assume it's not a collection
 				M_log.warn("EntityPropertyTypeException: PROP_IS_COLLECTION not boolean for " + ref.getReference());
 			}
 			if (isCollection)
@@ -8135,6 +8248,15 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				// get the root collection
 				ContentCollection oCollection = getCollection(fromContext);
 
+				// Copy the Resource Properties from Root Collection to New Root Collection
+				ResourceProperties oCollectionProperties = oCollection.getProperties();
+				ContentCollectionEdit toCollectionEdit = (ContentCollectionEdit) toCollection;
+				ResourcePropertiesEdit toColPropEdit = toCollectionEdit.getPropertiesEdit();
+				toColPropEdit.clear();
+				toColPropEdit.addAll(oCollectionProperties);
+				hideImportedContent(toCollectionEdit);
+				m_storage.commitCollection(toCollectionEdit);
+
 				// Get the collection members from the 'new' collection
 				List oResources = oCollection.getMemberResources();
 				for (int i = 0; i < oResources.size(); i++)
@@ -8248,6 +8370,11 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 								nUrl = edit.getUrl();
 								transversalMap.put(oResource.getId(), nId);
 								transversalMap.put(oResource.getUrl(), nUrl);
+
+								ContentChangeHandler cch = m_resourceTypeRegistry.getContentChangeHandler(((ContentResource) oResource).getResourceType());
+								if (cch!=null){
+									cch.copy(((ContentResource) oResource));
+								}
 							}
 							catch (PermissionException e)
 							{
@@ -8917,7 +9044,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		}
 		catch(EntityPropertyTypeException epte)
 		{
-			M_log.error(epte);
+			M_log.error(epte.getMessage(), epte);
 		}
 
 		// setup the event
@@ -9084,7 +9211,11 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		extType.put("id", id);
 		if (type == null) type = "";
 		extType.put("type", type);
-		String extension = Validator.getFileExtension(id);
+		
+		String[] idSegments;
+		idSegments = id.split("/");
+		String filename = idSegments.length > 0 ? idSegments[idSegments.length - 1]:id;
+		String extension = Validator.getFileExtension(filename);
 
 		if (extension.length() != 0)
 		{
@@ -9477,8 +9608,8 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	 */
 	public boolean isPubView(String id)
 	{
-		boolean pubView = m_securityService.unlock(userDirectoryService.getAnonymousUser(), AUTH_RESOURCE_READ, getReference(id));
-		return pubView;
+		User anon = userDirectoryService.getAnonymousUser();
+		return m_securityService.unlock(anon, AUTH_RESOURCE_READ, getReference(id));
 	}
 
 	/**
@@ -9489,24 +9620,30 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		// the root does not inherit... and makes a bad ref if we try to isolateContainingId()
 		if (isRootCollection(id)) return false;
 
-		// check for pubview on the container
+		// check for access on the container
 		String containerId = isolateContainingId(id);
-		boolean pubView = m_securityService.unlock(userDirectoryService.getAnonymousUser(), AUTH_RESOURCE_READ,
-				getReference(containerId));
-		return pubView;
+		return isPubView(containerId);
 	}
 
 	/**
-	 * Set this resource or collection to the pubview setting.
-	 * 
-	 * @param id
-	 *        The resource or collection id.
-	 * @param pubview
-	 *        The desired public view setting.
+	 * @inheritDoc
+	 * @see org.sakaiproject.content.api.ContentHostingService#setPubView(String, boolean)
 	 */
 	public void setPubView(String id, boolean pubview)
 	{
-		// TODO: check efficiency here -ggolden
+		try {
+			setRoleView(id, AuthzGroupService.ANON_ROLE, pubview);
+		} catch (AuthzPermissionException e) {
+			// Catching to prevent breaking the existing implementation
+			M_log.warn("BaseContentService#setPubView: Did not have permission to create a realm for " + getReference(id));
+		}
+	}
+
+	/**
+	 * @inheritDoc
+	 * @see org.sakaiproject.content.api.ContentHostingService#setRoleView(String, String, boolean)
+	 */
+	public void setRoleView(String id, String roleId, boolean grantAccess) throws AuthzPermissionException {
 
 		String ref = getReference(id);
 
@@ -9520,15 +9657,15 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		catch (GroupNotDefinedException e)
 		{
 			// if no realm yet, and we need one, make one
-			if (pubview)
+			if (grantAccess)
 			{
 				try
 				{
 					edit = m_authzGroupService.addAuthzGroup(ref);
-				}
-				catch (Exception ee)
-				{
-				   M_log.warn("Failed to add AZG ("+ref+") for pubview: " + ee);
+				} catch (GroupIdInvalidException e1) {
+					M_log.warn("BaseContentService#setRoleView: Failed to add AZG (" + ref + "): " + e1);
+				} catch (GroupAlreadyDefinedException e1) {
+					M_log.warn("BaseContentService#setRoleView: Failed to add AZG (" + ref + "): " + e1);
 				}
 			}
 		}
@@ -9550,35 +9687,34 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		boolean delete = false;
 
 		// align the realm with our positive setting
-		if (pubview)
+		if (grantAccess)
 		{
-			// make sure the anon role exists and has "content.read" - the only client of pubview
-			Role role = edit.getRole(AuthzGroupService.ANON_ROLE);
+			// make sure the role exists and has "content.read"
+			Role role = edit.getRole(roleId);
 			if (role == null)
 			{
 				try
 				{
-					role = edit.addRole(AuthzGroupService.ANON_ROLE);
-					// moved from below as part of NPE cleanup -AZ
-					if (!role.isAllowed(AUTH_RESOURCE_READ))
-		            {
-		                role.allowFunction(AUTH_RESOURCE_READ);
-		                changed = true;
-		            }
+					role = edit.addRole(roleId);
 				}
-				catch (RoleAlreadyDefinedException ignore)
+				catch (RoleAlreadyDefinedException e)
 				{
-				    role = null;
+					throw new IllegalStateException("BaseContentService#setRoleView: Received RoleAlreadyDefined on non-existent role", e);
 				}
 			}
 
+			if (!role.isAllowed(AUTH_RESOURCE_READ))
+			{
+				role.allowFunction(AUTH_RESOURCE_READ);
+				changed = true;
+			}
 		}
 
 		// align the realm with our negative setting
 		else
 		{
 			// get the role
-			Role role = edit.getRole(AuthzGroupService.ANON_ROLE);
+			Role role = edit.getRole(roleId);
 			if (role != null)
 			{
 				if (role.isAllowed(AUTH_RESOURCE_READ))
@@ -9619,13 +9755,60 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			}
 			catch (GroupNotDefinedException e)
 			{
-				// TODO: IdUnusedException
-			}
-			catch (AuthzPermissionException e)
-			{
-				// TODO: PermissionException
+				M_log.error("BaseContentService#setRoleView: The group we were using stopped existing: " + e);
 			}
 		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.sakaiproject.content.api.ContentHostingService#isRoleView(String, String)
+	 */
+	public boolean isRoleView(final String id, final String roleId) {
+		if(roleId == null) {
+			return false;
+		}
+		String dummyUserId = m_authzGroupService.encodeDummyUserForRole(roleId);
+		return m_securityService.unlock(dummyUserId, AUTH_RESOURCE_READ, getReference(id));
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.sakaiproject.content.api.ContentHostingService#isInheritingRoleView(String, String)
+	 */
+	public boolean isInheritingRoleView(final String id, final String roleId) {
+		// the root does not inherit... and makes a bad ref if we try to isolateContainingId()
+		if (isRootCollection(id)) return false;
+
+		// check for access on the container
+		String containerId = isolateContainingId(id);
+		return isRoleView(containerId, roleId);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see org.sakaiproject.content.api.ContentHostingService#getRoleViews(String)
+	 */
+	public Set<String> getRoleViews(final String id) {
+		String ref = getReference(id);
+		LinkedHashSet<String> roleIds = new LinkedHashSet<String>();
+		AuthzGroup realm = null;
+
+		try {
+			realm = m_authzGroupService.getAuthzGroup(ref);
+		} catch (GroupNotDefinedException e) {
+			// if there is no authz group then no roles can have been defined.
+			return roleIds;
+		}
+
+		Set<Role> roles = realm.getRoles();
+		for (Role role : roles) {
+			if(role.isAllowed(AUTH_RESOURCE_READ)) {
+				roleIds.add(role.getId());
+			}
+		}
+
+		return roleIds;
 	}
 
 	/**
@@ -9890,7 +10073,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		}
 
 		// return the current user's sort name
-		return userDirectoryService.getCurrentUser().getSortName();
+		return getDisplayName(null);
 	}
 
 	/**
@@ -9917,7 +10100,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 
 		// do our ONE security check to see if the current user can create the
 		// dropbox and all inner folders
-		if (!isDropboxMaintainer(siteId))
+		if (!isDropboxMaintainer(siteId) && !isDropboxGroups(siteId))
 		{
 			createIndividualDropbox(siteId);
 			return;
@@ -10004,7 +10187,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 					{
 						ContentCollectionEdit edit = addValidPermittedCollection(userFolder);
 						ResourcePropertiesEdit props = edit.getPropertiesEdit();
-						props.addProperty(ResourceProperties.PROP_DISPLAY_NAME, user.getSortName());
+						props.addProperty(ResourceProperties.PROP_DISPLAY_NAME,getDisplayName(user));
 						props.addProperty(ResourceProperties.PROP_DESCRIPTION, rb.getString("use1"));
 						commitCollection(edit);
 					}
@@ -10105,7 +10288,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 					{
 						ContentCollectionEdit edit = addValidPermittedCollection(userFolder);
 						ResourcePropertiesEdit props = edit.getPropertiesEdit();
-						props.addProperty(ResourceProperties.PROP_DISPLAY_NAME, user.getSortName());
+						props.addProperty(ResourceProperties.PROP_DISPLAY_NAME,getDisplayName(user));
 						props.addProperty(ResourceProperties.PROP_DESCRIPTION, rb.getString("use1"));
 						// props.addProperty(ResourceProperties.PROP_DESCRIPTION, PROP_MEMBER_DROPBOX_DESCRIPTION);
 						commitCollection(edit);
@@ -10494,7 +10677,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		/**
 		 * @inheritDoc
 		 */
-		public void clearGroupAccess() throws InconsistentException, PermissionException 
+		public void clearGroupAccess() throws InconsistentException, PermissionException
 		{
 			if(this.m_access != AccessMode.GROUPED)
 			{
@@ -10511,26 +10694,116 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		/**
 		 * @inheritDoc
 		 */
-		public void clearPublicAccess() throws InconsistentException, PermissionException 
-		{
-			if(isPubView(this.m_id)) {
-				this.m_accessUpdated = true;
+		public void clearPublicAccess() throws PermissionException {
+			try {
+				removeRoleAccess(AuthzGroupService.ANON_ROLE);
+			} catch (InconsistentException e) {
+				M_log.error("BasicGroupAwareEdit#clearPublicAccess: the anon role was not defined: " + e);
 			}
-			setPubView(this.m_id, false);
-			this.m_access = AccessMode.INHERITED;
-			this.m_groups.clear();
-
 		}
 
-		public void setPublicAccess() throws PermissionException
+		public void setPublicAccess() throws PermissionException, InconsistentException
 		{
-			if(! isPubView(this.m_id)) {
+			addRoleAccess(AuthzGroupService.ANON_ROLE);
+		}
+
+		/**
+		 * @inheritDoc
+		 * @see org.sakaiproject.content.api.GroupAwareEdit#addRoleAccess(String)
+		 */
+		public void addRoleAccess(String roleId) throws InconsistentException, PermissionException {
+			if (roleId == null || roleId.isEmpty()) {
+				throw new InconsistentException("BasicGroupAwareEdit#addRoleAccess - Must specify a role to remove for content " + this.getReference());
+			}
+
+			if (!this.getInheritedGroups().isEmpty()) {
+				throw new InconsistentException(String.format("BasicGroupAwareEdit#addRoleAccess: could not assign role %s because content %s inherits group access.", roleId, this.getReference()));
+			}
+
+			if (getInheritedRoleAccessIds().contains(roleId)) {
+				throw new InconsistentException(String.format("BasicGroupAwareEdit#addRoleAccess: could not assign role %s because content %s inherits role access.", roleId, this.getReference()));
+			}
+
+			if (!(isRoleView(this.m_id, roleId))) {
+				try {
+					setRoleView(this.m_id, roleId, true);
+				} catch (AuthzPermissionException e) {
+					throw new PermissionException(e.getUser(), e.getFunction(), e.getResource());
+				}
+				this.m_accessUpdated = true;
+				this.m_access = AccessMode.INHERITED;
+				this.m_groups.clear();
+			}
+		}
+
+		/**
+		 * @inheritDoc
+		 * @see org.sakaiproject.content.api.GroupAwareEdit#removeRoleAccess(String)
+		 */
+		public void removeRoleAccess(String roleId) throws InconsistentException, PermissionException {
+			if (roleId == null || roleId.isEmpty()) {
+				throw new InconsistentException("BasicGroupAwareEdit#removeRoleAccess - Must specify a role to remove for content " + this.getReference());
+			}
+
+			if (isRoleView(this.m_id, roleId)) {
+				try {
+					setRoleView(this.m_id, roleId, false);
+				} catch (AuthzPermissionException e) {
+					throw new PermissionException(e.getUser(), e.getFunction(), e.getResource());
+				}
+				this.m_accessUpdated = true;
+				this.m_access = AccessMode.INHERITED;
+				this.m_groups.clear();
+			}
+		}
+
+		/**
+		 * @inheritDoc
+		 * @see org.sakaiproject.content.api.GroupAwareEdit#clearRoleAccess()
+		 */
+		public void clearRoleAccess() throws PermissionException {
+			Set<String> roles = getRoleViews(this.m_id);
+			for (String role : roles) {
+				try {
+					setRoleView(this.m_id, role, false);
+				} catch (AuthzPermissionException e) {
+					throw new PermissionException(e.getUser(), e.getFunction(), e.getResource());
+				}
+			}
+			if (roles.size() > 0) {
 				this.m_accessUpdated = true;
 			}
-			setPubView(this.m_id, true);
-
 			this.m_access = AccessMode.INHERITED;
 			this.m_groups.clear();
+		}
+
+		/**
+		 * @inheritDoc
+		 * @see org.sakaiproject.content.api.GroupAwareEntity#getRoleAccessIds() ()
+		 */
+		public Set<String> getRoleAccessIds()
+		{
+			return getRoleViews(this.m_id);
+		}
+
+		/**
+		 * @inheritDoc
+		 * @see org.sakaiproject.content.api.GroupAwareEntity#getInheritedRoleAccessIds() ()
+		 */
+		public Set<String> getInheritedRoleAccessIds()
+		{
+			Set<String> roleIds = new LinkedHashSet<String>();
+			if (isRootCollection(this.m_id)) {
+				// we are at the root so there is nothing to inherit
+				return roleIds;
+			}
+			ContentEntity next = this.getContainingCollection();
+
+			while (next != null && next.getAccess() == AccessMode.INHERITED) {
+				roleIds.addAll(next.getRoleAccessIds());
+				next = next.getContainingCollection();
+			}
+			return roleIds;
 		}
 
 		/**
@@ -10543,14 +10816,9 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				throw new InconsistentException(this.getReference());
 			}
 
-			if(isInheritingPubView(this.m_id))
+			if(!getRoleAccessIds().isEmpty())
 			{
-				throw new InconsistentException(this.getReference());
-			}
-
-			if(isPubView(this.m_id))
-			{
-				setPubView(this.m_id, false);
+				clearRoleAccess();
 			}
 
 			SortedSet groupRefs = new TreeSet();
@@ -10815,7 +11083,8 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 					return available;
 				}
 				if (available && !isHiddenWebFolder && currentEntity.getId().endsWith(Entity.SEPARATOR)) {
-					isHiddenWebFolder = "true".equals(currentEntity.getProperties().getProperty(ResourceProperties.PROP_HIDDEN_WITH_ACCESSIBLE_CONTENT));
+					isHiddenWebFolder = isAttachmentResource(currentEntity.getId()) ||
+					    "true".equals(currentEntity.getProperties().getProperty(ResourceProperties.PROP_HIDDEN_WITH_ACCESSIBLE_CONTENT));
 				}
 				currentEntity = currentEntity.getContainingCollection();
 				available = currentEntity!=null?!currentEntity.isHidden():available;
@@ -12258,7 +12527,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 					}
 					catch (UnsupportedEncodingException e)
 					{
-						M_log.error(e);
+						M_log.error(e.getMessage(), e);
 					}
 					
 					m_body = new byte[(int) m_contentLength];
@@ -12400,7 +12669,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 									}
 									catch (UnsupportedEncodingException e)
 									{
-										M_log.error(e);
+										M_log.error(e.getMessage(), e);
 									}
 									m_body = new byte[(int) m_contentLength];
 									System.arraycopy(decoded, 0, m_body, 0, (int) m_contentLength);
@@ -12563,8 +12832,17 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		 */
 		protected boolean requiresCopyrightAgreement()
 		{
-			// check my properties
-			return m_properties.getProperty(ResourceProperties.PROP_COPYRIGHT_ALERT) != null;
+			// check the copyright alert setting
+			// return true only if the copyright alert property is set and value is true
+			try
+			{
+				return m_properties.getBooleanProperty(ResourceProperties.PROP_COPYRIGHT_ALERT);
+			}
+			catch (Exception e)
+			{
+				// if there is no such copyright alert property, return false
+				return false;
+			}
 		}
 
 		/**
@@ -12804,7 +13082,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				}
 				catch (UnsupportedEncodingException e)
 				{
-					M_log.error(e);
+					M_log.error(e.getMessage(), e);
 				}
 				resource.setAttribute("body", enc);
 			}
@@ -13273,6 +13551,13 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		 * Open and be ready to read / write.
 		 */
 		public void open();
+
+		/**
+		 * Get a direct link to the asset so it doesn't have to be streamed.
+		 * @param resource
+		 * @return URI or null if no direct link is available
+		 */
+		public URI getDirectLink(ContentResource resource);
 
 		/**
 		 * Get a count of all members of a collection, where 'member' means the collection
@@ -14020,7 +14305,6 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	private static final String MACRO_USER_EID            = "${USER_EID}";
 	private static final String MACRO_USER_FIRST_NAME     = "${USER_FIRST_NAME}";
 	private static final String MACRO_USER_LAST_NAME      = "${USER_LAST_NAME}";
-	private static final String MACRO_SESSION_ID          = "${SESSION_ID}";
 
 	private static final String MACRO_DEFAULT_ALLOWED = "${USER_ID},${USER_EID},${USER_FIRST_NAME},${USER_LAST_NAME}";
 
@@ -14037,7 +14321,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
      * 
      * See SAK-23587
      */
-    private String expandMacros(String url) {
+    public String expandMacros(String url) {
     	
     	if(M_log.isDebugEnabled()){
     		M_log.debug("Original url: " + url);
@@ -14084,10 +14368,6 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			if (macroName.equals(MACRO_USER_LAST_NAME)) {
 				return userDirectoryService.getCurrentUser().getLastName();
 			}
-			if (macroName.equals(MACRO_SESSION_ID)) {
-				return sessionManager.getCurrentSession().getId();
-			}
-
 		}
 		catch (Exception e) {
 			M_log.error("Error resolving macro:" + macroName + ": " + e.getClass() + ": " + e.getCause());
@@ -14097,7 +14377,14 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		//unsupported, use macro name as is.
 		return macroName;
 	}
-    
+
+		/*
+		*  Return a direct link to the asset so we can bypass streaming the asset in the JVM
+		*/
+		public URI getDirectLinkToAsset(ContentResource resource) {
+			return m_storage.getDirectLink(resource);
+		}
+
     /**
      * Implementation of HardDeleteAware to allow content to be fully purged
      */
@@ -14153,6 +14440,16 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
     	
     	
     }
+	private String getDisplayName(User userIn) {
+		User user = (userIn== null)?userDirectoryService.getCurrentUser():userIn ;
+		String displayId = user.getDisplayId();
+		if (displayId != null && displayId.length() > 0) {
+			return user.getSortName() + " (" + displayId + ")";
+		}
+		else {
+			return user.getSortName();
+		}
+	}
 
 } // BaseContentService
 

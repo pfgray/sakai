@@ -1,8 +1,5 @@
-<?xml version="1.0"?>
-<!DOCTYPE hibernate-mapping
-    PUBLIC "-//Hibernate/Hibernate Mapping DTD//EN"
-    "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
-
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
 <hibernate-mapping package="org.sakaiproject.profile2.model">
 
 	<class name="WallItemComment" table="PROFILE_WALL_ITEM_COMMENTS_T">
@@ -21,6 +18,11 @@
 		<property name="text" column="WALL_ITEM_COMMENT_TEXT" type="string" length="4000" not-null="true" />
 		<property name="date" column="WALL_ITEM_COMMENT_DATE" not-null="true" />
 	
-  	</class>
+    </class>
+
+  	<!-- get wall item records -->
+	<query name="getWallItemCommentRecord">
+    	<![CDATA[from WallItemComment comment WHERE comment.id = :id]]>
+	</query>
   		
 </hibernate-mapping>

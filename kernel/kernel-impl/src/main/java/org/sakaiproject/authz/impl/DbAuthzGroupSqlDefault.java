@@ -22,6 +22,8 @@
 package org.sakaiproject.authz.impl;
 
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
 
 /**
  * methods for accessing authz data in a database.
@@ -33,34 +35,59 @@ public class DbAuthzGroupSqlDefault implements DbAuthzGroupSql
 		return "select count(1) from SAKAI_REALM_FUNCTION where FUNCTION_NAME = ?";
 	}
 
-	public String getCountRealmRoleFunctionEndSql(String anonymousRoleKey, String authorizationRoleKey, boolean authorized, String inClause)
+	public String getCountRealmRoleFunctionEndSql(Set<Integer> roleIds, String inClause)
 	{
-		String roleKeys = authorized? authorizationRoleKey + "," + anonymousRoleKey : anonymousRoleKey;
-		return " and FUNCTION_KEY in (select FUNCTION_KEY from SAKAI_REALM_FUNCTION where FUNCTION_NAME = ?) "
-				+ " and (ROLE_KEY in (select ROLE_KEY from SAKAI_REALM_RL_GR where ACTIVE = '1' and USER_ID = ? "
-				+
-				// granted in any of the grant or role realms
-				" and REALM_KEY in (select REALM_KEY from SAKAI_REALM where " + inClause + ")) "
-				+ " or ROLE_KEY in (" + roleKeys + ") "
-			    + ")";
+		StringBuilder sql = new StringBuilder();
+		sql.append(" and FUNCTION_KEY in (select FUNCTION_KEY from SAKAI_REALM_FUNCTION where FUNCTION_NAME = ?) ");
+		sql.append(" and (ROLE_KEY in (select ROLE_KEY from SAKAI_REALM_RL_GR where ACTIVE = '1' and USER_ID = ? ");		
+		sql.append(" and REALM_KEY in (select REALM_KEY from SAKAI_REALM where " + inClause + ")) ");
+		Iterator<Integer> rolesIt = roleIds.iterator();
+		if (rolesIt.hasNext())
+		{
+			sql.append(" or ROLE_KEY in (");
+			sql.append("?");
+			rolesIt.next();
+			while(rolesIt.hasNext())
+			{
+				sql.append(", ?");
+				rolesIt.next();
+			}
+			sql.append(")");
+		}
+		sql.append(" )");
+		return sql.toString();
 	}
 
-	public String getCountRealmRoleFunctionSql(String anonymousRoleKey, String authorizationRoleKey, boolean authorized)
+	public String getCountRealmRoleFunctionSql(Set<Integer> roleIds)
 	{
-		String roleKeys = authorized? authorizationRoleKey + "," + anonymousRoleKey : anonymousRoleKey;
-		return "select count(1) " + "from   SAKAI_REALM_RL_FN MAINTABLE "
-				+ "       LEFT JOIN SAKAI_REALM_RL_GR GRANTED_ROLES ON (MAINTABLE.REALM_KEY = GRANTED_ROLES.REALM_KEY AND "
-				+ "       MAINTABLE.ROLE_KEY = GRANTED_ROLES.ROLE_KEY), SAKAI_REALM REALMS, SAKAI_REALM_FUNCTION FUNCTIONS "
-				+ "where "
-				+ " (MAINTABLE.ROLE_KEY in(" + roleKeys + ") or (GRANTED_ROLES.USER_ID = ? AND GRANTED_ROLES.ACTIVE = 1)) AND FUNCTIONS.FUNCTION_NAME = ? AND REALMS.REALM_ID in (?) " +
-				// for the join
-				"  AND MAINTABLE.REALM_KEY = REALMS.REALM_KEY AND MAINTABLE.FUNCTION_KEY = FUNCTIONS.FUNCTION_KEY";
+		StringBuilder sql = new StringBuilder();
+		sql.append("select count(1) " + "from   SAKAI_REALM_RL_FN MAINTABLE ");
+		sql.append("       LEFT JOIN SAKAI_REALM_RL_GR GRANTED_ROLES ON (MAINTABLE.REALM_KEY = GRANTED_ROLES.REALM_KEY AND ");
+		sql.append("       MAINTABLE.ROLE_KEY = GRANTED_ROLES.ROLE_KEY), SAKAI_REALM REALMS, SAKAI_REALM_FUNCTION FUNCTIONS ");
+		sql.append("where (");
+				// our criteria
+		Iterator<Integer> rolesIt = roleIds.iterator();
+		if (rolesIt.hasNext())
+		{
+			sql.append("  MAINTABLE.ROLE_KEY in(");
+			sql.append("?");
+			rolesIt.next();
+			while(rolesIt.hasNext())
+			{
+				sql.append(", ?");
+				rolesIt.next();
+			}
+			sql.append(") or ");
+		}
+		sql.append("  (GRANTED_ROLES.USER_ID = ? AND GRANTED_ROLES.ACTIVE = 1)) AND FUNCTIONS.FUNCTION_NAME = ? AND REALMS.REALM_ID in (?) ");
+		sql.append("  AND MAINTABLE.REALM_KEY = REALMS.REALM_KEY AND MAINTABLE.FUNCTION_KEY = FUNCTIONS.FUNCTION_KEY ");
+		return sql.toString();
 	}
 
-	public String getCountRealmRoleFunctionSql(String anonymousRoleKey, String authorizationRoleKey, boolean authorized, String inClause)
+	public String getCountRealmRoleFunctionSql(Set<Integer> roleIds, String inClause)
 	{
 		return "select count(1) from SAKAI_REALM_RL_FN " + "where  REALM_KEY in (select REALM_KEY from SAKAI_REALM where " + inClause + ")"
-				+ getCountRealmRoleFunctionEndSql(anonymousRoleKey, authorizationRoleKey, authorized, inClause);
+				+ getCountRealmRoleFunctionEndSql(roleIds, inClause);
 	}
 
 	public String getCountRealmRoleSql()
@@ -68,13 +95,16 @@ public class DbAuthzGroupSqlDefault implements DbAuthzGroupSql
 		return "select count(1) from SAKAI_REALM_ROLE where ROLE_NAME = ?";
 	}
 	
-	public String getCountRoleFunctionSql()
+	public String getCountRoleFunctionSql(String inClause, boolean isDelegated)
 	{
 		return "select count(1) from SAKAI_REALM_RL_FN MAINTABLE "
 				+ "		JOIN SAKAI_REALM_ROLE ROLE ON ROLE.ROLE_KEY = MAINTABLE.ROLE_KEY "
 				+ "		JOIN SAKAI_REALM_FUNCTION FUNCTIONS ON FUNCTIONS.FUNCTION_KEY = MAINTABLE.FUNCTION_KEY "
-				+ "		JOIN SAKAI_REALM REALM ON REALM.REALM_KEY = MAINTABLE.REALM_KEY "
-				+ "		where ROLE.ROLE_NAME = ? AND FUNCTIONS.FUNCTION_NAME = ? AND REALM.REALM_ID = ?";
+				+ "		JOIN SAKAI_REALM SAKAI_REALM ON SAKAI_REALM.REALM_KEY = MAINTABLE.REALM_KEY "
+				+ (isDelegated ? "":"		JOIN SAKAI_REALM_RL_GR GRANTS ON GRANTS.REALM_KEY = MAINTABLE.REALM_KEY")
+				+ "		where ROLE.ROLE_NAME = ? AND FUNCTIONS.FUNCTION_NAME = ?"
+				+ "		and " + inClause
+				+ (isDelegated ? "":"		and GRANTS.ACTIVE = '1' and GRANTS.USER_ID = ?");
 	}
 
 	public String getDeleteRealmProvider1Sql()
@@ -332,6 +362,11 @@ public class DbAuthzGroupSqlDefault implements DbAuthzGroupSql
 		return sqlBuilder.toString();
 	}
 
+	public String getSelectRealmsProviderIDsSql(String inClause)
+	{
+		return "SELECT r.realm_id, r.provider_id FROM sakai_realm r WHERE " + inClause;
+	}
+
 	public String getSelectRealmProvider2Sql()
 	{
 		return "SELECT RR.ROLE_NAME, RRD.DESCRIPTION, RRD.PROVIDER_ONLY FROM SAKAI_REALM_ROLE_DESC RRD"
@@ -412,22 +447,15 @@ public class DbAuthzGroupSqlDefault implements DbAuthzGroupSql
 		return sqlBuf.toString();
 	}
 	
-	public String getSelectRealmRoleGroupUserIdSql(String inClause1, String inClause2)
+	public String getSelectRealmRoleUserIdSql(String inClause)
 	{
 		StringBuilder sqlBuf = new StringBuilder();
 
-		sqlBuf.append("select SRRG.USER_ID ");
-		sqlBuf.append("from SAKAI_REALM_RL_GR SRRG ");
-		sqlBuf.append("inner join SAKAI_REALM SR ON SRRG.REALM_KEY = SR.REALM_KEY ");
-		sqlBuf.append("where " + inClause1 + " ");
-		sqlBuf.append("and SRRG.ACTIVE = '1' ");
-		sqlBuf.append("and SRRG.ROLE_KEY in ");
-		sqlBuf.append("(select SRRF.ROLE_KEY ");
-		sqlBuf.append("from SAKAI_REALM_RL_FN SRRF ");
-		sqlBuf.append("inner join SAKAI_REALM_FUNCTION SRF ON SRRF.FUNCTION_KEY = SRF.FUNCTION_KEY ");
-		sqlBuf.append("inner join SAKAI_REALM SR1 ON SRRF.REALM_KEY = SR1.REALM_KEY ");
-		sqlBuf.append("where SRF.FUNCTION_NAME = ? ");
-		sqlBuf.append("and " + inClause2 + ")");
+		sqlBuf.append("SELECT USER_ID ");
+		sqlBuf.append("FROM SAKAI_REALM SR INNER JOIN SAKAI_REALM_RL_GR SRRG ON SR.REALM_KEY = SRRG.REALM_KEY ");
+		sqlBuf.append("INNER JOIN SAKAI_REALM_RL_FN SRRF ON SRRF.ROLE_KEY = SRRG.ROLE_KEY AND SRRF.REALM_KEY = SR.REALM_KEY ");
+		sqlBuf.append("INNER JOIN SAKAI_REALM_FUNCTION SRF ON SRRF.FUNCTION_KEY = SRF.FUNCTION_KEY ");
+		sqlBuf.append("WHERE FUNCTION_NAME = ? and SRRG.ACTIVE = '1' and " + inClause + " ");
 
 		return sqlBuf.toString();
 	}

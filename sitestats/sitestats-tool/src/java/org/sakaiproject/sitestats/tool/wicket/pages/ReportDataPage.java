@@ -26,8 +26,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.Component;
 import org.apache.wicket.request.mapper.parameter.PageParameters;
@@ -54,6 +54,7 @@ import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.sitestats.api.EventStat;
 import org.sakaiproject.sitestats.api.PrefsData;
+import org.sakaiproject.sitestats.api.LessonBuilderStat;
 import org.sakaiproject.sitestats.api.ResourceStat;
 import org.sakaiproject.sitestats.api.SitePresence;
 import org.sakaiproject.sitestats.api.Stat;
@@ -79,7 +80,7 @@ import org.sakaiproject.user.api.UserNotDefinedException;
  */
 public class ReportDataPage extends BasePage {
 	private static final long			serialVersionUID	= 1L;
-	private static Log					LOG					= LogFactory.getLog(ReportDataPage.class);
+	private static Logger					LOG					= LoggerFactory.getLogger(ReportDataPage.class);
 
 	private String						realSiteId;
 	private String						siteId;
@@ -447,6 +448,40 @@ public class ReportDataPage extends BasePage {
 				}
 			});
 		}
+        // lessonbuilder page
+		if(Locator.getFacade().getReportManager().isReportColumnAvailable(reportParams, StatsManager.T_PAGE)) {
+			columns.add(new PropertyColumn(new ResourceModel("th_page"), columnsSortable ? ReportsDataProvider.COL_PAGE : null, ReportsDataProvider.COL_PAGE) {
+				@Override
+				public void populateItem(Item item, String componentId, IModel model) {
+					LessonBuilderStat stat = (LessonBuilderStat) model.getObject();
+					final String ref = stat.getPageRef();
+					String lnkLabel = stat.getPageTitle();
+					String imgUrl = "", lnkUrl = "";
+				    if (lnkLabel == null) {
+					    lnkLabel = (String) new ResourceModel("resource_unknown").getObject();
+					}
+					Component resourceComp = new ImageWithLink(componentId, imgUrl, lnkUrl, lnkLabel, "_new");
+					item.add(resourceComp);
+				}
+			});
+		}
+        // lessonbuilder page action
+		if(Locator.getFacade().getReportManager().isReportColumnAvailable(reportParams, StatsManager.T_PAGE_ACTION)) {
+			columns.add(new PropertyColumn(new ResourceModel("th_action"), columnsSortable ? ReportsDataProvider.COL_ACTION : null, ReportsDataProvider.COL_ACTION) {
+				@Override
+				public void populateItem(Item item, String componentId, IModel model) {
+					final String pageAction = ((LessonBuilderStat) model.getObject()).getPageAction();
+					String action = "";
+					if (pageAction == null){
+						action = "";
+					} else {
+						if (!"".equals(pageAction.trim()))
+							action = (String) new ResourceModel("action_" + pageAction).getObject();
+					}
+					item.add(new Label(componentId, action));
+				}
+			});
+		}
 		if(Locator.getFacade().getReportManager().isReportColumnAvailable(reportParams, StatsManager.T_DATE)) {
 			columns.add(new PropertyColumn(new ResourceModel("th_date"), columnsSortable ? ReportsDataProvider.COL_DATE : null, ReportsDataProvider.COL_DATE));
 		}
@@ -565,12 +600,12 @@ public class ReportDataPage extends BasePage {
 			out.write(hssfWorkbookBytes);
 			out.flush();
 		}catch(IOException e){
-			LOG.error(e);
+			LOG.error(e.getMessage());
 		}finally{
 			try{
 				if(out != null) out.close();
 			}catch(IOException e){
-				LOG.error(e);
+				LOG.error(e.getMessage());
 			}
 		}
 	}
@@ -591,12 +626,12 @@ public class ReportDataPage extends BasePage {
 			out.write(csvString.getBytes());
 			out.flush();
 		}catch(IOException e){
-			LOG.error(e);
+			LOG.error(e.getMessage());
 		}finally{
 			try{
 				if(out != null) out.close();
 			}catch(IOException e){
-				LOG.error(e);
+				LOG.error(e.getMessage());
 			}
 		}
 	}
@@ -617,12 +652,12 @@ public class ReportDataPage extends BasePage {
 			out.write(pdf);
 			out.flush();
 		}catch(IOException e){
-			LOG.error(e);
+			LOG.error(e.getMessage());
 		}finally{
 			try{
 				if(out != null) out.close();
 			}catch(IOException e){
-				LOG.error(e);
+				LOG.error(e.getMessage());
 			}
 		}
 	}

@@ -23,8 +23,8 @@ package org.sakaiproject.calendar.impl;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.SecurityService;
 import org.sakaiproject.calendar.api.Calendar;
 import org.sakaiproject.calendar.api.*;
@@ -66,7 +66,7 @@ public class BaseExternalCalendarSubscriptionService implements
 		ExternalCalendarSubscriptionService
 {
 	/** Logging */
-	private static Log m_log = LogFactory.getLog(BaseExternalCalendarSubscriptionService.class);
+	private static Logger m_log = LoggerFactory.getLogger(BaseExternalCalendarSubscriptionService.class);
 
 	/** Schedule tool ID */
 	private final static String SCHEDULE_TOOL_ID = "sakai.schedule";
@@ -217,7 +217,7 @@ public class BaseExternalCalendarSubscriptionService implements
 	public void init()
 	{
 		// external calendar subscriptions: enable?
-		enabled = m_configurationService.getBoolean(SAK_PROP_EXTSUBSCRIPTIONS_ENABLED, false);
+		enabled = m_configurationService.getBoolean(SAK_PROP_EXTSUBSCRIPTIONS_ENABLED, true);
 		mergeIntoMyworkspace = m_configurationService.getBoolean(SAK_PROP_EXTSUBSCRIPTIONS_MERGEINTOMYWORKSPACE, true); 
 		m_log.info("init(): enabled: " + enabled + ", merge from other sites into My Workspace? "+mergeIntoMyworkspace);
 

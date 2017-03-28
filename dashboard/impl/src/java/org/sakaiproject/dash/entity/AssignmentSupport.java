@@ -30,7 +30,8 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.assignment.api.Assignment;
 import org.sakaiproject.assignment.api.AssignmentService;
 import org.sakaiproject.content.api.ContentResource;
@@ -61,7 +62,7 @@ import org.sakaiproject.util.ResourceLoader;
  */
 public class AssignmentSupport {
 	
-	private static Logger logger = Logger.getLogger(AssignmentSupport.class);
+	private static Logger logger = LoggerFactory.getLogger(AssignmentSupport.class);
 
 	ResourceLoader rl = new ResourceLoader("dash_entity");
 	
@@ -645,14 +646,22 @@ public class AssignmentSupport {
 					// add NewsItem and calendar items
 					nItem = dashboardLogic.createNewsItem(assn.getTitle(), event.getEventTime(), "assignment.added", assnReference, context, sourceType, null);
 				}
-				
+				// if assignment is available
 				if(! dashboardLogic.isAvailable(assnReference, IDENTIFIER))
 				{						
 					// remove all news and calendar links
 					dashboardLogic.removeNewsLinks(assnReference);
 					dashboardLogic.removeCalendarLinks(assnReference);
-					// assignment is not open yet, schedule for check later
-					dashboardLogic.scheduleAvailabilityCheck(assnReference, IDENTIFIER, new Date(assn.getOpenTime().getTime()));
+					// assignment is not open yet, check if the schedule check is made already , if yes then update the new open time else schedule for check later
+					if (dashboardLogic.isScheduleAvailabilityCheckMade(assnReference, IDENTIFIER,
+							new Date(assn.getOpenTime().getTime()))) {
+						dashboardLogic.updateScheduleAvailabilityCheck(assnReference, IDENTIFIER,
+								new Date(assn.getOpenTime().getTime()));
+					} else {
+						dashboardLogic.scheduleAvailabilityCheck(assnReference, IDENTIFIER,
+								new Date(assn.getOpenTime().getTime()));
+					}
+					
 				}
 				else
 				{
@@ -786,6 +795,7 @@ public class AssignmentSupport {
 		{
 
 			dashboardLogic.reviseCalendarItemTime(assnReference, calendarItemLabel, null, calendarItemTime);
+			dashboardLogic.updateScheduleAvailabilityCheck(assnReference, IDENTIFIER, assignmentOpenDate);
 		}
 		else
 		{

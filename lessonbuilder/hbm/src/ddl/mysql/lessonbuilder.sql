@@ -96,6 +96,7 @@
         gradebookPoints double precision,
         owner varchar(99),
         groupOwned bit,
+        owned bit,
         groupid varchar(99),
         cssSheet varchar(250),
         primary key (pageId)
@@ -144,4 +145,12 @@
         deleted bit,
         points double precision,
         primary key (id)
+    );
+
+    create table lesson_builder_ch_status (
+        checklistId bigint not null,
+        checklistItemId bigint not null,
+        owner varchar(36) not null,
+        done bit,
+        primary key (checklistId,checklistItemId,owner)
     );

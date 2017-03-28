@@ -4,7 +4,7 @@
     <parent>
         <artifactId>sections</artifactId>
         <groupId>org.sakaiproject.edu-services.sections</groupId>
-        <version>11-SNAPSHOT</version><!-- ProjectVersion -->
+        <version>12-SNAPSHOT</version><!-- ProjectVersion -->
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <name>sakai-sections-integrationsupport</name>
@@ -20,10 +20,6 @@
         <deploy.target />
     </properties>
     <dependencies>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-core</artifactId>
@@ -109,9 +105,8 @@
             <version>1.0</version>
         </dependency>
         <dependency>
-            <groupId>jta</groupId>
+            <groupId>javax.transaction</groupId>
             <artifactId>jta</artifactId>
-            <version>h2.1.8</version>
         </dependency>
         <dependency>
             <groupId>antlr</groupId>
@@ -140,25 +135,14 @@
         <dependency>
             <groupId>commons-collections</groupId>
             <artifactId>commons-collections</artifactId>
-            <version>3.1</version>
         </dependency>
         <dependency>
             <groupId>commons-digester</groupId>
             <artifactId>commons-digester</artifactId>
-            <version>1.6</version>
         </dependency>
         <dependency>
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>
-            <version>1.7.0</version>
-        </dependency>
-        <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
         </dependency>
         <dependency>
             <groupId>dom4j</groupId>
@@ -179,13 +163,13 @@
         </resources>
         <testResources>
             <testResource>
-                <directory>${basedir}/</directory>
+                <directory>src/test</directory>
                 <includes>
                     <include>log4j.properties</include>
                 </includes>
             </testResource>
             <testResource>
-                <directory>${basedir}/src/test/</directory>
+                <directory>src/test</directory>
                 <includes>
                     <include>hibernate.properties</include>
                 </includes>

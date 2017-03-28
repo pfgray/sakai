@@ -4,7 +4,7 @@
   <parent>
     <artifactId>citations-base</artifactId>
     <groupId>org.sakaiproject</groupId>
-    <version>11-SNAPSHOT</version>
+    <version>12-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <name>sakai-citations-tool</name>
@@ -83,14 +83,18 @@
       <artifactId>sakai-velocity-tool</artifactId>
     </dependency>
     <dependency>
-      <groupId>commons-logging</groupId>
-      <artifactId>commons-logging</artifactId>
-      <version>${sakai.commons-logging.version}</version>
+        <groupId>com.googlecode.json-simple</groupId>
+        <artifactId>json-simple</artifactId>
+        <version>1.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.codehaus.jackson</groupId>
+        <artifactId>jackson-mapper-asl</artifactId>
+        <version>1.8.5</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
-      <version>2.0.1</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -98,7 +102,6 @@
       <artifactId>json-lib</artifactId>
       <version>2.4</version>
       <classifier>jdk15</classifier>
-      <type>jar</type>
     </dependency>
   </dependencies>
   <build>

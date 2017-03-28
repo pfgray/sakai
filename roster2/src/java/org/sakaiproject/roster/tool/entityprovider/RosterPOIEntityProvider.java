@@ -32,13 +32,14 @@ import java.util.Map;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+
 import org.sakaiproject.entitybroker.EntityReference;
 import org.sakaiproject.entitybroker.EntityView;
 import org.sakaiproject.entitybroker.entityprovider.annotations.EntityCustomAction;
@@ -66,7 +67,7 @@ import lombok.Setter;
 public class RosterPOIEntityProvider extends AbstractEntityProvider implements
 		AutoRegisterEntityProvider, ActionsExecutable, RequestAware {
     
-	private static final Log log = LogFactory.getLog(RosterPOIEntityProvider.class);
+	private static final Logger log = LoggerFactory.getLogger(RosterPOIEntityProvider.class);
 	
 	public final static String ENTITY_PREFIX		= "roster-export";
 	public final static String DEFAULT_ID			= ":ID:";
@@ -112,7 +113,7 @@ public class RosterPOIEntityProvider extends AbstractEntityProvider implements
 	public final static boolean DEFAULT_BY_GROUP		= false;
 	
 	// misc
-	public final static String FILE_EXTENSION		= ".xls";
+	public final static String FILE_EXTENSION		= ".xlsx";
 	public final static String FILENAME_SEPARATOR	= "_";
 	public final static String FILENAME_BYGROUP		= "ByGroup";
 	public final static String FILENAME_UNGROUPED	= "Ungrouped";
@@ -166,7 +167,7 @@ public class RosterPOIEntityProvider extends AbstractEntityProvider implements
 	private void addResponseHeader(HttpServletResponse response, String filename) {
 		
 		response.addHeader("Content-Encoding", "base64");
-		response.addHeader("Content-Type", "application/vnd.ms-excel");
+		response.addHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 		response.addHeader("Content-Disposition", "attachment; filename=" + filename);
 	}
 	
@@ -258,7 +259,7 @@ public class RosterPOIEntityProvider extends AbstractEntityProvider implements
 			}
 		}
 
-		Workbook workBook = new HSSFWorkbook();
+		Workbook workBook = new XSSFWorkbook();
 		Sheet sheet = workBook.createSheet();
 
 		for (int i = 0; i < dataInRows.size(); i++) {

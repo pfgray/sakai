@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
 
+import lombok.extern.slf4j.Slf4j;
 import org.sakaiproject.service.gradebook.shared.GradebookService;
 
 /**
@@ -36,6 +37,7 @@ import org.sakaiproject.service.gradebook.shared.GradebookService;
  *
  * @author <a href="mailto:jholtzman@berkeley.edu">Josh Holtzman</a>
  */
+@Slf4j
 public class Assignment extends GradableObject {
 
 	/**
@@ -64,25 +66,27 @@ public class Assignment extends GradableObject {
     public static Comparator releasedComparator;
     public static Comparator countedComparator;
     public static Comparator gradeEditorComparator;
+    public static Comparator categoryComparator;
 
+    // In a table per class hierarchy a subclass cannot have NOT NULL constraints so don't use primitives!
     private Double pointsPossible;
     private Date dueDate;
-    private boolean notCounted;
-    private boolean externallyMaintained;
+    private Boolean notCounted;
+    private Boolean externallyMaintained;
     private String externalStudentLink;
     private String externalInstructorLink;
     private String externalId;
     private String externalAppName;
-    private boolean released;
+    private Boolean released;
     private Category category;
     private Double averageTotal;
-    private boolean ungraded;
+    private Boolean ungraded;
     private Boolean extraCredit = Boolean.FALSE;
 	private Double assignmentWeighting;
 	private Boolean countNullsAsZeros;
 	private String itemType;
 	public String selectedGradeEntryValue;
-	private boolean hideInAllGradesTable = false;
+	private Boolean hideInAllGradesTable = Boolean.FALSE;
 
 	static {
         dateComparator = new Comparator() {
@@ -230,18 +234,81 @@ public class Assignment extends GradableObject {
                 return "Assignment.gradeEditorComparator";
             }
         };
+
+        categoryComparator = new Comparator() {
+            public int compare(Object o1, Object o2) {
+                if(log.isDebugEnabled()) log.debug("Comparing assignment + " + o1 + " to " + o2 + " by category ordering");
+                Assignment one = (Assignment)o1;
+                Assignment two = (Assignment)o2;
+
+                // if categories are null
+                if (one.getCategory() == null && two.getCategory() == null) {
+                    // sort by assignment sort order
+                    if (one.getSortOrder() == null && two.getSortOrder() == null) {
+                        // if no sortOrder, then sort based on id
+                        return one.getId().compareTo(two.getId());
+                    } else if (one.getSortOrder() == null) {
+                        return 1;
+                    } else if (two.getSortOrder() == null) {
+                        return -1;
+                    } else {
+                        return one.getSortOrder().compareTo(two.getSortOrder());
+                    }
+                } else if (one.getCategory() == null) {
+                    return 1;
+                } else if (two.getCategory() == null) {
+                    return -1;
+                }
+
+                // if in the same category, sort by their categorized sort order
+                if (one.getCategory().equals(two.getCategory())) {
+                    // handles null orders by putting them at the end of the list
+                    if (one.getCategorizedSortOrder() == null) {
+                        return 1;
+                    } else if (two.getCategorizedSortOrder() == null) {
+                        return -1;
+                    }
+                    return Integer.compare(one.getCategorizedSortOrder(), two.getCategorizedSortOrder());
+
+                // otherwise, sort by their category order
+                } else {
+                    // check if category has a order (not required)
+                    if (one.getCategory().getCategoryOrder() == null && two.getCategory().getCategoryOrder() == null) {
+                        // both orders are null.. so order by A-Z
+                        if (one.getCategory().getName() == null && two.getCategory().getName() == null) {
+                            // both names are null so order by id
+                            return one.getCategory().getId().compareTo(two.getCategory().getId());
+                        } else if (one.getCategory().getName() == null) {
+                            return 1;
+                        } else if (two.getCategory().getName() == null) {
+                            return -1;
+                        } else {
+                            return one.getCategory().getName().compareTo(two.getCategory().getName());
+                        }
+                    } else if (one.getCategory().getCategoryOrder() == null) {
+                        return 1;
+                    } else if (two.getCategory().getCategoryOrder() == null) {
+                        return -1;
+                    } else {
+                        return one.getCategory().getCategoryOrder().compareTo(two.getCategory().getCategoryOrder());
+                    }
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "Assignment.categoryComparator";
+            }
+        };
+    }
+
+    public Assignment() {
+        this(null, null, null, null, false);
     }
 
     public Assignment(Gradebook gradebook, String name, Double pointsPossible, Date dueDate) {
-        this.gradebook = gradebook;
-        this.name = name;
-        this.pointsPossible = pointsPossible;
-        this.dueDate = dueDate;
-        this.released = true;
-        this.extraCredit = Boolean.FALSE;
-        this.hideInAllGradesTable = false;
+        this(gradebook, name, pointsPossible, dueDate, true);
     }
-
 
     /**
      * constructor to support selective release
@@ -258,13 +325,7 @@ public class Assignment extends GradableObject {
         this.dueDate = dueDate;
         this.released = released;
         this.extraCredit = Boolean.FALSE;
-        this.hideInAllGradesTable = false;
-    }
-
-    public Assignment() {
-    	super();
-    	this.extraCredit = Boolean.FALSE;
-        this.hideInAllGradesTable = false;
+        this.hideInAllGradesTable = Boolean.FALSE;
     }
 
 	/**
@@ -279,7 +340,7 @@ public class Assignment extends GradableObject {
         return true;
     }
     /**
-     * @see org.sakaiproject.tool.gradebook.GradableObject#isCategory()
+     * @see GradableObject#getIsCategory()
      */
     public boolean getIsCategory() {
         return false;
@@ -306,7 +367,7 @@ public class Assignment extends GradableObject {
 	/**
 	 */
 	public boolean isNotCounted() {
-		return notCounted;
+		return notCounted != null ? notCounted : false;
 	}
 	/**
 	 */
@@ -340,7 +401,7 @@ public class Assignment extends GradableObject {
 	 * @return Returns the externallyMaintained.
 	 */
 	public boolean isExternallyMaintained() {
-		return externallyMaintained;
+		return externallyMaintained != null ? externallyMaintained : false;
 	}
 	/**
 	 * @param externallyMaintained The externallyMaintained to set.
@@ -404,7 +465,7 @@ public class Assignment extends GradableObject {
      */
 
     public boolean isReleased() {
-        return released;
+        return released != null ? released : false;
     }
 
     /**
@@ -433,7 +494,7 @@ public class Assignment extends GradableObject {
             }
 
             Double score = null;
-            if(!ungraded && pointsPossible > 0)
+            if(getUngraded() && pointsPossible > 0)
             	score = record.getGradeAsPercentage();
             Double points = record.getPointsEarned();
             if (score == null && points == null || record.getDroppedFromGrade()) {
@@ -456,7 +517,7 @@ public class Assignment extends GradableObject {
         	averageTotal = null;
         } else {
         	BigDecimal bdNumScored = new BigDecimal(numScored);
-        	if(!ungraded && pointsPossible > 0)
+        	if(getUngraded() && pointsPossible > 0)
         	{
         		mean = Double.valueOf(total.divide(bdNumScored, GradebookService.MATH_CONTEXT).doubleValue());
         	}
@@ -492,7 +553,7 @@ public class Assignment extends GradableObject {
 
 		public boolean getUngraded()
 		{
-			return ungraded;
+			return ungraded != null ? ungraded : false;
 		}
 
 		public void setUngraded(boolean ungraded)
@@ -512,10 +573,7 @@ public class Assignment extends GradableObject {
 		}
 		
 		public Boolean isExtraCredit() {
-			if(extraCredit == null){
-				return Boolean.FALSE;
-			}
-			return extraCredit;
+            return extraCredit != null ? extraCredit : false;
 		}
 		
 		public void setExtraCredit(Boolean isExtraCredit) {
@@ -594,20 +652,29 @@ public class Assignment extends GradableObject {
 		 * Convenience method for checking if the grade for the assignment should be included in calculations.
 		 * This is different from just the {@link #isCounted()} method for an assignment.  This method does a more thorough check
 		 * using other values, such as if removed, isExtraCredit, ungraded, etc in addition to the assignment's notCounted property.
+		 * Now also considers category type. If categories are configured (setting 2 or 3), uncategorised items are not counted.
 		 * @return true if grades for this assignment should be included in various calculations.
 		 */
 		public boolean isIncludedInCalculations() {
 			boolean isIncludedInCalculations = false;
-			boolean extraCredit = isExtraCredit()!=null && isExtraCredit();
-    		if (!removed && !ungraded && !notCounted && (extraCredit || (pointsPossible != null && pointsPossible>0)))
-    		{
+			int categoryType = this.gradebook.getCategory_type();
+			
+    		if (!removed &&
+    			!getUngraded() &&
+    			isCounted() &&
+    			(isExtraCredit() || (pointsPossible != null && pointsPossible > 0))) {
     			isIncludedInCalculations = true;
     		}
+    		
+    		if (categoryType != 1 && this.category == null) {
+    			isIncludedInCalculations = false;
+    		}
+    		
 			return isIncludedInCalculations;
 		}
 
 	public boolean isHideInAllGradesTable() {
-		return hideInAllGradesTable;
+		return hideInAllGradesTable != null ? hideInAllGradesTable : false;
 	}
 
 	public void setHideInAllGradesTable(boolean hideInAllGradesTable) {

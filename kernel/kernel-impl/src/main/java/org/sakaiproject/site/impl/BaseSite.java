@@ -33,9 +33,9 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.Vector;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.api.AuthzGroup;
 import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.authz.api.GroupNotDefinedException;
@@ -78,7 +78,7 @@ import org.w3c.dom.NodeList;
 public class BaseSite implements Site
 {
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(BaseSite.class);
+	private static Logger M_log = LoggerFactory.getLogger(BaseSite.class);
 
 	/** A fixed class serian number. */
 	private static final long serialVersionUID = 1L;
@@ -695,12 +695,12 @@ public class BaseSite implements Site
 				.setLazy(((BaseResourceProperties) pOther).isLazy());
 
 		// deep copy the pages, but avoid triggering fetching by passing false to getPages
-		m_pages = new ResourceVector();
-		for (Iterator iPages = other.getPages(false).iterator(); iPages.hasNext();)
-		{
-			BaseSitePage page = (BaseSitePage) iPages.next();
-			m_pages.add(new BaseSitePage(siteService,page, this, exact));
+		List<BaseSitePage> otherPages = new ArrayList<BaseSitePage>(other.getPages(false));
+		List<BaseSitePage> copiedPages = new ArrayList<BaseSitePage>(otherPages.size());
+		for (BaseSitePage page : otherPages) {
+		    copiedPages.add(new BaseSitePage(siteService, page, this, exact));
 		}
+		m_pages = new ResourceVector(copiedPages);
 		m_pagesLazy = other.m_pagesLazy;
 
 		// deep copy the groups, but avoid triggering fetching by passing false to getGroups
@@ -1066,24 +1066,46 @@ public class BaseSite implements Site
 	/**
 	 * {@inheritDoc}
 	 */
-	public Collection getGroupsWithMember(String userId)
+	public Collection<Group> getGroupsWithMember(String userId)
 	{
-		Collection siteGroups = getGroups();
+		Collection<Group> rv = new Vector<Group>();
+		rv = getGroupsWithMembers(new String[] {userId});
+		return rv;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 */
+	public Collection<Group> getGroupsWithMembers(String[] userIds)
+	{
+		Collection<Group> siteGroups = getGroups();
 		ArrayList<String> siteGroupRefs = new ArrayList<String>(siteGroups.size());
 		for ( Iterator it=siteGroups.iterator(); it.hasNext(); )
 			siteGroupRefs.add( ((Group)it.next()).getReference() );
-			
-		List groups = authzGroupService.getAuthzUserGroupIds(siteGroupRefs, userId);
+		
+		List groups = authzGroupService.getAuthzUserGroupIds(siteGroupRefs, userIds[0]);
 		Collection<Group> rv = new Vector<Group>();
+		
 		for (Iterator i = groups.iterator(); i.hasNext();)
 		{
 			Member m = null;
 			Group g = getGroup( (String)i.next() );
 			
 			if ( g != null )
-				m = g.getMember(userId);
-			if ((m != null) && (m.isActive()))
-				rv.add(g);
+			{
+				for (int j=0; j<userIds.length;j++)
+				{
+					m = g.getMember(userIds[j]);
+					if ((m == null) || (!m.isActive()))
+					{
+						break;
+					}
+				}
+				if ((m != null) && (m.isActive()))
+				{
+					rv.add(g);
+				}
+			}
 		}
 
 		return rv;
@@ -1708,6 +1730,25 @@ public class BaseSite implements Site
 	 */
 	public void removeGroup(Group group)
 	{
+		if(group.isLocked()) {
+			M_log.error("Error, cannot remove a locked group");
+			return;
+		}
+		// remove it
+		m_groups.remove(group);
+
+		// track so we can clean up related on commit
+		m_deletedGroups.add(group);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public void deleteGroup(Group group) throws IllegalStateException
+	{
+		if (group.isLocked()) {
+			throw new IllegalStateException("Error, cannot remove group: " + group.getId() + " because it is locked");
+		}
 		// remove it
 		m_groups.remove(group);
 

@@ -25,23 +25,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collection;
-import java.util.Stack;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.sakaiproject.content.api.ContentCollection;
-import org.sakaiproject.content.api.ContentEntity;
-import org.sakaiproject.content.api.ContentHostingHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.content.api.ContentResourceEdit;
 import org.sakaiproject.entity.api.ResourceProperties;
 import org.sakaiproject.entity.api.ResourcePropertiesEdit;
-import org.sakaiproject.exception.InconsistentException;
-import org.sakaiproject.exception.PermissionException;
 import org.sakaiproject.exception.ServerOverloadException;
-import org.sakaiproject.time.api.Time;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
 
 /**
  * MockContentResource
@@ -51,7 +41,7 @@ public class MockContentResource extends MockContentEntity implements ContentRes
 {
 	public static final int STREAM_BUFFER_SIZE = 4096;
 	
-	private static final Log logger = LogFactory.getLog(MockContentResource.class);
+	private static final Logger logger = LoggerFactory.getLogger(MockContentResource.class);
 	
 	
 	protected String collectionId;

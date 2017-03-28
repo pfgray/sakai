@@ -7,16 +7,19 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.tool.assessment.data.dao.shared.TypeD;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemAttachmentIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemMetaDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemFeedbackIfc;
+import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTagIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTextIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.SectionDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
@@ -25,7 +28,7 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 public class ItemData
     implements java.io.Serializable,
     ItemDataIfc, Comparable<ItemDataIfc> {
-  static Logger errorLogger = Logger.getLogger("errorLogger");
+  static Logger errorLogger = LoggerFactory.getLogger("errorLogger");
   static ResourceBundle rb = ResourceBundle.getBundle("org.sakaiproject.tool.assessment.bundle.Messages");
 
   private static final long serialVersionUID = 7526471155622776147L;
@@ -43,6 +46,7 @@ public class ItemData
   private String grade;
   private Double score;
   private Double discount;
+  private Boolean scoreDisplayFlag = Boolean.TRUE;
   private String hint;
   private Boolean hasRationale;
   private Integer status;
@@ -55,23 +59,28 @@ public class ItemData
   private Set<ItemMetaDataIfc> itemMetaDataSet;
   private Set<ItemFeedbackIfc> itemFeedbackSet;
   private Set<ItemAttachmentIfc> itemAttachmentSet;
-
+  private Set<ItemTagIfc> itemTagSet;
+  private Double minScore;
+  private String hash;
+ 
   // for EMI question
   private String themeText;
   private String leadInText;
   private Integer answerOptionsRichCount;
   private Integer answerOptionsSimpleOrRich = ItemDataIfc.ANSWER_OPTIONS_SIMPLE;
+
+  private String tagListToJsonString;
   
 public ItemData() {}
 
   // this constructor should be deprecated, it is missing triesAllowed
   public ItemData(SectionDataIfc section, Integer sequence,
                   Integer duration, String instruction, String description,
-                  Long typeId, String grade, Double score, Double discount, String hint,
+                  Long typeId, String grade, Double score, Boolean scoreDisplayFlag, Double discount, Double minScore, String hint,
                   Boolean hasRationale, Integer status, String createdBy,
                   Date createdDate, String lastModifiedBy,
                   Date lastModifiedDate,
-                  Set<ItemTextIfc> itemTextSet, Set<ItemMetaDataIfc> itemMetaDataSet, Set<ItemFeedbackIfc> itemFeedbackSet, Boolean partialCreditFlag ) {
+                  Set<ItemTextIfc> itemTextSet, Set<ItemMetaDataIfc> itemMetaDataSet, Set<ItemFeedbackIfc> itemFeedbackSet, Boolean partialCreditFlag, String hash) {
     this.section = section;
     this.sequence = sequence;
     this.duration = duration;
@@ -80,6 +89,7 @@ public ItemData() {}
     this.typeId = typeId;
     this.grade = grade;
     this.score = score;
+    this.scoreDisplayFlag = scoreDisplayFlag;
     this.discount = discount;
     this.hint = hint;
     this.hasRationale = hasRationale;
@@ -92,16 +102,19 @@ public ItemData() {}
     this.itemMetaDataSet = itemMetaDataSet;
     this.itemFeedbackSet = itemFeedbackSet;
     this.partialCreditFlag=partialCreditFlag;
+    this.minScore = minScore;
+    this.hash = hash;
+
   }
 
   public ItemData(SectionDataIfc section, Integer sequence,
                   Integer duration, String instruction, String description,
-                  Long typeId, String grade, Double score, Double discount, String hint,
+                  Long typeId, String grade, Double score, Boolean scoreDisplayFlag, Double discount, Double minScore, String hint,
                   Boolean hasRationale, Integer status, String createdBy,
                   Date createdDate, String lastModifiedBy,
                   Date lastModifiedDate,
                   Set<ItemTextIfc> itemTextSet, Set<ItemMetaDataIfc> itemMetaDataSet, Set<ItemFeedbackIfc> itemFeedbackSet,
-                  Integer triesAllowed, Boolean partialCreditFlag) {
+                  Integer triesAllowed, Boolean partialCreditFlag, String hash) {
     this.section = section;
     this.sequence = sequence;
     this.duration = duration;
@@ -110,6 +123,7 @@ public ItemData() {}
     this.typeId = typeId;
     this.grade = grade;
     this.score = score;
+    this.scoreDisplayFlag = scoreDisplayFlag;
     this.discount = discount;
     this.hint = hint;
     this.hasRationale = hasRationale;
@@ -123,6 +137,8 @@ public ItemData() {}
     this.itemFeedbackSet = itemFeedbackSet;
     this.triesAllowed = triesAllowed;
     this.partialCreditFlag=partialCreditFlag;
+    this.minScore = minScore;
+    this.hash = hash;
   }
 
     /*
@@ -298,6 +314,17 @@ public ItemData() {}
     this.score = score;
   }
 
+  public Boolean getScoreDisplayFlag(){
+	  if (this.scoreDisplayFlag == null) {
+		  return Boolean.TRUE;
+	  }
+	  return this.scoreDisplayFlag;
+  }
+  
+  public void setScoreDisplayFlag(Boolean scoreDisplayFlag){
+	  this.scoreDisplayFlag = scoreDisplayFlag;
+  }
+  
   public Double getDiscount() {
 	  if (this.discount==null){
 		  this.discount=Double.valueOf(0);
@@ -385,12 +412,24 @@ public ItemData() {}
     this.itemMetaDataSet = itemMetaDataSet;
   }
 
+  public Set<ItemTagIfc> getItemTagSet() { return itemTagSet; }
+
+  public void setItemTagSet(Set<ItemTagIfc> itemTagSet) { this.itemTagSet = itemTagSet; this.tagListToJsonString = convertTagListToJsonString(itemTagSet);}
+
   public Set<ItemFeedbackIfc> getItemFeedbackSet() {
     return itemFeedbackSet;
   }
 
   public void setItemFeedbackSet(Set<ItemFeedbackIfc> itemFeedbackSet) {
     this.itemFeedbackSet = itemFeedbackSet;
+  }
+
+  public String getHash() {
+    return this.hash;
+  }
+
+  public void setHash(String hash) {
+    this.hash = hash;
   }
 
   private void writeObject(java.io.ObjectOutputStream out) throws IOException {
@@ -464,6 +503,9 @@ public ItemData() {}
   }
 
   public String getItemFeedback(String typeId) {
+	  if ( this.itemFeedbackSet == null || this.itemFeedbackSet.isEmpty() ) {
+		  return null;
+	  }
 	  for (Iterator<ItemFeedbackIfc> i = this.itemFeedbackSet.iterator(); i.hasNext(); ) {
 		  ItemFeedback itemFeedback = (ItemFeedback) i.next();
 		  if (itemFeedback.getTypeId().equals(typeId)) {
@@ -556,6 +598,7 @@ public ItemData() {}
      String text = "";
      if (getTypeId().equals(TypeIfc.MATCHING) 
              || getTypeId().equals(TypeIfc.CALCULATED_QUESTION)
+             || getTypeId().equals(TypeIfc.IMAGEMAP_QUESTION)
              || getTypeId().equals(TypeIfc.MATRIX_CHOICES_SURVEY))
        return instruction;
      Set<ItemTextIfc> set = this.getItemTextSet();
@@ -675,7 +718,7 @@ public ItemData() {}
 		   AnswerIfc a = answers.get(j);
 		   if (!this.getPartialCreditFlag() && (Boolean.TRUE).equals(a.getIsCorrect())){
 			   String pair = (String)h.get(a.getLabel());
-			   if(!this.getTypeId().equals(TypeD.MATCHING))
+			   if((!this.getTypeId().equals(TypeD.MATCHING))&&(!this.getTypeId().equals(TypeD.IMAGEMAP_QUESTION)))
 			   {
 				   if(this.getTypeId().equals(TypeD.TRUE_FALSE))
 				   {
@@ -693,7 +736,7 @@ public ItemData() {}
 					   }
 				   }
 			   }
-			   else{
+			   else if (this.getTypeId().equals(TypeD.MATCHING)){
 				   if (pair==null)
 				   {
 					   String s = a.getLabel() + ":" + text.getSequence();
@@ -768,7 +811,7 @@ public ItemData() {}
     
    if(wyzText!=null){
       int index=0;
-      String t=(wyzText.replaceAll("<.*?>", " ")).trim();
+      String t=(wyzText.replaceAll("(?i)<(?!img|/img).*?>", " ")).trim();
       while(index<t.length()){ 
         char c=t.charAt(index);
         if(Character.isLetterOrDigit(c)){
@@ -789,15 +832,60 @@ public ItemData() {}
   }
 
   public List<ItemAttachmentIfc> getItemAttachmentList() {
-    ArrayList<ItemAttachmentIfc> list = new ArrayList<ItemAttachmentIfc>();
-    if (itemAttachmentSet !=null ){
-      Iterator<ItemAttachmentIfc> iter = itemAttachmentSet.iterator();
-      while (iter.hasNext()){
-        ItemAttachmentIfc a = iter.next();
-        list.add(a);
+    if ( this.itemAttachmentSet == null || this.itemAttachmentSet.isEmpty() ) {
+      return new ArrayList<>();
+    }
+    return new ArrayList<>(this.itemAttachmentSet);
+  }
+
+  public Map<Long, ItemAttachmentIfc> getItemAttachmentMap() {
+    final Map<Long, ItemAttachmentIfc> map = new HashMap<>();
+    if ( this.itemAttachmentSet == null || this.itemAttachmentSet.isEmpty() ) {
+      return map;
+    }
+    for (ItemAttachmentIfc a : this.itemAttachmentSet) {
+      map.put(a.getAttachmentId(), a);
+    }
+    return map;
+  }
+
+  public void addItemAttachment(ItemAttachmentIfc attachment) {
+    if ( attachment == null ) {
+      return;
+    }
+    if ( this.itemAttachmentSet == null ) {
+      this.itemAttachmentSet = new HashSet<>();
+    }
+    attachment.setItem(this);
+    this.itemAttachmentSet.add(attachment);
+  }
+
+  public void removeItemAttachmentById(Long attachmentId) {
+    if ( attachmentId == null ) {
+      return;
+    }
+    if ( this.itemAttachmentSet == null || this.itemAttachmentSet.isEmpty() ) {
+      return;
+    }
+    Iterator i = this.itemAttachmentSet.iterator();
+    while ( i.hasNext() ) {
+      final ItemAttachmentIfc a = (ItemAttachmentIfc)i.next();
+      if ( attachmentId.equals(a.getAttachmentId()) ) {
+        i.remove();
+        a.setItem(null);
       }
     }
-    return list;
+  }
+
+  public void removeItemAttachment(ItemAttachmentIfc attachment) {
+    if ( attachment == null ) {
+      return;
+    }
+    attachment.setItem(null);
+    if ( this.itemAttachmentSet == null || this.itemAttachmentSet.isEmpty() ) {
+      return;
+    }
+    this.itemAttachmentSet.remove(attachment);
   }
 
   public Boolean getPartialCreditFlag() {
@@ -1044,5 +1132,46 @@ public ItemData() {}
 		  return "width:" + width + "%";
 	  else
 		  return "";
+  }
+  public String getImageMapSrc() {
+	  return getItemMetaDataByLabel(ItemMetaDataIfc.IMAGE_MAP_SRC);	  
+  }
+
+  public Double getMinScore() {
+         return minScore;
+ }
+	  	 
+  public void setMinScore(Double minScore) {
+        this.minScore = minScore;
+  }
+
+  private String convertTagListToJsonString(Set<ItemTagIfc> itemTagSet) {
+
+    String tagsListToJson = "[";
+    if (itemTagSet != null) {
+      Iterator<ItemTagIfc> i = itemTagSet.iterator();
+      Boolean more = false;
+      while (i.hasNext()) {
+        if (more) {
+          tagsListToJson += ",";
+        }
+        ItemTagIfc tagToShow = (ItemTagIfc) i.next();
+        String tagId = tagToShow.getTagId();
+        String tagLabel = tagToShow.getTagLabel();
+        String tagCollectionName = tagToShow.getTagCollectionName();
+        tagsListToJson += "{\"tagId\":\"" + tagId + "\",\"tagLabel\":\"" + tagLabel + "\",\"tagCollectionName\":\"" + tagCollectionName + "\"}";
+        more = true;
+      }
+    }
+    tagsListToJson += "]";
+    return tagsListToJson;
+  }
+
+  public String getTagListToJsonString() {
+    return this.tagListToJsonString;
+  }
+
+  public void setTagListToJsonString(String tagListToJsonString) {
+    this.tagListToJsonString = tagListToJsonString;
   }
 }

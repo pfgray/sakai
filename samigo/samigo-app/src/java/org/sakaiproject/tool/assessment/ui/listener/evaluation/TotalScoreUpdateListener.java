@@ -30,6 +30,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.faces.application.FacesMessage;
 import javax.faces.context.FacesContext;
@@ -38,18 +41,28 @@ import javax.faces.event.ActionEvent;
 import javax.faces.event.ActionListener;
 
 import org.apache.commons.beanutils.BeanUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.commons.math.util.MathUtils;
-import org.sakaiproject.event.cover.EventTrackingService;
+import org.apache.commons.math3.util.Precision;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sakaiproject.component.cover.ComponentManager;
+import org.sakaiproject.event.api.EventTrackingService;
+import org.sakaiproject.event.api.NotificationService;
+import org.sakaiproject.samigo.util.SamigoConstants;
+import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedAssessmentData;
+import org.sakaiproject.tool.assessment.data.dao.grading.AssessmentGradingAttachment;
 import org.sakaiproject.tool.assessment.data.dao.grading.AssessmentGradingData;
+import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingAttachment;
+import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingData;
+import org.sakaiproject.tool.assessment.data.ifc.assessment.AttachmentIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.EvaluationModelIfc;
 import org.sakaiproject.tool.assessment.facade.AgentFacade;
 import org.sakaiproject.tool.assessment.services.GradebookServiceException;
 import org.sakaiproject.tool.assessment.services.GradingService;
 import org.sakaiproject.tool.assessment.ui.bean.evaluation.AgentResults;
+import org.sakaiproject.tool.assessment.ui.bean.evaluation.QuestionScoresBean;
 import org.sakaiproject.tool.assessment.ui.bean.evaluation.TotalScoresBean;
 import org.sakaiproject.tool.assessment.ui.listener.util.ContextUtil;
+import org.sakaiproject.tool.assessment.util.SamigoLRSStatements;
 import org.sakaiproject.tool.assessment.util.TextFormat;
 
 /**
@@ -66,7 +79,9 @@ import org.sakaiproject.tool.assessment.util.TextFormat;
 public class TotalScoreUpdateListener
   implements ActionListener
 {
-  private static Log log = LogFactory.getLog(TotalScoreUpdateListener.class);
+  private static Logger log = LoggerFactory.getLogger(TotalScoreUpdateListener.class);
+  private final EventTrackingService eventTrackingService= ComponentManager.get( EventTrackingService.class );
+
   
   /**
    * Standard process action method.
@@ -87,8 +102,8 @@ public class TotalScoreUpdateListener
 
   }
 
-  private HashMap prepareAssessmentGradingHash(ArrayList assessmentGradingList){
-    HashMap map = new HashMap();
+  private Map prepareAssessmentGradingHash(List assessmentGradingList){
+    Map map = new HashMap();
     for (int i=0; i<assessmentGradingList.size(); i++){
       AssessmentGradingData a = (AssessmentGradingData)assessmentGradingList.get(i);
       map.put(a.getAssessmentGradingId(), a);
@@ -105,11 +120,11 @@ public class TotalScoreUpdateListener
   public boolean saveTotalScores(TotalScoresBean bean)
   {
 
-      ArrayList assessmentGradingList = bean.getAssessmentGradingList();
-      HashMap map = prepareAssessmentGradingHash(assessmentGradingList);
+      List assessmentGradingList = bean.getAssessmentGradingList();
+      Map map = prepareAssessmentGradingHash(assessmentGradingList);
       Collection agents = bean.getAgents();
       Iterator iter = agents.iterator();
-      ArrayList grading = new ArrayList();
+      List <AssessmentGradingData> grading = new ArrayList();
       boolean hasNumberFormatException = false;
       StringBuffer idList = new StringBuffer(" ");
   	  String err = "";
@@ -119,7 +134,7 @@ public class TotalScoreUpdateListener
   	  if(applyToUngraded != null && !"".equals(applyToUngraded)){
   		  try{
   			  Double.valueOf(applyToUngraded).doubleValue();
-  			  ArrayList allAgents = bean.getAllAgentsDirect();
+  			  List allAgents = bean.getAllAgentsDirect();
   			  iter = allAgents.iterator();
   			  while(iter.hasNext()){
   				  AgentResults agentResults = (AgentResults) iter.next();
@@ -149,7 +164,7 @@ public class TotalScoreUpdateListener
   	  else {
   		  err = (String) ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.EvaluationMessages", "number_format_error_user_id");
   	  }
-  	  ArrayList badAdjList = new ArrayList();
+  	  List badAdjList = new ArrayList();
   	  
   	  while (iter.hasNext())
   	  {
@@ -157,7 +172,7 @@ public class TotalScoreUpdateListener
   		  StringBuilder newScoreString = new StringBuilder();
   		  boolean update = false;
   		  try {
-  			  update = needUpdate(agentResults, map, newScoreString);     
+  			  update = needUpdate(agentResults, map, newScoreString, bean);     
   		  }
   		  catch (NumberFormatException e) {
   			  hasNumberFormatException = true;
@@ -258,13 +273,17 @@ public class TotalScoreUpdateListener
       
       GradingService delegate = new GradingService();
       try {
-    	  delegate.saveTotalScores(grading, bean.getPublishedAssessment());
+    	  PublishedAssessmentData publishedAssessment = bean.getPublishedAssessment();
+    	  delegate.saveTotalScores(grading, publishedAssessment);
     	  StringBuffer logString = new StringBuffer();
     	  logString.append("gradedBy=");
           logString.append(AgentFacade.getAgentString());
     	  logString.append(", publishedAssessmentId=");
-    	  logString.append(bean.getPublishedAssessment().getPublishedAssessmentId());
-    	  EventTrackingService.post(EventTrackingService.newEvent("sam.total.score.update", "siteId=" + AgentFacade.getCurrentSiteId() + ", " + logString.toString(), true));
+    	  logString.append(publishedAssessment.getPublishedAssessmentId());
+    	  //Log details for each event
+    	  for (AssessmentGradingData data: grading) { 
+    		  eventTrackingService.post(eventTrackingService.newEvent(SamigoConstants.EVENT_ASSESSMENT_TOTAL_SCORE_UPDATE, "siteId=" + AgentFacade.getCurrentSiteId() + ", " + logString.toString(), AgentFacade.getCurrentSiteId(), true,  NotificationService.NOTI_OPTIONAL, SamigoLRSStatements.getStatementForTotalScoreUpdate(data, publishedAssessment)));
+    	  }
     	  log.debug("Saved total scores.");
       } catch (GradebookServiceException ge) {
     	  FacesContext context = FacesContext.getCurrentInstance();
@@ -277,7 +296,7 @@ public class TotalScoreUpdateListener
       return true;
   }
 
-  private boolean needUpdate(AgentResults agentResults, HashMap map, StringBuilder newScoreString) throws NumberFormatException{
+  private boolean needUpdate(AgentResults agentResults, Map map, StringBuilder newScoreString, TotalScoresBean bean) throws NumberFormatException{
     boolean update = true;
     String newComments = TextFormat.convertPlaintextToFormattedTextNoHighUnicode(log, agentResults.getComments());
     agentResults.setComments(newComments);
@@ -324,7 +343,7 @@ public class TotalScoreUpdateListener
       log.debug("***newIsLate = " + newIsLate);
       log.debug("***oldComments = " + oldComments);
       log.debug("***newComments = " + newComments);
-      if (MathUtils.equalsIncludingNaN(oldScore, newScore, 0.0001) && newIsLate.equals(oldIsLate) && 
+      if (Precision.equalsIncludingNaN(oldScore, newScore, 0.0001) && newIsLate.equals(oldIsLate) && 
     		  ((newComments!=null && newComments.equals(oldComments)) 
         		   || (newComments==null && oldComments==null)
         		   // following condition will happen when there is no comments (null) and user clicks on SubmissionId.
@@ -334,6 +353,8 @@ public class TotalScoreUpdateListener
         		   ) {
         update = false;
       }
+      boolean attachUpdated = updateAttachment(old, agentResults);
+      bean.setIsAnyAssessmentGradingAttachmentListModified(attachUpdated);
     }
     else{ // no assessmentGradingData exists
     	boolean noOverrideScore =  false;
@@ -368,7 +389,57 @@ public class TotalScoreUpdateListener
     	if (noOverrideScore && noComment) 
     		update = false;
     }
+        
     return update;
   }
+
+  private boolean updateAttachment(AssessmentGradingData assessmentGradingData, AgentResults agentResults) {
+	  List<AssessmentGradingAttachment> oldList = assessmentGradingData.getAssessmentGradingAttachmentList();
+	  List<AssessmentGradingAttachment> newList = agentResults.getAssessmentGradingAttachmentList();
+	  if ((oldList == null || oldList.size() == 0 ) && (newList == null || newList.size() == 0)) return false;
+	  List<AssessmentGradingAttachment> attachmentList = new ArrayList<>();
+	  Map<Long, AssessmentGradingAttachment> map = getAttachmentIdHash(oldList);
+	  for (int i=0; i<newList.size(); i++){
+		  AssessmentGradingAttachment assessmentGradingAttachment = (AssessmentGradingAttachment) newList.get(i);
+		  if (map.get(assessmentGradingAttachment.getAttachmentId()) != null){
+			  // exist already, remove it from map
+			  map.remove(assessmentGradingAttachment.getAttachmentId());
+		  }
+		  else{
+			  // new attachments
+			  assessmentGradingAttachment.setAssessmentGrading(assessmentGradingData);
+			  assessmentGradingAttachment.setAttachmentType(AttachmentIfc.ASSESSMENTGRADING_ATTACHMENT);
+			  attachmentList.add(assessmentGradingAttachment);
+		  }
+	  }      
+	  // save new ones
+	  GradingService gradingService = new GradingService();
+	  if (attachmentList.size() > 0) {
+			gradingService.saveOrUpdateAttachments(attachmentList);
+			eventTrackingService.post(eventTrackingService.newEvent(SamigoConstants.EVENT_ASSESSMENT_TOTAL_SCORE_UPDATE, 
+					"siteId=" + AgentFacade.getCurrentSiteId() + ", Adding " + attachmentList.size() + " attachments for itemGradingData id = " + assessmentGradingData.getAssessmentGradingId(), 
+					true));
+		}
+
+	  // remove old ones
+	  Set set = map.keySet();
+	  Iterator iter = set.iterator();
+	  while (iter.hasNext()){
+		  Long attachmentId = (Long)iter.next();
+		  gradingService.removeAssessmentGradingAttachment(attachmentId.toString());
+		  eventTrackingService.post(eventTrackingService.newEvent(SamigoConstants.EVENT_ASSESSMENT_TOTAL_SCORE_UPDATE, 
+				  "siteId=" + AgentFacade.getCurrentSiteId() + ", Removing attachmentId = " + attachmentId, true));
+	  }
+	  return true;
+  	}
+  	
+  	private Map<Long, AssessmentGradingAttachment> getAttachmentIdHash(List<AssessmentGradingAttachment> list){
+	    Map<Long, AssessmentGradingAttachment> map = new HashMap<>();
+	    for (int i=0; i<list.size(); i++){
+	    	AssessmentGradingAttachment a = list.get(i);
+	      map.put(a.getAttachmentId(), a);
+	    }
+	    return map;
+	}
 
 }

@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.api.app.messageforums.Area;
 import org.sakaiproject.api.app.messageforums.AreaManager;
 import org.sakaiproject.api.app.messageforums.DBMembershipItem;
@@ -39,6 +39,7 @@ import org.sakaiproject.api.app.messageforums.DiscussionTopic;
 import org.sakaiproject.api.app.messageforums.MessageForumsTypeManager;
 import org.sakaiproject.api.app.messageforums.PermissionLevelManager;
 import org.sakaiproject.api.app.messageforums.PermissionManager;
+import org.sakaiproject.api.app.messageforums.Topic;
 import org.sakaiproject.api.app.messageforums.ui.DiscussionForumManager;
 import org.sakaiproject.api.app.messageforums.ui.UIPermissionsManager;
 import org.sakaiproject.authz.api.AuthzGroupService;
@@ -62,8 +63,7 @@ import org.sakaiproject.user.cover.UserDirectoryService;
  * @author <a href="mailto:rshastri@iupui.edu">Rashmi Shastri</a>
  */
 public class UIPermissionsManagerImpl implements UIPermissionsManager {
-  private static final Log LOG = LogFactory
-      .getLog(UIPermissionsManagerImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(UIPermissionsManagerImpl.class);
 
   // dependencies
   private AuthzGroupService authzGroupService;
@@ -108,11 +108,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public void setAuthzGroupService(AuthzGroupService authzGroupService)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("setAuthzGroupService(AuthzGroupService " + authzGroupService
-          + ")");
-    }
+    LOG.debug("setAuthzGroupService(AuthzGroupService {})", authzGroupService);
     this.authzGroupService = authzGroupService;
   }
 
@@ -122,10 +118,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public void setSessionManager(SessionManager sessionManager)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("setSessionManager(SessionManager " + sessionManager + ")");
-    }
+    LOG.debug("setSessionManager(SessionManager {})", sessionManager);
     this.sessionManager = sessionManager;
   }
 
@@ -135,10 +128,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public void setToolManager(ToolManager toolManager)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("setToolManager(ToolManager " + toolManager + ")");
-    }
+    LOG.debug("setToolManager(ToolManager {})", toolManager);
     this.toolManager = toolManager;
   }
 
@@ -148,11 +138,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public void setPermissionManager(PermissionManager permissionManager)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("setPermissionManager(PermissionManager " + permissionManager
-          + ")");
-    }
+    LOG.debug("setPermissionManager(PermissionManager {})", permissionManager);
     this.permissionManager = permissionManager;
   }
 
@@ -162,10 +148,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public void setTypeManager(MessageForumsTypeManager typeManager)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("setTypeManager(MessageForumsTypeManager " + typeManager + ")");
-    }
+    LOG.debug("setTypeManager(MessageForumsTypeManager {})", typeManager);
     this.typeManager = typeManager;
   }
 
@@ -175,10 +158,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public void setSecurityService(SecurityService securityService)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("setSecurityService(SecurityService" + securityService + ")");
-    }
+    LOG.debug("setSecurityService(SecurityService {})", securityService);
     this.securityService = securityService;
   }
 
@@ -220,10 +200,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   public boolean isChangeSettings(DiscussionForum forum)
   {
 
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isChangeSettings(DiscussionForum " + forum + ")");
-    }
+    LOG.debug("isChangeSettings(DiscussionForum {})", forum);
     if (isSuperUser())
     {
       return true;
@@ -261,10 +238,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public boolean isNewTopic(DiscussionForum forum)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isNewTopic(DiscussionForum " + forum + ")");
-    }
+    LOG.debug("isNewTopic(DiscussionForum {})", forum);
     if (isSuperUser())
     {
       return true;
@@ -299,11 +273,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   }
   
   public boolean isNewResponse(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId){
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isNewResponse(DiscussionTopic " + topic + "), DiscussionForum"
-          + forum + "");
-    }
+    LOG.debug("isNewResponse(DiscussionTopic {}), DiscussionForum {}", topic, forum);
 
     try
     {
@@ -344,13 +314,8 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
 	return isNewResponseToResponse(topic, forum, getCurrentUserId(), getContextId());
   }
   
-  public boolean isNewResponseToResponse(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId)
-		  {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isNewResponseToResponse(DiscussionTopic " + topic
-          + " , DiscussionForum" + forum + ") ");
-    }
+  public boolean isNewResponseToResponse(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId) {
+    LOG.debug("isNewResponseToResponse(DiscussionTopic {}, DiscussionForum {})", topic, forum);
 
     try
     {
@@ -387,11 +352,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public boolean isMovePostings(DiscussionTopic topic, DiscussionForum forum)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isMovePostings(DiscussionTopic " + topic
-          + "), DiscussionForum" + forum + "");
-    }
+    LOG.debug("isMovePostings(DiscussionTopic {}), DiscussionForum {}", topic, forum);
 
     try
     {
@@ -435,11 +396,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   
   public boolean isChangeSettings(DiscussionTopic topic, DiscussionForum forum, String userId)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isChangeSettings(DiscussionTopic " + topic
-          + "), DiscussionForum" + forum + "");
-    }
+    LOG.debug("isChangeSettings(DiscussionTopic {}), DiscussionForum {}", topic, forum);
     if (isSuperUser(userId))
     {
       return true;
@@ -498,11 +455,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   
   public boolean isPostToGradebook(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isPostToGradebook(DiscussionTopic " + topic
-          + ", DiscussionForum" + forum + ")");
-    }
+    LOG.debug("isPostToGradebook(DiscussionTopic {}, DiscussionForum {})", topic, forum);
 
     try
     {
@@ -554,11 +507,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   
   public boolean isRead(DiscussionTopic topic, DiscussionForum forum, String userId, String siteId)
   {
-	  if (LOG.isDebugEnabled())
-	  {
-		  LOG.debug("isRead(DiscussionTopic " + topic + ", DiscussionForum" + forum
-				  + ")");
-	  }
+      LOG.debug("isRead(DiscussionTopic {}, DiscussionForum {})", topic, forum);
 	  return isRead(topic.getId(), topic.getDraft(), forum.getDraft(), userId, siteId);
   }
   
@@ -604,11 +553,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   }
   
   public boolean isReviseAny(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId){
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isReviseAny(DiscussionTopic " + topic + ", DiscussionForum"
-          + forum + ")");
-    }
+      LOG.debug("isReviseAny(DiscussionTopic {}, DiscussionForum {})", topic, forum);
     try
     {
       if (checkBaseConditions(topic, forum, userId, contextId))
@@ -617,12 +562,12 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
       }
        if (topic.getLocked() == null || topic.getLocked().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is locked " + topic);
+      LOG.debug("This topic is locked {}", topic);
       return false;
     }
     if (topic.getDraft() == null || topic.getDraft().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is at draft stage " + topic);
+      LOG.debug("This topic is at draft stage {}", topic);
     }
       Iterator iter = getTopicItemsByUser(topic, userId, contextId);
       while (iter.hasNext())
@@ -657,11 +602,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   }
   
   public boolean isReviseOwn(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId){
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isReviseOwn(DiscussionTopic " + topic + ", DiscussionForum"
-          + forum + ")");
-    }
+    LOG.debug("isReviseOwn(DiscussionTopic {}, DiscussionForum {})", topic, forum);
     if (checkBaseConditions(topic, forum, userId, contextId))
     {
       return true;
@@ -675,12 +616,12 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
       
        if (topic.getLocked() == null || topic.getLocked().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is locked " + topic);
+      LOG.debug("This topic is locked {}", topic);
       return false;
     }
     if (topic.getDraft() == null || topic.getDraft().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is at draft stage " + topic);
+      LOG.debug("This topic is at draft stage {}", topic);
     }
       Iterator iter = getTopicItemsByUser(topic, userId, contextId);
       while (iter.hasNext())
@@ -715,11 +656,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   }
   
   public boolean isDeleteAny(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId){
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isDeleteAny(DiscussionTopic " + topic + ", DiscussionForum"
-          + forum + ")");
-    }
+    LOG.debug("isDeleteAny(DiscussionTopic {}, DiscussionForum {})", topic, forum);
     if (checkBaseConditions(topic, forum, userId, contextId))
     {
       return true;
@@ -732,12 +669,12 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
       }
         if (topic.getLocked() == null || topic.getLocked().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is locked " + topic);
+      LOG.debug("This topic is locked {}", topic);
       return false;
     }
     if (topic.getDraft() == null || topic.getDraft().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is at draft stage " + topic);
+      LOG.debug("This topic is at draft stage {}", topic);
     }
       Iterator iter = getTopicItemsByUser(topic, userId, contextId);
       while (iter.hasNext())
@@ -772,11 +709,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   }
   
   public boolean isDeleteOwn(DiscussionTopic topic, DiscussionForum forum, String userId, String contextId){
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isDeleteOwn(DiscussionTopic " + topic + ", DiscussionForum"
-          + forum + ")");
-    }
+    LOG.debug("isDeleteOwn(DiscussionTopic {}, DiscussionForum {})", topic, forum);
     if (checkBaseConditions(topic, forum, userId, contextId))
     {
       return true;
@@ -789,12 +722,12 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
       }
         if (topic.getLocked() == null || topic.getLocked().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is locked " + topic);
+      LOG.debug("This topic is locked {}", topic);
       return false;
     }
     if (topic.getDraft() == null || topic.getDraft().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is at draft stage " + topic);
+      LOG.debug("This topic is at draft stage {}", topic);
     }
       Iterator iter = getTopicItemsByUser(topic, userId, contextId);
       while (iter.hasNext())
@@ -825,11 +758,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   public boolean isMarkAsRead(DiscussionTopic topic, DiscussionForum forum)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isMarkAsRead(DiscussionTopic " + topic + ", DiscussionForum"
-          + forum + ")");
-    }
+      LOG.debug("isMarkAsRead(DiscussionTopic {}, DiscussionForum {})", topic, forum);
     if (checkBaseConditions(topic, forum))
     {
       return true;
@@ -837,12 +766,12 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
 
     if (topic.getLocked() == null || topic.getLocked().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is locked " + topic);
+      LOG.debug("This topic is locked {}", topic);
       return false;
     }
     if (topic.getDraft() == null || topic.getDraft().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is at draft stage " + topic);
+      LOG.debug("This topic is at draft stage {}", topic);
     }
     try
     {
@@ -852,12 +781,12 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
       }
         if (topic.getLocked() == null || topic.getLocked().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is locked " + topic);
+      LOG.debug("This topic is locked {}", topic);
       return false;
     }
     if (topic.getDraft() == null || topic.getDraft().equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is at draft stage " + topic);
+      LOG.debug("This topic is at draft stage {}", topic);
     }
       Iterator iter = getTopicItemsByCurrentUser(topic);
       while (iter.hasNext())
@@ -918,7 +847,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
       
     if (isTopicDraft == null || isTopicDraft.equals(Boolean.TRUE))
     {
-      LOG.debug("This topic is at draft stage " + topicId);
+      LOG.debug("This topic is at draft stage {}", topicId);
     }
       Iterator iter = getTopicItemsByUser(topicId, userId, siteId);
       while (iter.hasNext())
@@ -938,6 +867,34 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
       LOG.error(e.getMessage(), e);
       return false;
     }
+    return false;
+  }
+
+  public boolean isIdentifyAnonAuthors(Topic topic)
+  {
+    String currentUserId = getCurrentUserId();
+    if (isSuperUser(currentUserId))
+    {
+      return true;
+    }
+
+    try
+    {
+      Iterator iter = getTopicItemsByUser(topic.getId(), currentUserId, getContextId());
+      while (iter.hasNext())
+      {
+        DBMembershipItem item = (DBMembershipItem) iter.next();
+        if (item.getPermissionLevel().getIdentifyAnonAuthors())
+        {
+          return true;
+        }
+      }
+    }
+    catch (Exception e)
+    {
+      LOG.error(e.getMessage(), e);
+    }
+
     return false;
   }
   
@@ -1039,11 +996,8 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   
   private Iterator getAreaItemsByCurrentUser()
   { 
-  	if (LOG.isDebugEnabled())
-    {
-      LOG.debug("getAreaItemsByCurrentUser()");
-    }	 
-  	
+    LOG.debug("getAreaItemsByCurrentUser()");
+
   	List areaItems = new ArrayList();
   	
 		if (ThreadLocalManager.get("message_center_permission_set") == null || !((Boolean)ThreadLocalManager.get("message_center_permission_set")).booleanValue())
@@ -1368,10 +1322,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
    */
   private boolean isInstructor(User user)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isInstructor(User " + user + ")");
-    }
+    LOG.debug("isInstructor(User {})", user);
     if (user != null)
       return securityService.unlock(user, "site.upd", getContextSiteId());
     else
@@ -1504,11 +1455,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   private boolean checkBaseConditions(DiscussionTopic topic,
 		  DiscussionForum forum, String userId, String contextSiteId)
   {
-	if (LOG.isDebugEnabled())
-    {
-      LOG.debug("checkBaseConditions(DiscussionTopic " + topic
-          + ", DiscussionForum " + forum + ")");
-    }
+    LOG.debug("checkBaseConditions(DiscussionTopic {}, DiscussionForum {})", topic, forum);
     if (isSuperUser(userId))
     {
       return true;
@@ -1518,10 +1465,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
   
   private boolean isRoleMember(String roleId)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("isRoleMember(String " + roleId + ")");
-    }
+    LOG.debug("isRoleMember(String {})", roleId);
     if (getCurrentUserRole().equals(roleId))
     {
       return true;
@@ -1531,11 +1475,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
 
   private boolean isGroupMember(String groupId)
   {
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("setAuthzGroupService(AuthzGroupService " + authzGroupService
-          + ")");
-    }
+    LOG.debug("setAuthzGroupService(AuthzGroupService {})", authzGroupService);
     try
     {
       Site site = SiteService.getSite(toolManager.getCurrentPlacement().getContext());
@@ -1551,7 +1491,7 @@ public class UIPermissionsManagerImpl implements UIPermissionsManager {
     }
     catch (IdUnusedException e)
     {
-      LOG.debug("Group with id " + groupId + " not found");
+      LOG.debug("Group with id {} not found", groupId);
       return false;
     }
 

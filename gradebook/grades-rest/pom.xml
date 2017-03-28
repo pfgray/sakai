@@ -16,9 +16,14 @@
     <parent>
       <artifactId>gradebook-base</artifactId>
       <groupId>org.sakaiproject</groupId>
-      <version>11-SNAPSHOT</version>
+      <version>12-SNAPSHOT</version>
       <relativePath>../pom.xml</relativePath>
     </parent>
+
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
+    </properties>
 
     <dependencies>
 
@@ -78,13 +83,6 @@
             <artifactId>joda-time</artifactId>
             <version>${joda.time.version}</version>
         </dependency>
-
-        <!-- Sakai uses apache commons logging -->
-        <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-        </dependency>
-
     </dependencies>
 
     <build>
@@ -171,6 +169,7 @@
                         <exclude>m2-target/**</exclude>
                         <exclude>**/*.properties</exclude>
                         <exclude>**/*.txt</exclude>
+                        <exclude>**/*.xml</exclude>
                         <exclude>LICENSE*</exclude>
                         <exclude>**/README.txt</exclude>
                         <exclude>bin/**</exclude>

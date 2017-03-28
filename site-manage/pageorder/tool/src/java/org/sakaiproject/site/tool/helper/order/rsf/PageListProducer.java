@@ -2,6 +2,7 @@ package org.sakaiproject.site.tool.helper.order.rsf;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.List;
 
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.site.api.SitePage;
@@ -10,8 +11,8 @@ import org.sakaiproject.site.tool.helper.order.impl.SitePageEditHandler;
 import org.sakaiproject.tool.api.SessionManager;
 import org.sakaiproject.tool.api.Tool;
 
-import uk.ac.cam.caret.sakai.rsf.producers.FrameAdjustingProducer;
-import uk.ac.cam.caret.sakai.rsf.util.SakaiURLUtil;
+import org.sakaiproject.rsf.producers.FrameAdjustingProducer;
+import org.sakaiproject.rsf.util.SakaiURLUtil;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.rsf.components.UIBoundString;
 import uk.org.ponder.rsf.components.UIBranchContainer;
@@ -24,6 +25,7 @@ import uk.org.ponder.rsf.components.UIInput;
 import uk.org.ponder.rsf.components.UIInternalLink;
 import uk.org.ponder.rsf.components.UIMessage;
 import uk.org.ponder.rsf.components.UIOutput;
+import uk.org.ponder.rsf.components.decorators.UIFreeAttributeDecorator;
 import uk.org.ponder.rsf.components.decorators.UITooltipDecorator;
 import uk.org.ponder.rsf.components.decorators.UIAlternativeTextDecorator;
 import uk.org.ponder.rsf.flow.ARIResult;
@@ -67,11 +69,6 @@ public class PageListProducer
             ComponentChecker checker) {
 
         if (handler.update) {
-            PageAddViewParameters addParam = new PageAddViewParameters();
-            addParam.viewID = PageAddProducer.VIEW_ID;
-
-            fullyDecorate(UIInternalLink.make(tofill, "add-link", UIMessage.make("show_add"), addParam), 
-                UIMessage.make("page_show_add"));
             UIBranchContainer content = UIBranchContainer.make(tofill, "content:");
             
             UIForm pageForm = UIForm.make(content, "pages-form");
@@ -93,6 +90,13 @@ public class PageListProducer
                 
                 //nameLabel.decorate(new UILabelTargetDecorator(name));
                 
+                List<ToolConfiguration> tools = page.getTools();
+                String toolId = "unknown-tool";
+                if (tools.size() > 0) {
+                    toolId = tools.get(0).getToolId().replaceAll("\\.", "-");
+                }
+                UIOutput.make(pagerow, "tool-icon").decorate(new UIFreeAttributeDecorator("class", String.format("tool-icon icon-sakai--%s", toolId)));
+
                 PageEditViewParameters param = new PageEditViewParameters();
                                 
                 param.pageId = page.getId();
@@ -155,6 +159,9 @@ public class PageListProducer
                         fullyDecorate(UIInternalLink.make(pagerow, "hide-link-off", param),
                             UIMessage.make("page_hide", pageTitle));
                     }
+                    UIOutput hiddenFlag = UIOutput.make(pagerow, "page-hidden-flag");
+                    hiddenFlag.decorate(new UIFreeAttributeDecorator("style", handler.isVisible(page) ? "display: none" : "display: block"));
+                    hiddenFlag.decorate(new UITooltipDecorator(UIMessage.make("page_hidden_flag")));
                 }
                 
 		// NEW
@@ -180,6 +187,9 @@ public class PageListProducer
                         fullyDecorate(UIInternalLink.make(pagerow, "disable-link-off", param),
                             UIMessage.make("page_disable", pageTitle));
                     }
+                    UIOutput lockedFlag = UIOutput.make(pagerow, "page-locked-flag");
+                    lockedFlag.decorate(new UIFreeAttributeDecorator("style", handler.isEnabled(page) ? "display: none" : "display: block"));
+                    lockedFlag.decorate(new UITooltipDecorator(UIMessage.make("page_locked_flag")));
                 }
                 state += page.getId() + " ";
             }

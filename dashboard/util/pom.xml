@@ -6,7 +6,7 @@
 	<parent>
 		<artifactId>dashboard</artifactId>
 		<groupId>org.sakaiproject.dash</groupId>
-		<version>11-SNAPSHOT</version>
+		<version>12-SNAPSHOT</version>
 	</parent>
 
 	<name>dashboard - Utility</name>
@@ -16,10 +16,6 @@
 	<packaging>jar</packaging>
 
 	<dependencies>
-
-		<!-- project dependencies -->
-
-		<!-- Sakai dependencies -->
 		<dependency>
 			<groupId>org.sakaiproject.kernel</groupId>
 			<artifactId>sakai-kernel-api</artifactId>

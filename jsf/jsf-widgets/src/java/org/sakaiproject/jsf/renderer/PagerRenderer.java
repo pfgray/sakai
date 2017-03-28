@@ -32,14 +32,14 @@ import javax.faces.context.FacesContext;
 import javax.faces.context.ResponseWriter;
 import javax.faces.render.Renderer;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.jsf.util.LocaleUtil;
 import org.sakaiproject.jsf.util.RendererUtil;
 
 public class PagerRenderer extends Renderer
 {	
-	private static final Log log = LogFactory.getLog(PagerRenderer.class);
+	private static final Logger log = LoggerFactory.getLogger(PagerRenderer.class);
 	private static final String BUNDLE_NAME = "org.sakaiproject.jsf.bundle.pager";
 	
 	public void encodeBegin(FacesContext context, UIComponent component) throws IOException
@@ -145,6 +145,9 @@ public class PagerRenderer extends Renderer
 		
 		out.startElement("div", null);
 		out.writeAttribute("class", "listNav", null);
+
+		out.startElement("div", null);
+		out.writeAttribute("class", "inlineForm", null);
 		
 		writeStatus(out, textStatus);
 		writeButton(out, renderFirst, idFirst, labelFirst, disabledFirst, titleFirst, accesskeyFirst);
@@ -163,6 +166,7 @@ public class PagerRenderer extends Renderer
 		out.endElement("input");
 		
 		out.endElement("div");
+		out.endElement("div");
 	}
 	
 	/** Output status display */
@@ -170,7 +174,7 @@ public class PagerRenderer extends Renderer
 		throws IOException
 	{
 		out.startElement("div", null);
-		out.writeAttribute("class", "instruction", null);
+		out.writeAttribute("class", "pager-instruction", null);
 		out.writeText(status, null);
 		out.endElement("div");		
 	}

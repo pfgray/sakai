@@ -18,16 +18,12 @@ import org.sakaiproject.assignment.api.model.AssignmentAllPurposeItem;
 import org.sakaiproject.assignment.api.model.AssignmentModelAnswerItem;
 import org.sakaiproject.assignment.api.model.AssignmentNoteItem;
 import org.sakaiproject.assignment.api.model.AssignmentSupplementItemService;
-import org.sakaiproject.assignment.api.AssignmentConstants;
 import org.sakaiproject.assignment.api.AssignmentContent;
 import org.sakaiproject.assignment.api.AssignmentService;
 import org.sakaiproject.assignment.api.AssignmentSubmission;
-import org.sakaiproject.assignment.impl.BaseAssignmentService;
-import org.sakaiproject.assignment.impl.MySecurityAdvisor;
 import org.sakaiproject.authz.api.SecurityAdvisor;
 import org.sakaiproject.authz.api.SecurityService;
-import org.sakaiproject.component.cover.ComponentManager;
-import org.sakaiproject.component.cover.ServerConfigurationService;
+import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.entity.api.Entity;
 import org.sakaiproject.entity.api.Reference;
 import org.sakaiproject.entitybroker.EntityBroker;
@@ -45,6 +41,7 @@ import org.sakaiproject.entitybroker.entityprovider.capabilities.PropertyProvide
 import org.sakaiproject.entitybroker.entityprovider.capabilities.Resolvable;
 import org.sakaiproject.entitybroker.entityprovider.extension.ActionReturn;
 import org.sakaiproject.entitybroker.entityprovider.extension.Formats;
+import org.sakaiproject.entitybroker.exception.EntityException;
 import org.sakaiproject.entitybroker.exception.EntityNotFoundException;
 import org.sakaiproject.entitybroker.util.AbstractEntityProvider;
 import org.sakaiproject.exception.IdUnusedException;
@@ -53,10 +50,10 @@ import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.SiteService;
 import org.sakaiproject.site.api.ToolConfiguration;
 import org.sakaiproject.time.api.Time;
-import org.sakaiproject.time.cover.TimeService;
+import org.sakaiproject.time.api.TimeService;
 import org.sakaiproject.tool.api.SessionManager;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.service.gradebook.shared.GradebookExternalAssessmentService;
 import org.sakaiproject.service.gradebook.shared.GradebookService;
 
@@ -66,7 +63,7 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 		AutoRegisterEntityProvider, PropertyProvideable, Outputable, Inputable {
 
 	public final static String ENTITY_PREFIX = "assignment";
-	private static Log M_log = LogFactory.getLog(AssignmentEntityProvider.class);
+	private static Logger M_log = LoggerFactory.getLogger(AssignmentEntityProvider.class);
 
 	@AllArgsConstructor
 	public class DecoratedAttachment implements Comparable<Object> {
@@ -295,32 +292,39 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 			this.access = a.getAccess();
 					
 			String gradebookAssignmentProp = a.getProperties().getProperty(AssignmentService.PROP_ASSIGNMENT_ASSOCIATE_GRADEBOOK_ASSIGNMENT);
-			if (gradebookAssignmentProp != null)
+			if (gradebookService.isGradebookDefined(a.getContext())) 
 			{
-				// try to get internal gradebook assignment first
-				org.sakaiproject.service.gradebook.shared.Assignment gAssignment = gradebookService.getAssignment(a.getContext(), gradebookAssignmentProp);
-				if (gAssignment != null)
+				if (gradebookAssignmentProp != null)
 				{
-					// linked Gradebook item is internal
-					this.gradebookItemId = gAssignment.getId();
-					this.gradebookItemName = gAssignment.getName();
-				}
-				else
-				{
-					// If the linked assignment is not internal to Gradebook, try the external assignment service
-					// However, there is no API available in GradebookExternalAssessmentService of getExternalAssignment()
-					// We will first check whether the external assignment is defined, and then get it through GradebookService 
-					boolean isExternalAssignmentDefined = gradebookExternalService.isExternalAssignmentDefined(a.getContext(), gradebookAssignmentProp);
-					if (isExternalAssignmentDefined)
+					// try to get internal gradebook assignment first
+					org.sakaiproject.service.gradebook.shared.Assignment gAssignment = gradebookService.getAssignment(a.getContext(), gradebookAssignmentProp);
+					if (gAssignment != null)
 					{
-						// since the gradebook item is externally defined, the item is named after the external object's title
-						gAssignment = gradebookService.getAssignment(a.getContext(), a.getTitle());
-						if (gAssignment != null)
+						// linked Gradebook item is internal
+						this.gradebookItemId = gAssignment.getId();
+						this.gradebookItemName = gAssignment.getName();
+					}
+					else
+					{
+						// If the linked assignment is not internal to Gradebook, try the external assignment service
+						// However, there is no API available in GradebookExternalAssessmentService of getExternalAssignment()
+						// We will first check whether the external assignment is defined, and then get it through GradebookService 
+						boolean isExternalAssignmentDefined = gradebookExternalService.isExternalAssignmentDefined(a.getContext(), gradebookAssignmentProp);
+						if (isExternalAssignmentDefined)
 						{
-							this.gradebookItemId = gAssignment.getId();
-							this.gradebookItemName = gAssignment.getName();
+							// since the gradebook item is externally defined, the item is named after the external object's title
+							gAssignment = gradebookService.getAssignment(a.getContext(), a.getTitle());
+							if (gAssignment != null)
+							{
+								this.gradebookItemId = gAssignment.getId();
+								this.gradebookItemName = gAssignment.getName();
+							}
 						}
 					}
+				}
+				else 
+				{
+					M_log.warn("The property \"prop_new_assignment_add_to_gradebook\" is null for the assignment feed");
 				}
 			}
 			if (a.getContent() != null){
@@ -389,6 +393,10 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 	private GradebookService gradebookService;
 	@Setter
 	private GradebookExternalAssessmentService gradebookExternalService;
+	@Setter
+	private ServerConfigurationService serverConfigurationService;
+	@Setter
+	private TimeService timeService;
 	
 	// HTML is deliberately not handled here, so that it will be handled by RedirectingAssignmentEntityServlet
 	public String[] getHandledOutputFormats() {
@@ -474,10 +482,12 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 		}
 		try {
 			// enable permission to view possible draft assignment
-			securityService.pushAdvisor(new MySecurityAdvisor(sessionManager
-					.getCurrentSessionUserId(),
+			SecurityAdvisor securityAdvisor = createSecurityAdvisor(
+					sessionManager.getCurrentSessionUserId(),
 					AssignmentService.SECURE_ADD_ASSIGNMENT,
-					BaseAssignmentService.getContextReference(context)));
+					assignmentService.assignmentReference(null, context)
+			);
+			securityService.pushAdvisor(securityAdvisor);
 
 			Assignment a = assignmentService.getAssignment(assignmentService
 					.assignmentReference(context, assignmentId));
@@ -504,7 +514,7 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 						.allowGetAssignment(assignmentContext); 
 				// check for read permission
 				if (allowReadAssignment
-						&& a.getOpenTime().before(TimeService.newTime())) {
+						&& a.getOpenTime().before(timeService.newTime())) {
 					// this checks if we want to display an assignment link
 					try {
 						Site site = siteService.getSite(assignmentContext); // site id
@@ -524,7 +534,7 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 						if (allowAddAssignment) {
 							assignData
 									.put("assignmentUrl",
-											ServerConfigurationService
+											serverConfigurationService
 													.getPortalUrl()
 													+ "/directtool/"
 													+ fromTool.getId()
@@ -534,7 +544,7 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 						} else if (allowSubmitAssignment) {
 							assignData
 									.put("assignmentUrl",
-											ServerConfigurationService
+											serverConfigurationService
 													.getPortalUrl()
 													+ "/directtool/"
 													+ fromTool.getId()
@@ -546,7 +556,7 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 							// render the appropriate url
 							assignData
 									.put("assignmentUrl",
-											ServerConfigurationService
+											serverConfigurationService
 													.getPortalUrl()
 													+ "/directtool/"
 													+ fromTool.getId()
@@ -587,10 +597,18 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 		return assignData;
 	}
 
+	private SecurityAdvisor createSecurityAdvisor(String currentUserId, String requiredFunction, String requiredReference) {
+		return (userId, function, reference) -> currentUserId.equals(userId) &&
+				requiredFunction.equals(function) &&
+				requiredReference.equals(reference)
+				? SecurityAdvisor.SecurityAdvice.ALLOWED
+				: SecurityAdvisor.SecurityAdvice.PASS
+		;
+	}
+
 	@EntityCustomAction(action = "deepLinkWithPermissions", viewKey = EntityView.VIEW_LIST)
-	public Map<String, Object> getAssignmentDeepLinks(EntityView view,
+	public Map<String, String> getAssignmentDeepLinks(EntityView view,
 			Map<String, Object> params) {
-		Map<String, Object> assignData = new HashMap<String, Object>();
 
 		String context = view.getPathSegment(2);
 		String assignmentId = view.getPathSegment(3);
@@ -601,6 +619,8 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 							+ view
 							+ "): e.g. /direct/assignment/deepLinkWithPermissions/{context}/{assignmentId}");
 		}
+
+		Map<String, String> assignData = new HashMap<String, String>();
 
 		try {
 			Assignment a = assignmentService.getAssignment(assignmentId);
@@ -614,75 +634,22 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 			boolean allowSubmitAssignment = params.get("allowSubmitAssignment") != null ? ((Boolean) params
 					.get("allowSubmitAssignment")).booleanValue() : false;
 
-			String assignmentContext = a.getContext(); // assignment context
-			if (allowReadAssignment
-					&& a.getOpenTime().before(TimeService.newTime())) {
-				// this checks if we want to display an assignment link
-				try {
-					Site site = siteService.getSite(assignmentContext); 
-					// site id
-					ToolConfiguration fromTool = site
-							.getToolForCommonId("sakai.assignment.grades");
-					// Three different urls to be rendered depending on the
-					// user's permission
-					if (allowAddAssignment) {
-						assignData
-								.put("assignmentUrl",
-										ServerConfigurationService
-												.getPortalUrl()
-												+ "/directtool/"
-												+ fromTool.getId()
-												+ "?assignmentId="
-												+ a.getReference()
-												+ "&panel=Main&sakai_action=doView_assignment");
-					} else if (allowSubmitAssignment) {
-						assignData
-								.put("assignmentUrl",
-										ServerConfigurationService
-												.getPortalUrl()
-												+ "/directtool/"
-												+ fromTool.getId()
-												+ "?assignmentReference="
-												+ a.getReference()
-												+ "&panel=Main&sakai_action=doView_submission");
-					} else {
-						// user can read the assignment, but not submit, so
-						// render the appropriate url
-						assignData
-								.put("assignmentUrl",
-										ServerConfigurationService
-												.getPortalUrl()
-												+ "/directtool/"
-												+ fromTool.getId()
-												+ "?assignmentId="
-												+ a.getReference()
-												+ "&panel=Main&sakai_action=doView_assignment_as_student");
-					}
-				} catch (IdUnusedException e) {
-					// No site found
-					assignData.remove("assignmentTitle");
-					assignData.remove("assignmentUrl");
-					throw new IdUnusedException(
-							"No site found while creating assignment url");
-				}
-			}
+			assignData.put("assignmentUrl"
+                                , assignmentService.getDeepLinkWithPermissions(context, assignmentId
+                                            ,allowReadAssignment, allowAddAssignment, allowSubmitAssignment));
 		} catch (IdUnusedException e) {
-			assignData.remove("assignmentTitle");
-			assignData.remove("assignmentUrl");
-			throw new EntityNotFoundException("No assignment found",
-					assignmentId, e);
+			throw new EntityNotFoundException("Assignment or site not found", assignmentId, e);
 		} catch (PermissionException e) {
-			assignData.remove("assignmentTitle");
-			assignData.remove("assignmentUrl");
 			throw new SecurityException(e);
-		}
+		} catch (Exception e) {
+			throw new EntityException(e.getMessage(), assignmentId);
+        }
 		return assignData;
 	}
 
 	@EntityCustomAction(action = "deepLink", viewKey = EntityView.VIEW_LIST)
-	public Map<String, Object> getAssignmentDeepLink(EntityView view,
+	public Map<String, String> getAssignmentDeepLink(EntityView view,
 			Map<String, Object> params) {
-		Map<String, Object> assignData = new HashMap<String, Object>();
 
 		String context = view.getPathSegment(2);
 		String assignmentId = view.getPathSegment(3);
@@ -694,80 +661,20 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 							+ "): e.g. /direct/assignment/deepLink/{context}/{assignmentId}");
 		}
 
+		Map<String, String> assignData = new HashMap<String, String>();
+
 		try {
 			Assignment a = assignmentService.getAssignment(assignmentId);
 			assignData.put("assignmentId", assignmentId);
 			assignData.put("assignmentTitle", a.getTitle());
-
-			boolean allowReadAssignment = assignmentService
-					.allowGetAssignment(context);
-			boolean allowAddAssignment = assignmentService
-					.allowAddAssignment(context);
-			boolean allowSubmitAssignment = assignmentService
-					.allowAddSubmission(context);
-
-			String assignmentContext = a.getContext(); // assignment context
-			if (allowReadAssignment
-					&& a.getOpenTime().before(TimeService.newTime())) {
-				// this checks if we want to display an assignment link
-				try {
-					Site site = siteService.getSite(assignmentContext); 
-					// site id
-					ToolConfiguration fromTool = site
-							.getToolForCommonId("sakai.assignment.grades");
-					// Three different urls to be rendered depending on the
-					// user's permission
-					if (allowAddAssignment) {
-						assignData
-								.put("assignmentUrl",
-										ServerConfigurationService
-												.getPortalUrl()
-												+ "/directtool/"
-												+ fromTool.getId()
-												+ "?assignmentId="
-												+ a.getReference()
-												+ "&panel=Main&sakai_action=doView_assignment");
-					} else if (allowSubmitAssignment) {
-						assignData
-								.put("assignmentUrl",
-										ServerConfigurationService
-												.getPortalUrl()
-												+ "/directtool/"
-												+ fromTool.getId()
-												+ "?assignmentReference="
-												+ a.getReference()
-												+ "&panel=Main&sakai_action=doView_submission");
-					} else {
-						// user can read the assignment, but not submit, so
-						// render the appropriate url
-						assignData
-								.put("assignmentUrl",
-										ServerConfigurationService
-												.getPortalUrl()
-												+ "/directtool/"
-												+ fromTool.getId()
-												+ "?assignmentId="
-												+ a.getReference()
-												+ "&panel=Main&sakai_action=doView_assignment_as_student");
-					}
-				} catch (IdUnusedException e) {
-					// No site found
-					assignData.remove("assignmentTitle");
-					assignData.remove("assignmentUrl");
-					throw new IdUnusedException(
-							"No site found while creating assignment url");
-				}
-			}
+			assignData.put("assignmentUrl", assignmentService.getDeepLink(context, assignmentId));
 		} catch (IdUnusedException e) {
-			assignData.remove("assignmentTitle");
-			assignData.remove("assignmentUrl");
-			throw new EntityNotFoundException("No assignment found",
-					assignmentId, e);
+			throw new EntityNotFoundException("Assignment or site not found", assignmentId, e);
 		} catch (PermissionException e) {
-			assignData.remove("assignmentTitle");
-			assignData.remove("assignmentUrl");
 			throw new SecurityException(e);
-		}
+		} catch (Exception e) {
+			throw new EntityException(e.getMessage(), assignmentId);
+        }
 		return assignData;
 	}
 
@@ -1002,11 +909,11 @@ public class AssignmentEntityProvider extends AbstractEntityProvider implements 
 
 				if (!"null".equals(submissionId)) {
 					props.put("security.assignment.ref", submissionId);
-					SecurityAdvisor subAdv = new MySecurityAdvisor(
+					SecurityAdvisor subAdv = createSecurityAdvisor(
 							sessionManager.getCurrentSessionUserId(),
 							AssignmentService.SECURE_ACCESS_ASSIGNMENT_SUBMISSION,
 							submissionId);
-					SecurityAdvisor subAdv2 = new MySecurityAdvisor(
+					SecurityAdvisor subAdv2 = createSecurityAdvisor(
 							sessionManager.getCurrentSessionUserId(),
 							AssignmentService.SECURE_GRADE_ASSIGNMENT_SUBMISSION,
 							assignment.getReference());

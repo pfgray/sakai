@@ -5,14 +5,13 @@
     <parent>
         <groupId>org.sakaiproject.announcement</groupId>
         <artifactId>announcement</artifactId>
-        <version>11-SNAPSHOT</version>
+        <version>12-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <name>sakai-announcement-tool</name>
     <groupId>org.sakaiproject.announcement</groupId>
     <artifactId>sakai-announcement-tool</artifactId>
-  <version>11-SNAPSHOT</version>
     <organization>
         <name>The Sakai Foundation</name>
         <url>http://sakaiproject.org/</url>
@@ -70,10 +69,6 @@
             <artifactId>commons-lang</artifactId>
         </dependency>
         <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-        </dependency>
-        <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>servlet-api</artifactId>
         </dependency>
@@ -84,10 +79,6 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-beans</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
         </dependency>
     </dependencies>
 

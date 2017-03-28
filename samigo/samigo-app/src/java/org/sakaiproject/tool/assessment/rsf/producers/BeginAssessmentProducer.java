@@ -31,8 +31,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.tool.assessment.data.dao.authz.AuthorizationData;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AssessmentMetaDataIfc;
 import org.sakaiproject.tool.assessment.facade.AgentFacade;
@@ -81,7 +81,7 @@ public class BeginAssessmentProducer implements ViewComponentProducer,
   public HttpServletResponse httpServletResponse;
   public MessageLocator messageLocator;
   
-  private static Log log = LogFactory.getLog(BeginAssessmentProducer.class);
+  private static Logger log = LoggerFactory.getLogger(BeginAssessmentProducer.class);
   
 	public static final String VIEW_ID = "BeginTakingAssessment";
 	public String getViewID() {
@@ -146,8 +146,7 @@ public class BeginAssessmentProducer implements ViewComponentProducer,
 
     delivery.setAssessmentId(pub.getPublishedAssessmentId().toString());
     delivery.setAssessmentTitle(pub.getTitle());
-    delivery.setHonorPledge(pub.getAssessmentMetaDataByLabel("honorpledge_isInstructorEditable") != null &&
-    		pub.getAssessmentMetaDataByLabel("honorpledge_isInstructorEditable").toLowerCase().equals("true"));
+    delivery.setHonorPledge(pub.getAssessmentAccessControl().getHonorPledge());
     delivery.setPublishedAssessment(pub);
 
     String path = null;

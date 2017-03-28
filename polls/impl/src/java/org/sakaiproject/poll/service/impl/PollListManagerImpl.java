@@ -22,6 +22,7 @@
 package org.sakaiproject.poll.service.impl;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
@@ -33,8 +34,8 @@ import java.util.Stack;
 import java.util.UUID;
 import java.util.Vector;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.entity.api.Entity;
 import org.sakaiproject.entity.api.EntityManager;
 import org.sakaiproject.entity.api.EntityTransferrer;
@@ -63,7 +64,7 @@ import org.w3c.dom.NodeList;
 public class PollListManagerImpl implements PollListManager,EntityTransferrer {
 
     // use commons logger
-    private static Log log = LogFactory.getLog(PollListManagerImpl.class);
+    private static Logger log = LoggerFactory.getLogger(PollListManagerImpl.class);
     public static final String REFERENCE_ROOT = Entity.SEPARATOR + "poll";
 
 
@@ -126,26 +127,14 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
         List<Poll> polls = null;
         // get all allowed sites for this user
         List<String> allowedSites = externalLogic.getSitesForUser(userId, permissionConstant);
-        if (! allowedSites.isEmpty()) {
-            if (siteIds != null) {
-                if (siteIds.length > 0) {
-                    // filter down to just the requested ones
-                    for (int j = 0; j < allowedSites.size(); j++) {
-                        String siteId = allowedSites.get(j);
-                        boolean found = false;
-                        for (int i = 0; i < siteIds.length; i++) {
-                            if (siteId.equals(siteIds[i])) {
-                                found = true;
-                            }
-                        }
-                        if (!found) {
-                            allowedSites.remove(j);
-                        }
-                    }
-                } else {
-                    // no sites to search so EXIT here
-                    return new ArrayList<Poll>();
-                }
+
+        if(siteIds!=null && siteIds.length>0 && !allowedSites.isEmpty()){
+            List<String> requestedSiteIds = Arrays.asList(siteIds);
+            // filter down to just the requested ones
+            allowedSites.retainAll(requestedSiteIds);
+            if(allowedSites.isEmpty()){
+                // no sites to search so EXIT here
+                return new ArrayList<Poll>();
             }
             String[] siteIdsToSearch = allowedSites.toArray(new String[allowedSites.size()]);
             Search search = new Search();

@@ -1,14 +1,15 @@
 package org.sakaiproject.tool.assessment.ui.listener.author;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.faces.context.FacesContext;
 import javax.faces.event.AbortProcessingException;
 import javax.faces.event.ActionEvent;
 import javax.faces.event.ActionListener;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.event.cover.EventTrackingService;
 import org.sakaiproject.tool.assessment.facade.AgentFacade;
 import org.sakaiproject.tool.assessment.facade.PublishedAssessmentFacade;
@@ -24,7 +25,7 @@ import org.sakaiproject.util.FormattedText;
 public class ConfirmRepublishAssessmentListener implements ActionListener {
 	// To Do: I think this can be combined with SavePublishedSettingsListener.
 	
-	private static Log log = LogFactory.getLog(ConfirmRepublishAssessmentListener.class);
+	private static Logger log = LoggerFactory.getLogger(ConfirmRepublishAssessmentListener.class);
 	
 	public void processAction(ActionEvent ae) throws AbortProcessingException {
 		AuthorBean author = (AuthorBean) ContextUtil.lookupBean("author");
@@ -90,7 +91,7 @@ public class ConfirmRepublishAssessmentListener implements ActionListener {
 		Long publishedAssessmentId = publishedAssessmentSettings.getAssessmentId();
 		GradingService gradingService = new GradingService();
 
-		ArrayList al = gradingService.getHasGradingDataAndHasSubmission(publishedAssessmentId);
+		List<Boolean> al = gradingService.getHasGradingDataAndHasSubmission(publishedAssessmentId);
 		AssessmentBean assessmentBean = (AssessmentBean) ContextUtil.lookupBean("assessmentBean");
 
 		if (al.size() == 2) {

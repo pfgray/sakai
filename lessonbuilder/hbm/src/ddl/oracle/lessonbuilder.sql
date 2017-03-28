@@ -96,6 +96,7 @@
         gradebookPoints double precision,
         owner varchar2(99 char),
         groupOwned number(1,0),
+        owned number(1,0),
         groupid varchar2(99 char),
         cssSheet varchar2(250 char),
         primary key (pageId)
@@ -149,3 +150,11 @@
     create sequence LB_PEER_EVAL_RESULT_S;
 
     create sequence hibernate_sequence;
+
+    create table lesson_builder_ch_status (
+        checklistId number(19,0) not null,
+        checklistItemId number(19,0) not null,
+        owner varchar2(36) not null,
+        done number(1,0),
+        primary key (checklistId,checklistItemId,owner)
+    );

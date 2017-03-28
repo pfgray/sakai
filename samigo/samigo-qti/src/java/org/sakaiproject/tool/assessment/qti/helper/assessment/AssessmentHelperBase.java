@@ -33,8 +33,8 @@ import java.util.Set;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.tool.assessment.data.dao.assessment.AttachmentData;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AssessmentAccessControlIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AssessmentFeedbackIfc;
@@ -59,7 +59,7 @@ import org.xml.sax.SAXException;
 public abstract class AssessmentHelperBase
   implements AssessmentHelperIfc
 {
-  private static Log log = LogFactory.getLog(AssessmentHelperBase.class);
+  private static Logger log = LoggerFactory.getLogger(AssessmentHelperBase.class);
 
   abstract protected int getQtiVersion();
 
@@ -321,6 +321,7 @@ public abstract class AssessmentHelperBase
     Integer bookmarking = accessControl.getBookMarkingItem();
     Integer itemNavigation = accessControl.getItemNavigation();
     Integer itemNumbering = accessControl.getItemNumbering();
+    Integer displayScores = accessControl.getDisplayScoreDuringAssessments();
     Integer assessmentFormat = accessControl.getAssessmentFormat();
     Integer markForReview = accessControl.getMarkForReview();
     Integer lateHandling = accessControl.getLateHandling();
@@ -331,7 +332,6 @@ public abstract class AssessmentHelperBase
     String finalPageUrl = accessControl.getFinalPageUrl();
     String password = accessControl.getPassword();
     String releaseTo = accessControl.getReleaseTo();
-    String userName = accessControl.getUsername();
 
     assessmentXml.setFieldentry("AUTO_SUBMIT", qtiBooleanString(autoSubmit));
 
@@ -382,6 +382,12 @@ public abstract class AssessmentHelperBase
     {
       assessmentXml.setFieldentry("QUESTION_NUMBERING", "RESTART");
     }
+    
+    if(accessControl.HIDE_ITEM_SCORE_DURING_ASSESSMENT.equals(displayScores)){
+    	assessmentXml.setFieldentry("DISPLAY_SCORES", "HIDE");
+    }else{
+    	assessmentXml.setFieldentry("DISPLAY_SCORES", "SHOW");
+    }
 
     if (accessControl.MARK_FOR_REVIEW.equals(markForReview))
     {
@@ -408,10 +414,6 @@ public abstract class AssessmentHelperBase
     if (releaseTo != null)
     {
       assessmentXml.setFieldentry("ASSESSMENT_RELEASED_TO", releaseTo);
-    }
-    if (userName != null)
-    {
-      assessmentXml.setFieldentry("USERID", userName);
     }
   }
 
@@ -495,6 +497,7 @@ public abstract class AssessmentHelperBase
       "itemAccessType_isInstructorEditable",
       "displayChunking_isInstructorEditable",
       "displayNumbering_isInstructorEditable",
+      "displayScores_isInstructorEditable",
       "submissionModel_isInstructorEditable",
       "lateHandling_isInstructorEditable",
       "markForReview_isInstructorEditable",

@@ -30,8 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.service.gradebook.shared.GradebookService;
 import org.sakaiproject.service.gradebook.shared.GradebookExternalAssessmentService;
 import org.sakaiproject.service.gradebook.shared.StaleObjectModificationException;
@@ -55,7 +55,7 @@ import org.sakaiproject.tool.gradebook.ui.AssignmentGradeRow;
  *
  */
 public class ViewByStudentBean extends EnrollmentTableBean implements Serializable {
-	private static Log logger = LogFactory.getLog(ViewByStudentBean.class);
+	private static Logger logger = LoggerFactory.getLogger(ViewByStudentBean.class);
 
     // View maintenance fields - serializable.
     private String userDisplayName;
@@ -622,7 +622,7 @@ public class ViewByStudentBean extends EnrollmentTableBean implements Serializab
     				for (Category category : (List<Category>) categoryList) {
     					catIds.add(category.getId());
     				}
-    				List<Long> viewableCats = getGradebookPermissionService().getCategoriesForUserForStudentView(getGradebookId(), getUserUid(), studentUid, catIds, getGradebook().getCategory_type(), getViewableSectionIds());
+    				List<Long> viewableCats = getGradebookPermissionService().getCategoriesForUserForStudentView(getGradebookId(), getUserUid(), studentUid, catIds, getViewableSectionIds());
     				List<Category> tmpCatList = new ArrayList<Category>();
     				for (Category category : (List<Category>) categoryList) {
     					if(viewableCats.contains(category.getId())){

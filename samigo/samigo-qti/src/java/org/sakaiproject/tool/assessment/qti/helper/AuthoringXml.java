@@ -38,8 +38,8 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.jaxen.JaxenException;
 import org.jaxen.XPath;
 import org.jaxen.dom.DOMXPath;
@@ -67,7 +67,7 @@ import org.sakaiproject.tool.assessment.qti.constants.QTIVersion;
 
 public class AuthoringXml
 {
-  private static Log log = LogFactory.getLog(AuthoringXml.class);
+  private static Logger log = LoggerFactory.getLogger(AuthoringXml.class);
 
   public static final String SETTINGS_FILE = "SAM.properties";
   // paths
@@ -92,6 +92,7 @@ public class AuthoringXml
   public static final String ITEM_MATCHING = "matchTemplate.xml";
   public static final String ITEM_MXSURVEY = "mxSurveyTemplate.xml";
   public static final String ITEM_CALCQ = "calculatedQuestionTemplate.xml"; // CALCULATED_QUESTION
+  public static final String ITEM_IMAGMQ = "imageMapTemplate.xml"; // IMAGEMAP_QUESTION. For future use. Empty template
   public static final String ITEM_EMI = "emiTemplate.xml";
 
   public static final String SURVEY_10 = SURVEY_PATH + "10.xml";

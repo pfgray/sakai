@@ -29,14 +29,15 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ResourceBundle;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.authz.cover.SecurityService;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.email.cover.EmailService;
@@ -54,8 +55,6 @@ import org.sakaiproject.user.cover.UserDirectoryService;
 import org.sakaiproject.util.FormattedText;
 import org.sakaiproject.util.ResourceLoader;
 
-import org.sakaiproject.portal.util.BufferedServletResponse;
-
 /**
  * <p>
  * ErrorReporter helps with end-user formatted error reporting, user feedback
@@ -67,10 +66,11 @@ import org.sakaiproject.portal.util.BufferedServletResponse;
 public class ErrorReporter
 {
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(ErrorReporter.class);
+	private static Logger M_log = LoggerFactory.getLogger(ErrorReporter.class);
 
 	/** messages. */
 	private static ResourceLoader rb = new ResourceLoader("portal-util");
+	private static final ResourceBundle rbDefault = ResourceBundle.getBundle("portal-util", Locale.getDefault());
 
 	private Map<String, String> censoredHeaders = new HashMap<String, String>();
 
@@ -244,7 +244,7 @@ public class ErrorReporter
 	}
 
 	/**
-	 * Log and email the error report details.
+	 * Logger and email the error report details.
 	 * 
 	 * @param usageSessionId
 	 *        The end-user's usage session id.
@@ -274,6 +274,9 @@ public class ErrorReporter
 			String problem, String problemdigest, String requestURI,
 			String requestDisplay, String placementDisplay, String userReport)
 	{
+		// logging and emailing should use the system default locale instead of the user's locale
+		ResourceBundle rb = rbDefault;
+		
 		// log
 		M_log.warn(rb.getString("bugreport.bugreport") + " "
 				+ rb.getString("bugreport.bugid") + ": " + bugId + " "
@@ -554,12 +557,13 @@ public class ErrorReporter
 		}
 		catch (Throwable any)
 		{
-			M_log.warn(rb.getString("bugreport.troublereporting"), any);
+			M_log.warn(rbDefault.getString("bugreport.troublereporting"), any);
 		}
 	}
 
 	private String placementDisplay()
 	{
+		ResourceBundle rb = rbDefault;
 		StringBuilder sb = new StringBuilder();
 		try
 		{
@@ -592,6 +596,7 @@ public class ErrorReporter
 	@SuppressWarnings("rawtypes")
 	private String requestDisplay(HttpServletRequest request)
 	{
+		ResourceBundle rb = rbDefault;
 		StringBuilder sb = new StringBuilder();
 		try
 		{
@@ -738,7 +743,7 @@ public class ErrorReporter
 		}
 		catch (IOException e)
 		{
-			M_log.warn(rb.getString("bugreport.troubleredirecting"), e);
+			M_log.warn(rbDefault.getString("bugreport.troubleredirecting"), e);
 		}
 	}
 
@@ -806,7 +811,7 @@ public class ErrorReporter
 		}
 		catch (Throwable any)
 		{
-			M_log.warn(rb.getString("bugreport.troublethanks"), any);
+			M_log.warn(rbDefault.getString("bugreport.troublethanks"), any);
 		}
 	}
 }

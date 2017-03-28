@@ -30,8 +30,10 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.ArrayList;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.assignment.api.AssignmentService;
+import org.sakaiproject.tool.assessment.shared.api.assessment.PublishedAssessmentServiceAPI;
 import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.authz.api.FunctionManager;
 import org.sakaiproject.authz.api.SecurityAdvisor;
@@ -68,7 +70,7 @@ import org.sakaiproject.util.Validator;
  */
 public class SakaiProxyImpl implements SakaiProxy {
 
-	private static final Logger logger = Logger.getLogger(SakaiProxyImpl.class);
+	private static final Logger logger = LoggerFactory.getLogger(SakaiProxyImpl.class);
 	
 	private static final String SCHEDULE_TOOL_ID = "sakai.schedule";
     
@@ -465,6 +467,9 @@ public class SakaiProxyImpl implements SakaiProxy {
 
 	//@Getter @Setter
 	protected AssignmentService assignmentService;
+
+	//@Getter @Setter
+	protected PublishedAssessmentServiceAPI publishedAssessmentServiceAPI;
 	
 	protected ContentTypeImageService contentTypeImageService;
 	
@@ -548,6 +553,13 @@ public class SakaiProxyImpl implements SakaiProxy {
 	 */
 	public void setAssignmentService( AssignmentService assignmentService) {
 		this.assignmentService = assignmentService;
+	}
+
+	/**
+	 * @param setPublishedAssessmentServiceAPI the PublishedAssessmentServiceAPI to set
+	 */
+	public void setPublishedAssessmentServiceAPI( PublishedAssessmentServiceAPI publishedAssessmentServiceAPI) {
+	    this.publishedAssessmentServiceAPI = publishedAssessmentServiceAPI;
 	}
 
 	/**

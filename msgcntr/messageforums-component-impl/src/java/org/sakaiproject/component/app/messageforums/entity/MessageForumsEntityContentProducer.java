@@ -8,8 +8,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.api.app.messageforums.DiscussionForum;
 import org.sakaiproject.api.app.messageforums.DiscussionTopic;
 import org.sakaiproject.api.app.messageforums.Message;
@@ -35,7 +35,7 @@ public class MessageForumsEntityContentProducer implements
 		EntityContentProducer, PortalUrlEnabledProducer {
 
 	
-	private static Log log = LogFactory.getLog(MessageForumsEntityContentProducer.class);
+	private static Logger log = LoggerFactory.getLogger(MessageForumsEntityContentProducer.class);
 	
 	// runtime dependency
 	private List addEvents = null;
@@ -308,31 +308,32 @@ public class MessageForumsEntityContentProducer implements
 	public String getUrl(String reference) {
 		log.debug("getUrl(" + reference +")");
 		
+		String url = null;
 		Map<String, String> params = new HashMap<String, String>();
 		String msgId = EntityReference.getIdFromRefByKey(reference, "Message");
 		Message m = messageForumsMessageManager.getMessageById(Long.valueOf(msgId));
-		params.put("messageId", msgId);
-		params.put("topicId", m.getTopic().getId().toString());
-		log.debug("got topic: " + m.getTopic().getId().toString());
 		
-		//Topic topic = developerHelperService.cloneBean(m.getTopic(), 1, null);
-		DiscussionTopic topic = discussionForumManager.getTopicById(m.getTopic().getId());
-		params.put("forumId", topic.getOpenForum().getId().toString());
-		
-		String context = "/site/" + this.getSiteId(reference);
-		log.debug("context: " + context);
-		
-		//seems not to work "/discussionForum/message/dfViewMessage"
-		String path = "/discussionForum/message/dfViewThreadDirect";
-		String url = null;
-		try {
-		url = developerHelperService.getToolViewURL("sakai.forums", path, params, context);
-		log.debug("got url" + url);
-		return url;
-		}
-		catch (Exception e) {
-			//MSGCNTR this could happen if there is no tool placement
-			log.warn("swallowing exception", e);
+		if (m != null) {
+			params.put("messageId", msgId);
+			params.put("topicId", m.getTopic().getId().toString());
+			log.debug("got topic: " + m.getTopic().getId().toString());
+
+			//Topic topic = developerHelperService.cloneBean(m.getTopic(), 1, null);
+			DiscussionTopic topic = discussionForumManager.getTopicById(m.getTopic().getId());
+			params.put("forumId", topic.getOpenForum().getId().toString());
+
+			String context = "/site/" + this.getSiteId(reference);
+			log.debug("context: " + context);
+
+			//seems not to work "/discussionForum/message/dfViewMessage"
+			String path = "/discussionForum/message/dfViewThreadDirect";
+
+			try {
+				url = developerHelperService.getToolViewURL("sakai.forums", path, params, context);
+				log.debug("got url" + url);
+			} catch (Exception e) {
+				log.warn("Could not get the url for message: " + msgId);
+			}
 		}
 		return url;
 	}
@@ -363,10 +364,7 @@ public class MessageForumsEntityContentProducer implements
 			if (toolName.equals(prefix))
 				return true;
 		} catch (Exception e) {
-			log.warn("unable to parse reference: " + reference +", " + e);
-			if (log.isDebugEnabled()) {
-				log.debug(e);
-			}
+			log.warn("unable to parse reference: {}", reference, e);
 		}
 		return false;
 	}

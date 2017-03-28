@@ -27,16 +27,19 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.faces.event.ActionEvent;
 import javax.faces.model.SelectItem;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.sakaiproject.tool.assessment.data.dao.grading.AssessmentGradingData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.jsf.model.PhaseAware;
 import org.sakaiproject.section.api.coursemanagement.CourseSection;
 import org.sakaiproject.section.api.coursemanagement.EnrollmentRecord;
@@ -55,6 +58,7 @@ import org.sakaiproject.tool.assessment.shared.impl.grading.GradingSectionAwareS
 import org.sakaiproject.tool.assessment.ui.bean.util.Validator;
 import org.sakaiproject.tool.assessment.ui.listener.evaluation.TotalScoreListener;
 import org.sakaiproject.tool.assessment.ui.listener.util.ContextUtil;
+import org.sakaiproject.tool.assessment.util.AttachmentUtil;
 
 /**
  * <p>Description: class form for evaluating total scores</p>
@@ -103,7 +107,7 @@ public class TotalScoresBean
   private RecordingData recordingData;
   private String totalPeople;
   private String firstItem;
-  private HashMap answeredItems;
+  private Map answeredItems;
   private boolean hasRandomDrawPart;
   private String scoringOption;
   
@@ -114,7 +118,7 @@ public class TotalScoresBean
   private int availableSectionSize;
   private boolean releaseToAnonymous = false;
   private PublishedAssessmentData publishedAssessment; 
-  private ArrayList allAgents;
+  private List allAgents;
   
   private String graderName;
   private String graderEmailInfo;
@@ -134,12 +138,14 @@ public class TotalScoresBean
   private boolean acceptLateSubmission = false;
 
   private Boolean releasedToGroups = null;
+  private Map agentResultsByAssessmentGradingId;
+  private boolean isAnyAssessmentGradingAttachmentListModified;
   private Map userIdMap;
   
   private boolean isAutoScored = false;
   private boolean hasFileUpload = false;
   
-  private static Log log = LogFactory.getLog(TotalScoresBean.class);
+  private static Logger log = LoggerFactory.getLogger(TotalScoresBean.class);
 
   /**
    * Creates a new TotalScoresBean object.
@@ -165,7 +171,7 @@ public class TotalScoresBean
 		// For anonymous grading, we want to take out the records that has not been submitted
 		if ("true".equalsIgnoreCase(anonymous)) {
 			Iterator iter = allAgents.iterator();
-			ArrayList anonymousAgents = new ArrayList();
+			List anonymousAgents = new ArrayList();
 			while (iter.hasNext()) {
 				AgentResults agentResult = (AgentResults) iter.next();
 				if (agentResult.getSubmittedDate() != null && agentResult.getAssessmentGradingId().intValue() != -1) {
@@ -175,7 +181,7 @@ public class TotalScoresBean
 			allAgents = anonymousAgents;
 		}
 		
-		ArrayList matchingAgents;
+		List matchingAgents;
 		if (isFilteredSearch()) {
 			matchingAgents = findMatchingAgents(searchString);
 		}
@@ -183,7 +189,7 @@ public class TotalScoresBean
 			matchingAgents = allAgents;
 		}
 		scoreDataRows = matchingAgents.size();
-		ArrayList newAgents;
+		List newAgents;
 		if (maxDisplayedScoreRows == 0) {
 			newAgents = matchingAgents;
 		} else {
@@ -658,7 +664,7 @@ public class TotalScoresBean
    * This returns a map of which items actually have answers.
    * Used by QuestionScores.
    */
-  public HashMap getAnsweredItems()
+  public Map getAnsweredItems()
   {
     return answeredItems;
   }
@@ -667,7 +673,7 @@ public class TotalScoresBean
    * This stores a map of which items actually have answers.
    * Used by QuestionScores.
    */
-  public void setAnsweredItems(HashMap newItems)
+  public void setAnsweredItems(Map newItems)
   {
     answeredItems = newItems;
   }
@@ -951,22 +957,22 @@ public class TotalScoresBean
       setMaxScore(publishedAssessment.getTotalScore().toString());
   }
 
-  private HashMap assessmentGradingHash = new HashMap();
+  private Map assessmentGradingHash = new HashMap();
   public void setAssessmentGradingHash(Long publishedAssessmentId){
     GradingService service = new GradingService();
-    HashMap h = service.getAssessmentGradingByItemGradingId(publishedAssessmentId.toString());
+    Map<Long, AssessmentGradingData> h = service.getAssessmentGradingByItemGradingId(publishedAssessmentId.toString());
     assessmentGradingHash.put(publishedAssessmentId, h);
   }
 
-  public HashMap getAssessmentGradingHash(Long publishedAssessmentId){
-    return (HashMap)assessmentGradingHash.get(publishedAssessmentId);
+  public Map getAssessmentGradingHash(Long publishedAssessmentId){
+    return (Map)assessmentGradingHash.get(publishedAssessmentId);
   }
 
-  private ArrayList assessmentGradingList;
-  public void setAssessmentGradingList(ArrayList assessmentGradingList){
+  private List assessmentGradingList;
+  public void setAssessmentGradingList(List assessmentGradingList){
       this.assessmentGradingList = assessmentGradingList;
   }
-  public ArrayList getAssessmentGradingList(){
+  public List getAssessmentGradingList(){
     return assessmentGradingList;
   }
 
@@ -986,7 +992,7 @@ public class TotalScoresBean
       return scoreDataRows;
   }
   
-  public void setAllAgents(ArrayList allAgents) {
+  public void setAllAgents(List allAgents) {
 	  this.allAgents = allAgents;
   }
   /**
@@ -998,7 +1004,7 @@ public class TotalScoresBean
    * @param bean SubmissionStatusBean
    * @return boolean
    */
-  public ArrayList getAllAgents()
+  public List getAllAgents()
   {
 	  String publishedId = ContextUtil.lookupParam("publishedId");
 	  PublishedAssessmentService pubAssessmentService = new PublishedAssessmentService();
@@ -1011,7 +1017,7 @@ public class TotalScoresBean
 	  return allAgents;
   }
 
-  public ArrayList getAllAgentsDirect(){
+  public List getAllAgentsDirect(){
   	  return allAgents;
   }
 
@@ -1062,8 +1068,8 @@ public class TotalScoresBean
         return !StringUtils.equals(searchString, defaultSearchString);
 	}
 	
-	public ArrayList findMatchingAgents(final String pattern) {
-		ArrayList filteredList = new ArrayList();
+	public List findMatchingAgents(final String pattern) {
+		List filteredList = new ArrayList();
 		// name1 example: John Doe
 		StringBuilder name1;
 		// name2 example: Doe, John
@@ -1155,5 +1161,39 @@ public class TotalScoresBean
 
 	public void setHasFileUpload(boolean hasFileUpload) {		
 		this.hasFileUpload = hasFileUpload;
+	}
+	
+	public void setAttachment(Long assessmentGradingId){
+		List assessmentGradingAttachmentList = new ArrayList();
+		AgentResults agentResults = (AgentResults) agentResultsByAssessmentGradingId.get(assessmentGradingId);
+		if (agentResults != null) {
+			AttachmentUtil attachmentUtil = new AttachmentUtil();
+			Set attachmentSet = new HashSet();
+			if (agentResults.getItemGradingAttachmentList() != null) {
+				attachmentSet = new HashSet(agentResults.getItemGradingAttachmentList());
+			}
+			assessmentGradingAttachmentList = attachmentUtil.prepareAssessmentAttachment(agentResults.getAssessmentGrading(), attachmentSet);
+		
+        	agentResults.setAssessmentGradingAttachmentList(assessmentGradingAttachmentList);
+		}
+	}
+	
+	public Map getAgentResultsByAssessmentGradingId()
+	{
+		return agentResultsByAssessmentGradingId;
+	}
+
+	public void setAgentResultsByAssessmentGradingId(Map agentResultsByAssessmentGradingId)
+	{
+		this.agentResultsByAssessmentGradingId = agentResultsByAssessmentGradingId;
+	}
+
+	public boolean getIsAnyAssessmentGradingAttachmentListModified() {
+		return isAnyAssessmentGradingAttachmentListModified;
+	}
+
+	public void setIsAnyAssessmentGradingAttachmentListModified(boolean isAnyAssessmentGradingAttachmentListModified)
+	{
+		this.isAnyAssessmentGradingAttachmentListModified = isAnyAssessmentGradingAttachmentListModified;
 	}
 }

@@ -31,8 +31,9 @@ import javax.faces.event.AbortProcessingException;
 import javax.faces.event.ActionEvent;
 import javax.faces.event.ActionListener;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AssessmentBaseIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AssessmentMetaDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AssessmentIfc;
@@ -57,7 +58,7 @@ import org.sakaiproject.component.cover.ServerConfigurationService;
 public class EditPublishedSettingsListener
     implements ActionListener
 {
-  private static Log log = LogFactory.getLog(EditPublishedSettingsListener.class);
+  private static Logger log = LoggerFactory.getLogger(EditPublishedSettingsListener.class);
 
   public EditPublishedSettingsListener()
   {
@@ -111,8 +112,7 @@ public class EditPublishedSettingsListener
     assessmentSettings.setKeywords(FormattedText.convertFormattedTextToPlaintext(assessment.getAssessmentMetaDataByLabel(AssessmentMetaDataIfc.KEYWORDS)));
     assessmentSettings.setObjectives(FormattedText.convertFormattedTextToPlaintext(assessment.getAssessmentMetaDataByLabel(AssessmentMetaDataIfc.OBJECTIVES)));
     assessmentSettings.setRubrics(FormattedText.convertFormattedTextToPlaintext(assessment.getAssessmentMetaDataByLabel(AssessmentMetaDataIfc.RUBRICS)));
-    assessmentSettings.setUsername(FormattedText.convertFormattedTextToPlaintext(assessment.getAssessmentAccessControl().getUsername()));
-    assessmentSettings.setPassword(FormattedText.convertFormattedTextToPlaintext(assessment.getAssessmentAccessControl().getPassword()));        
+    assessmentSettings.setPassword(FormattedText.convertFormattedTextToPlaintext(StringUtils.trim(assessment.getAssessmentAccessControl().getPassword())));
     assessmentSettings.setBlockDivs("");
 
     AssessmentBean assessmentBean = (AssessmentBean) ContextUtil.lookupBean("assessmentBean");

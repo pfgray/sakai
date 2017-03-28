@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.sakaiproject.lessonbuilder</groupId>
         <artifactId>lessonbuilder</artifactId>
-        <version>11-SNAPSHOT</version>
+        <version>12-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -176,27 +176,21 @@
             <artifactId>spring-webmvc</artifactId>
 	</dependency>
          <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>sakairsf</artifactId>
-            <version>${sakairsf.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-core</artifactId>
+            <version>${project.version}</version>
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>SakaiRSFComponents-evolvers</artifactId>
-            <version>${sakairsf.components.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-web-evolvers</artifactId>
+            <version>${project.version}</version>
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>uk.org.ponder.sakairsf</groupId>
-            <artifactId>SakaiRSFComponents-templates</artifactId>
-            <version>${sakairsf.components.version}</version>
-            <type>war</type>
-        </dependency>
-        <dependency>
-            <groupId>uk.org.ponder.rsfutil</groupId>
-            <artifactId>RSFComponents-templates</artifactId>
-            <version>${rsfutil.version}</version>
+            <groupId>org.sakaiproject.rsf</groupId>
+            <artifactId>sakai-rsf-web-templates</artifactId>
+            <version>${project.version}</version>
             <type>war</type>
         </dependency>
         <dependency>
@@ -204,14 +198,10 @@
             <artifactId>commons-fileupload</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-        </dependency>
-        <dependency>
              <groupId>net.sf.opencsv</groupId>
              <artifactId>opencsv</artifactId>
-             <version>2.3</version>
         </dependency>
+
     </dependencies>
 
 
@@ -248,6 +238,20 @@
                     <source>${src3}/java</source>
                   </sources>
                 </configuration>
+              </execution>
+              <execution>
+                  <id>add-test-source</id>
+                  <phase>generate-sources</phase>
+                  <goals>
+                      <goal>add-test-source</goal>
+                  </goals>
+                  <configuration>
+                      <sources>
+                          <source>${src1}/test</source>
+                          <source>${src2}/test</source>
+                          <source>${src3}/test</source>
+                      </sources>
+                  </configuration>
               </execution>
               <execution>
                 <id>add-resource</id>

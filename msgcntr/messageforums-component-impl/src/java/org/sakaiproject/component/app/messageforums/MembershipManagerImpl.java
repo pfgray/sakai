@@ -30,8 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.api.app.messageforums.MembershipManager;
 import org.sakaiproject.api.app.messageforums.ui.PrivateMessageManager;
 import org.sakaiproject.api.privacy.PrivacyManager;
@@ -54,7 +54,7 @@ import org.sakaiproject.util.ResourceLoader;
 
 public class MembershipManagerImpl implements MembershipManager{
 
-  private static final Log LOG = LogFactory.getLog(MembershipManagerImpl.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MembershipManagerImpl.class);
           
   private SiteService siteService;
   private UserDirectoryService userDirectoryService;
@@ -417,14 +417,22 @@ public class MembershipManagerImpl implements MembershipManager{
 	  }
 	  return false;
   }
-  
-    
+
   /**
    * @see org.sakaiproject.api.app.messageforums.MembershipManager#getAllCourseUsers()
    */
-  public List getAllCourseUsers()
+  @Override
+  public List<MembershipItem> getAllCourseUsers() {
+      return convertMemberMapToList(getAllCourseUsersAsMap());
+  }
+
+  /**
+   *  @see MembershipManager#getAllCourseUsersAsMap()
+   */
+  @Override
+  public Map<String, MembershipItem> getAllCourseUsersAsMap()
   {       
-    Map userMap = new HashMap();    
+    Map<String, MembershipItem> userMap = new HashMap();
     String realmId = getContextSiteId();    
      
     AuthzGroup realm = null;
@@ -472,14 +480,14 @@ public class MembershipManagerImpl implements MembershipManager{
      		userMap.put(memberItem.getId(), memberItem);     
          }
     }
-    
-    return convertMemberMapToList(userMap);
+    return userMap;
   }
   
   /**
    * @see org.sakaiproject.api.app.messageforums.MembershipManager#convertMemberMapToList(java.util.Map)
    */
-  public List convertMemberMapToList(Map memberMap){
+  @Override
+  public List<MembershipItem> convertMemberMapToList(Map memberMap){
             
     MembershipItem[] membershipArray = new MembershipItem[memberMap.size()];
     membershipArray = (MembershipItem[]) memberMap.values().toArray(membershipArray);

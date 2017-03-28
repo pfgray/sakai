@@ -30,13 +30,12 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.tool.api.ActiveTool;
 import org.sakaiproject.tool.api.Tool;
 import org.sakaiproject.tool.api.ToolException;
 import org.sakaiproject.tool.api.ToolSession;
-
 import org.sakaiproject.tool.cover.ActiveToolManager;
 import org.sakaiproject.tool.cover.SessionManager;
 import org.sakaiproject.tool.cover.ToolManager;
@@ -56,6 +55,7 @@ import org.sakaiproject.tool.assessment.ui.bean.author.PublishedAssessmentSettin
 import org.sakaiproject.tool.assessment.ui.bean.author.SectionBean;
 import org.sakaiproject.tool.assessment.ui.bean.delivery.ItemContentsBean;
 import org.sakaiproject.tool.assessment.ui.bean.evaluation.QuestionScoresBean;
+import org.sakaiproject.tool.assessment.ui.bean.evaluation.TotalScoresBean;
 import org.sakaiproject.tool.assessment.ui.bean.util.EmailBean;
 
 /**
@@ -71,7 +71,7 @@ import org.sakaiproject.tool.assessment.ui.bean.util.EmailBean;
     private static final String HELPER_SESSION_PREFIX = "session.";
     private static final String HELPER_RETURN_NOTIFICATION = "/returnToCaller";
     private static final String RESET_ASSESSMENT_BEAN = "/resetAssessmentBean";
-    private static Log log = LogFactory.getLog(SamigoJsfTool.class);
+    private static Logger log = LoggerFactory.getLogger(SamigoJsfTool.class);
 
     /**
          * Recognize a path that is a resource request. It must have an "extension", i.e. a dot followed by characters that do not include a slash.
@@ -304,6 +304,13 @@ import org.sakaiproject.tool.assessment.ui.bean.util.EmailBean;
 				&& ("true").equals(toolSession.getAttribute("SENT_TO_FILEPICKER_HELPER"))) {
     	  ItemContentsBean bean = (ItemContentsBean) ContextUtil.lookupBeanFromExternalServlet("itemContents", req, res);
 			bean.setAttachment((Long) toolSession.getAttribute("itemGradingId"));
+			toolSession.removeAttribute("SENT_TO_FILEPICKER_HELPER");
+		}
+      
+      else if (target.indexOf("/jsf/evaluation/totalScores") > -1
+				&& ("true").equals(toolSession.getAttribute("SENT_TO_FILEPICKER_HELPER"))) {
+    	  TotalScoresBean bean = (TotalScoresBean) ContextUtil.lookupBeanFromExternalServlet("totalScores", req, res);
+			bean.setAttachment((Long) toolSession.getAttribute("assessmentGradingId"));
 			toolSession.removeAttribute("SENT_TO_FILEPICKER_HELPER");
 		}
     

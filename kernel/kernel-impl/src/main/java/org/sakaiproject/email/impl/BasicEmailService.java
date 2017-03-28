@@ -21,10 +21,10 @@
 
 package org.sakaiproject.email.impl;
 
-import java.io.UnsupportedEncodingException;
-import javax.mail.internet.MimeUtility;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -33,9 +33,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
-import java.util.StringTokenizer;
 import java.util.Map.Entry;
+import java.util.Properties;
 
 import javax.activation.DataHandler;
 import javax.activation.DataSource;
@@ -51,9 +50,13 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
+import javax.mail.internet.MimeUtility;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.email.api.AddressValidationException;
 import org.sakaiproject.email.api.Attachment;
@@ -75,7 +78,7 @@ import org.sakaiproject.user.api.User;
 public class BasicEmailService implements EmailService
 {
 	/** Our logger. */
-	private static Log M_log = LogFactory.getLog(BasicEmailService.class);
+	private static Logger M_log = LoggerFactory.getLogger(BasicEmailService.class);
 
 	protected static final String PROTOCOL_SMTP = "smtp";
 	protected static final String PROTOCOL_SMTPS = "smtps";
@@ -134,6 +137,11 @@ public class BasicEmailService implements EmailService
 
 	/** Whether to turn on mail debugging */
 	public static final String MAIL_DEBUG = "mail.debug";
+
+	public static final String MAIL_SENDFROMSAKAI = "mail.sendfromsakai";
+	public static final String MAIL_SENDFROMSAKAI_EXCEPTIONS = "mail.sendfromsakai.exceptions";
+	public static final String MAIL_SENDFROMSAKAI_FROMTEXT = "mail.sendfromsakai.fromtext";
+	public static final String MAIL_SENDFROMSAKAI_MAXSIZE = "mail.sendfromsakai.maxsize";
 
 	protected static final String CONTENT_TYPE = ContentType.TEXT_PLAIN;
 
@@ -453,7 +461,7 @@ public class BasicEmailService implements EmailService
 		// if in test mode, use the test method
 		if (m_testMode)
 		{
-			testSendMail(from, to, subject, content, headerTo, replyTo, additionalHeaders);
+			testSendMail(from, to, subject, content, headerTo, replyTo, additionalHeaders, attachments);
 			return;
 		}
 
@@ -542,6 +550,9 @@ public class BasicEmailService implements EmailService
 		if ((replyTo != null) && (msg.getHeader(EmailHeaders.REPLY_TO) == null))
 			msg.setReplyTo(replyTo);
 
+		// update to be Postmaster if necessary
+		checkFrom(msg);
+
 		// figure out what charset encoding to use
 		//
 		// first try to use the charset from the forwarded
@@ -618,6 +629,97 @@ public class BasicEmailService implements EmailService
 		sendMessageAndLog(from, to, subject, headerTo, start, msg, session);
 			}
 
+
+
+	/**
+	 * fix up From and ReplyTo if we need it to be from Postmaster
+	 */
+	private void checkFrom(MimeMessage msg) {
+
+	    String sendFromSakai = serverConfigurationService.getString(MAIL_SENDFROMSAKAI, "true");
+	    String sendExceptions = serverConfigurationService.getString(MAIL_SENDFROMSAKAI_EXCEPTIONS, null);
+	    InternetAddress from = null;
+	    InternetAddress[] replyTo = null;
+
+	    try {
+		Address[] fromA = msg.getFrom();
+		if (fromA == null || fromA.length == 0) {
+		    M_log.info("message from missing");
+		    return;
+		} else if (fromA.length > 1) {
+		    M_log.info("message from more than 1");
+		    return;
+		} else if (fromA instanceof InternetAddress[]) {
+		    from = (InternetAddress) fromA[0];
+		} else {
+		    M_log.info("message from not InternetAddress");
+		    return;
+		}
+		
+		Address[] replyToA = msg.getReplyTo();
+		if (replyToA == null)
+		    replyTo = null;
+		else if (replyToA instanceof InternetAddress[])
+		    replyTo = (InternetAddress[]) replyToA;
+		else {
+		    M_log.info("message replyto isn't internet address");
+		    return;
+		}
+		
+		// should we replace from address with a Sakai address?
+		if (sendFromSakai != null && !sendFromSakai.equalsIgnoreCase("false")) {
+		    // exceptions -- addresses to leave alone. Our own addresses are always exceptions.
+		    // you can also configure a regexp of exceptions.
+		    if (!from.getAddress().toLowerCase().endsWith("@" + serverConfigurationService.getServerName().toLowerCase()) && 
+			(sendExceptions == null || sendExceptions.equals("") || !from.getAddress().toLowerCase().matches(sendExceptions))) {
+			
+			// not an exception. do the replacement.
+			// First, decide on the replacement address. The config variable
+			// may be the replacement address. If not, use postmaster
+			if (sendFromSakai.indexOf("@") < 0)
+			    sendFromSakai = POSTMASTER + "@" + serverConfigurationService.getServerName();
+		    
+			// put the original from into reply-to, unless a replyto exists
+			if (replyTo == null || replyTo.length == 0 || replyTo[0].getAddress().equals("")) {
+			    replyTo = new InternetAddress[1];
+			    replyTo[0] = from;
+			    msg.setReplyTo(replyTo);
+			}
+			// for some reason setReplyTo doesn't work, though setFrom does. Have to create the
+			// actual header line
+			if (msg.getHeader(EmailHeaders.REPLY_TO) == null)
+			    msg.addHeader(EmailHeaders.REPLY_TO, from.getAddress());
+			
+			// and use the new from address
+			// biggest issue is the "personal address", i.e. the comment text
+
+			String origFromText = from.getPersonal();
+			String origFromAddress = from.getAddress();
+			String fromTextPattern = serverConfigurationService.getString(MAIL_SENDFROMSAKAI_FROMTEXT, "{}");
+
+			String fromText = null;
+			if (origFromText != null && !origFromText.equals(""))
+			    fromText = fromTextPattern.replace("{}", origFromText + " (" + origFromAddress + ")");
+			else
+			    fromText = fromTextPattern.replace("{}", origFromAddress);
+		    
+			from = new InternetAddress(sendFromSakai);
+			try {
+			    from.setPersonal(fromText);
+			} catch (Exception e) {}
+			
+			msg.setFrom(from);
+		    }
+		}
+	    } catch (javax.mail.internet.AddressException e) {
+		M_log.info("checkfrom address exception " + e);
+	    } catch (javax.mail.MessagingException e) {
+		M_log.info("checkfrom messaging exception " + e);
+	    }
+
+	}
+
+
 	/**
 	 * {@inheritDoc}
 	 */
@@ -631,21 +733,22 @@ public class BasicEmailService implements EmailService
 			return;
 		}
 
-		if (fromStr == null)
+		// email should not be sent if from/to/content is empty or null
+		if (StringUtils.isBlank(fromStr))
 		{
-			M_log.warn("send: null fromStr");
+			M_log.warn("send: null/empty fromStr");
 			return;
 		}
 
-		if (toStr == null)
+		if (StringUtils.isBlank(toStr))
 		{
-			M_log.warn("send: null toStr");
+			M_log.warn("send: null/empty toStr");
 			return;
 		}
 
-		if (content == null)
+		if (StringUtils.isBlank(content))
 		{
-			M_log.warn("send: null content");
+			M_log.warn("send: null/empty content");
 			return;
 		}
 
@@ -653,34 +756,21 @@ public class BasicEmailService implements EmailService
 		{
 			InternetAddress from = new InternetAddress(fromStr);
 
-			StringTokenizer tokens = new StringTokenizer(toStr, ", ");
-			InternetAddress[] to = new InternetAddress[tokens.countTokens()];
-
-			int i = 0;
-			while (tokens.hasMoreTokens())
-			{
-				String next = (String) tokens.nextToken();
-				to[i] = new InternetAddress(next);
-
-				i++;
-			} // cycle through and collect all of the Internet addresses from the list.
+			InternetAddress[] to = InternetAddress.parse(toStr);
 
 			InternetAddress[] headerTo = null;
-			if (headerToStr != null)
-			{
-				headerTo = new InternetAddress[1];
-				headerTo[0] = new InternetAddress(headerToStr);
+			if (StringUtils.isNotBlank(headerToStr)) {
+				headerTo = InternetAddress.parse(headerToStr);
+			} else {
+				headerTo = InternetAddress.parse(toStr);
 			}
 
 			InternetAddress[] replyTo = null;
-			if (replyToStr != null)
-			{
-				replyTo = new InternetAddress[1];
-				replyTo[0] = new InternetAddress(replyToStr);
+			if (StringUtils.isNotBlank(replyToStr)) {
+				replyTo = InternetAddress.parse(replyToStr);
 			}
 
 			sendMail(from, to, subject, content, headerTo, replyTo, additionalHeaders);
-
 		}
 		catch (AddressException e)
 		{
@@ -744,6 +834,25 @@ public class BasicEmailService implements EmailService
 		// if we have none
 		if (addresses.isEmpty()) return;
 
+		// get separate sets
+		List<Address[]> messageSets = getMessageSets(addresses);
+		
+		// get a session for our smtp setup, include host, port, reverse-path, and set partial delivery
+		Properties props = createMailSessionProperties();
+
+		Session session = Session.getInstance(props);
+
+		// form our Message
+		MimeMessage msg = new MyMessage(session, headers, message);
+
+		// fix From and ReplyTo if necessary
+		checkFrom(msg);
+
+		// transport the message
+		transportMessage(session, messageSets, headers, msg);
+	}
+
+	private List<Address[]> getMessageSets(List<InternetAddress> addresses) {
 		// how many separate messages do we need to send to keep each one at or under m_maxRecipients?
 		int numMessageSets = ((addresses.size() - 1) / m_maxRecipients) + 1;
 
@@ -772,15 +881,10 @@ public class BasicEmailService implements EmailService
 				posInAddresses++;
 			}
 		}
-
-		// get a session for our smtp setup, include host, port, reverse-path, and set partial delivery
-		Properties props = createMailSessionProperties();
-
-		Session session = Session.getInstance(props);
-
-		// form our Message
-		MimeMessage msg = new MyMessage(session, headers, message);
-
+		return messageSets;
+	}
+	
+	private void transportMessage(Session session, List<Address[]> messageSets, Collection<String> headers, MimeMessage msg) {
 		// transport the message
 		long time1 = 0;
 		long time2 = 0;
@@ -835,11 +939,11 @@ public class BasicEmailService implements EmailService
 				}
 				catch (SendFailedException e)
 				{
-					if (M_log.isDebugEnabled()) M_log.debug("sendToUsers: " + e);
+					if (M_log.isDebugEnabled()) M_log.debug("transportMessage: " + e);
 				}
 				catch (MessagingException e)
 				{
-					M_log.warn("sendToUsers: " + e);
+					M_log.warn("transportMessage: " + e);
 				}
 			}
 
@@ -850,14 +954,14 @@ public class BasicEmailService implements EmailService
 		}
 		catch (MessagingException e)
 		{
-			M_log.warn("sendToUsers:" + e);
+			M_log.warn("transportMessage:" + e);
 		}
 
 		// log
 		if (M_log.isInfoEnabled())
 		{
 			StringBuilder buf = new StringBuilder();
-			buf.append("sendToUsers: headers[");
+			buf.append("transportMessage: headers[");
 			for (String header : headers)
 			{
 				buf.append(" ");
@@ -1213,11 +1317,24 @@ public class BasicEmailService implements EmailService
 		ArrayList<MimeBodyPart> embeddedAttachments = new ArrayList<MimeBodyPart>();
 		if (attachments != null && attachments.size() > 0)
 		{
+			int maxAttachmentSize = serverConfigurationService.getInt(MAIL_SENDFROMSAKAI_MAXSIZE, 25000000);
+			int attachmentRunningTotal = 0;
+
 			// Add attachments to messages
 			for (Attachment attachment : attachments)
 			{
 				// attach the file to the message
-				embeddedAttachments.add(createAttachmentPart(attachment));
+				MimeBodyPart mbp = createAttachmentPart(attachment);
+				int mbpSize = mbp.getSize();
+				if ( (attachmentRunningTotal + mbpSize) < maxAttachmentSize )
+				{
+					embeddedAttachments.add(mbp);
+					attachmentRunningTotal = attachmentRunningTotal + mbpSize;
+				}
+				else
+				{
+					M_log.debug("Removed attachment from mail message because it was too large: " + mbpSize);
+				}
 			}
 		}
 
@@ -1286,11 +1403,28 @@ public class BasicEmailService implements EmailService
 	 * test version of sendMail
 	 */
 	protected void testSendMail(InternetAddress from, InternetAddress[] to, String subject, String content,
-			Map<RecipientType, InternetAddress[]> headerTo, InternetAddress[] replyTo, List<String> additionalHeaders)
+			Map<RecipientType, InternetAddress[]> headerTo, InternetAddress[] replyTo, List<String> additionalHeaders, List<Attachment> attachments)
 	{
-		M_log.info("sendMail: from: " + from + " to: " + arrayToStr(to) + " subject: " + subject + " headerTo: "
-				+ mapToStr(headerTo) + " replyTo: " + arrayToStr(replyTo) + " content: " + content + " additionalHeaders: "
-				+ listToStr(additionalHeaders));
+		M_log.info("sendMail: from: {} to: {} subject: {} headerTo: {} replyTo: {} content: {} additionalHeaders: {}",
+				   from, arrayToStr(to), subject, mapToStr(headerTo), arrayToStr(replyTo), content, listToStr(additionalHeaders));
+		//If the attachments isn't empty do something with them
+		if (CollectionUtils.isNotEmpty(attachments)){
+			for (Attachment attachment:attachments) {
+				//If it's text, we'll dump out the file contents, otherwise just the name
+				String attachmentContent = "BINARY";
+				if (attachment.getContentTypeHeader() != null && attachment.getContentTypeHeader().startsWith("text/")) {
+					try {
+						attachmentContent = IOUtils.toString(attachment.getDataSource().getInputStream(), "UTF-8"); 
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						M_log.debug("sendMail: error accessing attachment content",e);
+					}
+				}
+
+				M_log.info("sendMail: attachment name: {} type header: {} body:{}{}",
+							attachment.getFilename(),attachment.getContentTypeHeader(),  System.lineSeparator(), attachmentContent);
+			}
+		}
 	}
 
 	/**
@@ -1327,16 +1461,7 @@ public class BasicEmailService implements EmailService
 		{
 			msg.saveChanges();
 
-			Transport transport = session.getTransport(protocol);
-
-			if(m_smtpUser != null && m_smtpPassword != null)
-				transport.connect(m_smtp,m_smtpUser,m_smtpPassword);
-			else
-				transport.connect();
-
-			transport.sendMessage(msg, to);
-
-			transport.close();
+			transportMessage(session, getMessageSets(new ArrayList<InternetAddress>(Arrays.asList(to))), new ArrayList<String>(), msg);
 		}
 
 		long end = 0;

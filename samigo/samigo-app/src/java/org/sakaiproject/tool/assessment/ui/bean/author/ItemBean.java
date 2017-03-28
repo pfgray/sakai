@@ -39,7 +39,7 @@ import javax.faces.event.ValueChangeEvent;
 import javax.faces.model.SelectItem;
 import javax.faces.model.SelectItemGroup;
 
-import org.apache.commons.math.util.MathUtils;
+import org.apache.commons.math3.util.Precision;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemDataIfc;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.tool.assessment.facade.TypeFacade;
@@ -58,7 +58,7 @@ import org.sakaiproject.util.ResourceLoader;
 public class ItemBean
   implements Serializable
 {
-  //private static Log log = LogFactory.getLog(ItemBean.class);
+  //private static Logger log = LoggerFactory.getLogger(ItemBean.class);
 
   // internal use
   private static final String answerNumbers =
@@ -73,6 +73,8 @@ public class ItemBean
   private String itemId;
   private String itemType;
   private double itemScore= 0.0d;
+  private String itemScoreDisplayFlag= "true";
+  private Double itemMinScore;
   private double itemDiscount = 0.0d;
   private String partialCreditFlag = "Defualt";
   private String[] answers;
@@ -91,12 +93,17 @@ public class ItemBean
   private String emiAnswerOptionsPaste;
   private String answerOptionsRichCount = "0";
   private String answerOptionsSimpleOrRich = ItemDataIfc.ANSWER_OPTIONS_SIMPLE.toString();
+
+  private List<ItemTagBean> itemTags;
   
   public static final int DEFAULT_MAX_NUMBER_EMI_OPTIONS_FOR_UI = 26; 
   public static final int DEFAULT_MAX_NUMBER_EMI_ITEMS_FOR_UI = 60; //Twice the actual number to allow for javascript add/delete 
   
   private int totalMCAsnwers;
   private CalculatedQuestionBean calculatedQuestion;
+  
+  private String requireAllOk = "false";
+  private String imageMapSrc="";
   
   private boolean[] choiceCorrectArray;
   private String maxRecordingTime;
@@ -112,6 +119,8 @@ public class ItemBean
   private String instruction;  // matching's question text
   private ArrayList matchItemBeanList;  // store List of MatchItemBean, used for Matching only
   private MatchItemBean currentMatchPair;  // do not need this ?   store List of MatchItemBeans, used for Matching only
+  
+  private ArrayList imageMapItemBeanList;
 
 // begin DELETEME
   private String[] matches;
@@ -142,6 +151,7 @@ public class ItemBean
 
   private boolean caseSensitiveForFib=false;
   private boolean mutuallyExclusiveForFib=false;
+  private boolean ignoreSpacesForFib=false;
   private boolean caseSensitiveForFin=false;
   private boolean mutuallyExclusiveForFin=false;
   //not used now. This is used to deteremine whether 
@@ -241,7 +251,7 @@ public class ItemBean
    */
   public double getItemScore()
   {
-    return MathUtils.round(itemScore, 2);
+    return Precision.round(itemScore, 2);
   }
 
   /**
@@ -259,7 +269,7 @@ public class ItemBean
    */
   public double getItemDiscount()
   {
-    return MathUtils.round(itemDiscount, 2);
+    return Precision.round(itemDiscount, 2);
   }
 
   /**
@@ -691,6 +701,11 @@ public class ItemBean
   {
     this.matchItemBeanList= list;
   }
+  
+  public void setImageMapItemBeanList(ArrayList list)
+  {
+	  this.imageMapItemBeanList= list;
+  }
 
   /**
    * getSelfSequenceList examines the MatchItemBean list and returns a list of SelectItemOptions that
@@ -752,7 +767,11 @@ public class ItemBean
   {
         return currentMatchPair;
   }
-
+  
+  public ArrayList getImageMapItemBeanList()
+  {
+	  return imageMapItemBeanList;
+  }
 
   /**
    * for multiple choice questions, multiple correct?
@@ -788,6 +807,37 @@ public class ItemBean
     this.randomized = randomized;
   }
 
+  /**
+   * This question require all answers right to have the full score?
+   * @return true or false
+   */
+  public String getRequireAllOk() {
+    	return requireAllOk;
+  }
+  
+  /**
+   * This question require all answers right to have the full score?
+   * @param requireAllOk true if it is
+   */
+  public void setRequireAllOk(String requireAllOk) {
+    this.requireAllOk = requireAllOk;
+  }
+  
+  /**
+   * The image map Image URL
+   * @return the URL as String
+   */
+  public String getImageMapSrc() {
+    return imageMapSrc;
+  }
+
+  /**
+   *  The image map Image URL
+   * @param imageMapSrc. The URL as String
+   */
+  public void setImageMapSrc(String imageMapSrc) {
+    this.imageMapSrc = imageMapSrc;
+  }
 
   public String getInstruction() {
     return instruction;
@@ -1317,7 +1367,32 @@ public class ItemBean
     return "matchingItem";
   }
 
-   
+	/// IMAGEMAP
+	public String getSerializedImageMap() {
+		StringBuffer ret = new StringBuffer();
+		List<ImageMapItemBean> list = getImageMapItemBeanList();
+		for (ImageMapItemBean ib : list) {
+			if (ret.length() > 0)
+				ret.append("#-#");
+			ret.append(ib.serialize());
+		}
+		return ret.toString();
+	}
+
+	public void setSerializedImageMap(String serializedString) {
+		if (serializedString != null) {
+			ArrayList<ImageMapItemBean> list = new ArrayList<ImageMapItemBean>();
+			for (String str : serializedString.split("#-#")) {
+				if (str != null && !"".equals(str)) {
+					ImageMapItemBean imib = new ImageMapItemBean(str);
+					imib.setSequence(Long.valueOf(list.size() + 1));
+					list.add(imib);
+				}
+			}
+			this.setImageMapItemBeanList(list);
+		}
+	}
+
   /**
    * for fib, case sensitive for grading?
    * @return
@@ -1372,8 +1447,25 @@ public class ItemBean
     this.showMutuallyExclusiveForFibCheckbox= param;
   }
 
+    /**
+     * for fib, ignore spaces for grading?
+     * @return
+     */
+    public boolean getIgnoreSpacesForFib()
+    {
+      return ignoreSpacesForFib;
+    }
 
-   /**
+    /**
+     * for fib questions
+     * @param param ignore spaces for grading?
+     */
+    public void setIgnoreSpacesForFib(boolean param)
+    {
+      this.ignoreSpacesForFib = param;
+    }
+
+    /**
      * for fin, case sensitive for grading?
      * @return
      */
@@ -1986,4 +2078,23 @@ public class ItemBean
 		this.mcmsPartialCredit = mcmsPartialCredit;
 	}
 
+	public Double getItemMinScore() {
+		return itemMinScore;
+	}
+
+	public void setItemMinScore(Double itemMinScore) {
+		this.itemMinScore = itemMinScore;
+	}
+
+	public String getItemScoreDisplayFlag() {
+		return itemScoreDisplayFlag;
+	}
+
+	public void setItemScoreDisplayFlag(String itemScoreDisplayFlag) {
+		this.itemScoreDisplayFlag = itemScoreDisplayFlag;
+	}
+
+	public List<ItemTagBean> getItemTags() { return itemTags; }
+
+	public void setItemTags(List<ItemTagBean> itemTags) { this.itemTags = itemTags; }
 }

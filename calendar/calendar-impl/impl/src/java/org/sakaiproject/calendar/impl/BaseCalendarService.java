@@ -32,8 +32,8 @@ import net.fortuna.ical4j.model.property.*;
 
 import org.apache.avalon.framework.logger.ConsoleLogger;
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.fop.apps.Driver;
 import org.apache.fop.apps.FOPException;
 import org.apache.fop.apps.Options;
@@ -109,7 +109,7 @@ import java.util.Map.Entry;
 public abstract class BaseCalendarService implements CalendarService, DoubleStorageUser, ContextObserver, EntityTransferrer, SAXEntityReader, EntityTransferrerRefMigrator
 {
 	/** Our logger. */
-	private static Log M_log = LogFactory.getLog(BaseCalendarService.class);
+	private static Logger M_log = LoggerFactory.getLogger(BaseCalendarService.class);
 
 	/** The initial portion of a relative access point URL. */
 	protected String m_relativeAccessPoint = null;
@@ -1019,43 +1019,43 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	 */
 	public RecurrenceRule newRecurrence(String frequency)
 	{
-		if (frequency.equals(DailyRecurrenceRule.FREQ))
+		if (frequency.equalsIgnoreCase(DailyRecurrenceRule.FREQ))
 		{
 			return new DailyRecurrenceRule();
 		}
-		else if (frequency.equals(WeeklyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(WeeklyRecurrenceRule.FREQ))
 		{
 			return new WeeklyRecurrenceRule();
 		}
-		else if (frequency.equals(TThRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(TThRecurrenceRule.FREQ))
 		{
 			return new TThRecurrenceRule();
 		}
-		else if (frequency.equals(MWFRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWFRecurrenceRule.FREQ))
 		{
 			return new MWFRecurrenceRule();
 		}
-		else if (frequency.equals(MonthlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MonthlyRecurrenceRule.FREQ))
 		{
 			return new MonthlyRecurrenceRule();
 		}
-		else if (frequency.equals(YearlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(YearlyRecurrenceRule.FREQ))
 		{
 			return new YearlyRecurrenceRule();
 		}
-		else if (frequency.equals(MWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWRecurrenceRule.FREQ))
 		{
 			return new MWRecurrenceRule();
 		}
-		else if (frequency.equals(SMWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMWRecurrenceRule.FREQ))
 		{
 			return new SMWRecurrenceRule();
 		}
-		else if (frequency.equals(SMTWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMTWRecurrenceRule.FREQ))
 		{
 			return new SMTWRecurrenceRule();
 		}
-		else if (frequency.equals(STTRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(STTRecurrenceRule.FREQ))
 		{
 			return new STTRecurrenceRule();
 		}
@@ -1069,43 +1069,43 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	 */
 	public RecurrenceRule newRecurrence(String frequency, int interval)
 	{
-		if (frequency.equals(DailyRecurrenceRule.FREQ))
+		if (frequency.equalsIgnoreCase(DailyRecurrenceRule.FREQ))
 		{
 			return new DailyRecurrenceRule(interval);
 		}
-		else if (frequency.equals(WeeklyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(WeeklyRecurrenceRule.FREQ))
 		{
 			return new WeeklyRecurrenceRule(interval);
 		}
-		else if (frequency.equals(TThRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(TThRecurrenceRule.FREQ))
 		{
 			return new TThRecurrenceRule(interval);
 		}
-		else if (frequency.equals(MWFRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWFRecurrenceRule.FREQ))
 		{
 			return new MWFRecurrenceRule(interval);
 		}
-		else if (frequency.equals(MonthlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MonthlyRecurrenceRule.FREQ))
 		{
 			return new MonthlyRecurrenceRule(interval);
 		}
-		else if (frequency.equals(YearlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(YearlyRecurrenceRule.FREQ))
 		{
 			return new YearlyRecurrenceRule(interval);
 		}
-		else if (frequency.equals(MWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWRecurrenceRule.FREQ))
 		{
 			return new MWRecurrenceRule(interval);
 		}
-		else if (frequency.equals(SMWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMWRecurrenceRule.FREQ))
 		{
 			return new SMWRecurrenceRule(interval);
 		}
-		else if (frequency.equals(SMTWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMTWRecurrenceRule.FREQ))
 		{
 			return new SMTWRecurrenceRule(interval);
 		}
-		else if (frequency.equals(STTRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(STTRecurrenceRule.FREQ))
 		{
 			return new STTRecurrenceRule(interval);
 		}
@@ -1120,43 +1120,43 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	public RecurrenceRule newRecurrence(String frequency, int interval, int count)
 	{	
 		M_log.debug("\n"+ frequency +"\nand Internval is \n "+ interval +"count is\n " + count);
-		if (frequency.equals(DailyRecurrenceRule.FREQ))
+		if (frequency.equalsIgnoreCase(DailyRecurrenceRule.FREQ))
 		{
 			return new DailyRecurrenceRule(interval, count);
 		}
-		else if (frequency.equals(WeeklyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(WeeklyRecurrenceRule.FREQ))
 		{
 			return new WeeklyRecurrenceRule(interval, count);
 		}
-		else if (frequency.equals(TThRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(TThRecurrenceRule.FREQ))
 		{
 			return new TThRecurrenceRule(interval,count);
 		}
-		else if (frequency.equals(MWFRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWFRecurrenceRule.FREQ))
 		{
 			return new MWFRecurrenceRule(interval,count);
 		} 
-		else if (frequency.equals(MonthlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MonthlyRecurrenceRule.FREQ))
 		{
 			return new MonthlyRecurrenceRule(interval, count);
 		}
-		else if (frequency.equals(YearlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(YearlyRecurrenceRule.FREQ))
 		{
 			return new YearlyRecurrenceRule(interval, count);
 		}
-		else if (frequency.equals(MWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWRecurrenceRule.FREQ))
 		{
 			return new MWRecurrenceRule(interval, count);
 		}
-		else if (frequency.equals(SMWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMWRecurrenceRule.FREQ))
 		{
 			return new SMWRecurrenceRule(interval, count);
 		}
-		else if (frequency.equals(SMTWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMTWRecurrenceRule.FREQ))
 		{
 			return new SMTWRecurrenceRule(interval, count);
 		}
-		else if (frequency.equals(STTRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(STTRecurrenceRule.FREQ))
 		{
 			return new STTRecurrenceRule(interval, count);
 		}
@@ -1169,43 +1169,43 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	 */
 	public RecurrenceRule newRecurrence(String frequency, int interval, Time until)
 	{
-		if (frequency.equals(DailyRecurrenceRule.FREQ))
+		if (frequency.equalsIgnoreCase(DailyRecurrenceRule.FREQ))
 		{
 			return new DailyRecurrenceRule(interval, until);
 		}
-		else if (frequency.equals(WeeklyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(WeeklyRecurrenceRule.FREQ))
 		{
 			return new WeeklyRecurrenceRule(interval, until);
 		}
-		else if (frequency.equals(TThRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(TThRecurrenceRule.FREQ))
 		{
 			return new TThRecurrenceRule(interval,until);
 		}
-		else if (frequency.equals(MWFRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWFRecurrenceRule.FREQ))
 		{
 			return new MWFRecurrenceRule(interval,until);
 		} 
-		else if (frequency.equals(MonthlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MonthlyRecurrenceRule.FREQ))
 		{
 			return new MonthlyRecurrenceRule(interval, until);
 		}
-		else if (frequency.equals(YearlyRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(YearlyRecurrenceRule.FREQ))
 		{
 			return new YearlyRecurrenceRule(interval, until);
 		}
-		else if (frequency.equals(MWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(MWRecurrenceRule.FREQ))
 		{
 			return new MWRecurrenceRule(interval, until);
 		}
-		else if (frequency.equals(SMWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMWRecurrenceRule.FREQ))
 		{
 			return new SMWRecurrenceRule(interval, until);
 		}
-		else if (frequency.equals(SMTWRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(SMTWRecurrenceRule.FREQ))
 		{
 			return new SMTWRecurrenceRule(interval, until);
 		}
-		else if (frequency.equals(STTRecurrenceRule.FREQ))
+		else if (frequency.equalsIgnoreCase(STTRecurrenceRule.FREQ))
 		{
 			return new STTRecurrenceRule(interval, until);
 		}
@@ -6375,15 +6375,22 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	}
 	
 	/* Given a current date via the calendarUtil paramter, returns a TimeRange for the year,
-	 * 6 months either side of the current date. (calculate milleseconds in 6 months)
+	  *fromMonthsInput number of months from past to be included
++	  *toMonthsInput number of months in future  to be included.
 	 */
-   private static long SIX_MONTHS = (long)1000 * (long)60 * (long)60 * (long)24 * (long)183;
-	
 	public TimeRange getICalTimeRange()
 	{
-		Time now = m_timeService.newTime();
-		Time startTime = m_timeService.newTime( now.getTime() - SIX_MONTHS );
-		Time endTime = m_timeService.newTime( now.getTime() + SIX_MONTHS );
+		int toMonthsInput = m_serverConfigurationService.getInt("calendar.export.next.months",12);
+		int fromMonthsInput = m_serverConfigurationService.getInt("calendar.export.previous.months",6);
+
+		java.util.Calendar calTo = java.util.Calendar.getInstance();
+		calTo.add(java.util.Calendar.MONTH, toMonthsInput);
+
+		java.util.Calendar calFrom = java.util.Calendar.getInstance();
+		calFrom.add(java.util.Calendar.MONTH, -fromMonthsInput);
+
+		Time startTime = m_timeService.newTime(calFrom.getTimeInMillis());
+		Time endTime = m_timeService.newTime(calTo.getTimeInMillis());
 		
 		return m_timeService.newTimeRange(startTime,endTime,true,true);
 	}
@@ -6477,8 +6484,8 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 		// If a "Faculty" extra field is present, then add the node.
 		writeStringNodeToDom(doc, eventElement, FACULTY_NODE, event.getField(FACULTY_EVENT_ATTRIBUTE_NAME));
 
-
 		// If a "Description" field is present, then add the node.
+		writeStringNodeToDom(doc, eventElement, DESCRIPTION_NODE, event.getDescription());
 
 		parent.appendChild(eventElement);
 	}
@@ -6518,15 +6525,20 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 				return rl.getString("legend.key15");
 			else if (type.equals("Web Assignment"))
 				return rl.getString("legend.key16");
-			else if (type.equals("Teletutoria"))
+			else if (type.equals("Formative Assessment"))
 				return rl.getString("legend.key17");
+			else if (type.equals("Submission Date"))
+				return rl.getString("legend.key18");
+			else if (type.equals("Tutorial"))
+				return rl.getString("legend.key19");
+			else if (type.equals("Workshop"))
+				return rl.getString("legend.key20");
 			else
 				return rl.getString("legend.key2");				
 		}else{
 			return rl.getString("legend.key2");
 		}
 	}
-	
 	/*
 	 * Gets the daily start time parameter from a Properties object filled from URL parameters.
 	 */
@@ -7413,8 +7425,13 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 			}
 		}
 	}
-	
-	protected List<String> getCalendarReferences(String siteId) {
+
+	/**
+	 * JavaDoc can be found org.sakaiproject.calendar.api.CalendarService.
+	 * @param siteId
+	 * @return
+	 */
+	public List<String> getCalendarReferences(String siteId) {
 		// get merged calendars channel refs
 		String initMergeList = null;
 		try {

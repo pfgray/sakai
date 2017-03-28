@@ -31,8 +31,8 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sakaiproject.component.api.ComponentManager;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.component.api.ServerConfigurationService.ConfigData;
@@ -54,7 +54,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  */
 public class SpringCompMgr implements ComponentManager {
 	/** Our log (commons). */
-	private static Log M_log = LogFactory.getLog(SpringCompMgr.class);
+	private static Logger M_log = LoggerFactory.getLogger(SpringCompMgr.class);
 
 	/**
 	 * System property to control if we close on jvm shutdown (if set) or on the
@@ -95,6 +95,8 @@ public class SpringCompMgr implements ComponentManager {
 	/** Records that close has been called. */
 	protected boolean m_hasBeenClosed = false;
 
+	protected boolean lateRefresh = false;
+
 	/**
 	 * Initialize.
 	 * 
@@ -122,6 +124,8 @@ public class SpringCompMgr implements ComponentManager {
 	public void init(boolean lateRefresh) {
 		if (m_ac != null)
 			return;
+
+		this.lateRefresh = lateRefresh;
 
 		// Make sure a "sakai.home" system property is set.
 		ensureSakaiHome();
@@ -154,51 +158,53 @@ public class SpringCompMgr implements ComponentManager {
 			});
 		}
 
+		// skip during tests
 		if (!lateRefresh) {
 			try {
 				// get the singletons loaded
 				m_ac.refresh();
+				m_ac.start();
 				m_ac.publishEvent(new SakaiComponentEvent(this, SakaiComponentEvent.Type.STARTED));
 			} catch (Exception e) {
 				if (Boolean.valueOf(System.getProperty(SHUTDOWN_ON_ERROR, "false"))) {
-					M_log.fatal(e.getMessage(), e);
-					M_log.fatal("Shutting down JVM");
+					M_log.error(e.getMessage(), e);
+					M_log.error("Shutting down JVM");
 					System.exit(1);
 				} else {
 					M_log.error(e.getMessage(), e);
 				}
 			}
-		}
 
-		// dump the configuration values out
-		try {
-		    final ServerConfigurationService scs = (ServerConfigurationService) this.get(ServerConfigurationService.class);
-		    if (scs != null) {
-	            ConfigData cd = scs.getConfigData();
-	            M_log.info("Configuration loaded "+cd.getTotalConfigItems()+" values, "+cd.getRegisteredConfigItems()+" registered");
-	            if (scs.getBoolean("config.dump.to.log", false)) {
-	                // output the config logs now and then output then again in 120 seconds
-	                M_log.info("Configuration values:\n" + cd.toString());
-	                Timer timer = new Timer(true);
-	                timer.schedule(new TimerTask() {
-	                    @Override
-	                    public void run() {
-	                        M_log.info("Configuration values: (delay 1):\n" + scs.getConfigData().toString());
-	                    }
-	                }, 120*1000);
-	                timer.schedule(new TimerTask() {
-	                    @Override
-	                    public void run() {
-	                        M_log.info("Configuration values: (delay 2):\n" + scs.getConfigData().toString());
-	                    }
-	                }, 300*1000);
-	            }
-		    } else {
-		        // probably testing so just say we cannot dump the config
-	            M_log.warn("Configuration: Unable to get and dump out the registered server config values because no ServerConfigurationService is available - this is OK if this is part of a test, this is very bad otherwise");
-		    }
-		} catch (Exception e) {
-		    M_log.error("Configuration: Unable to get and dump out the registered server config values (config.dump.to.log): "+e, e);
+			// dump the configuration values out
+			try {
+			    final ServerConfigurationService scs = (ServerConfigurationService) this.get(ServerConfigurationService.class);
+			    if (scs != null) {
+		            ConfigData cd = scs.getConfigData();
+		            M_log.info("Configuration loaded "+cd.getTotalConfigItems()+" values, "+cd.getRegisteredConfigItems()+" registered");
+		            if (scs.getBoolean("config.dump.to.log", false)) {
+		                // output the config logs now and then output then again in 120 seconds
+		                M_log.info("Configuration values:\n" + cd.toString());
+		                Timer timer = new Timer(true);
+		                timer.schedule(new TimerTask() {
+		                    @Override
+		                    public void run() {
+		                        M_log.info("Configuration values: (delay 1):\n" + scs.getConfigData().toString());
+		                    }
+		                }, 120*1000);
+		                timer.schedule(new TimerTask() {
+		                    @Override
+		                    public void run() {
+		                        M_log.info("Configuration values: (delay 2):\n" + scs.getConfigData().toString());
+		                    }
+		                }, 300*1000);
+		            }
+			    } else {
+			        // probably testing so just say we cannot dump the config
+		            M_log.warn("Configuration: Unable to get and dump out the registered server config values because no ServerConfigurationService is available - this is OK if this is part of a test, this is very bad otherwise");
+			    }
+			} catch (Exception e) {
+			    M_log.error("Configuration: Unable to get and dump out the registered server config values (config.dump.to.log): "+e, e);
+			}
 		}
 	}
 
@@ -296,6 +302,9 @@ public class SpringCompMgr implements ComponentManager {
 	 */
 	public void close() {
 		m_hasBeenClosed = true;
+		if (!lateRefresh) {
+			m_ac.stop();
+		}
 		if(m_ac.isActive()) {
 			m_ac.publishEvent(new SakaiComponentEvent(this, SakaiComponentEvent.Type.STOPPING));
 		}
@@ -428,9 +437,8 @@ public class SpringCompMgr implements ComponentManager {
 
 		// strange case...
 		if (sakaiHomePath == null) {
-			sakaiHomePath = File.separatorChar + "usr" + File.separatorChar
-					+ "local" + File.separatorChar + "sakai"
-					+ File.separatorChar;
+			// last resort try /tmp/sakai
+			sakaiHomePath = File.separatorChar + "tmp" + File.separatorChar + "sakai" + File.separatorChar;
 		}
 		if (!sakaiHomePath.endsWith(File.separator))
 			sakaiHomePath = sakaiHomePath + File.separatorChar;

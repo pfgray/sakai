@@ -18,6 +18,33 @@
   
   <samigo:stylesheet path="/css/print/print.css"/>
   
+    
+  <%@ include file="/jsf/delivery/deliveryjQuery.jsp" %>
+  
+	<script language='javascript' src='/samigo-app/js/selection.author.preview.js'></script>
+		
+	<link href="/samigo-app/css/imageQuestion.author.css" type="text/css" rel="stylesheet" media="all" />
+		
+	<script type="text/JavaScript">		
+		jQuery(window).load(function(){
+			
+			$('input:hidden[id^=hiddenSerializedCoords_]').each(function(){
+				var myregexp = /hiddenSerializedCoords_(\d+_\d+)_(\d+)/
+				var matches = myregexp.exec(this.id);
+				var sequence = matches[1];
+				var label = parseInt(matches[2])+1;
+				
+				var sel = new selectionAuthor({selectionClass: 'selectiondiv', textClass: 'textContainer'}, 'answerImageMapContainer_'+sequence);
+				try {
+					sel.setCoords(jQuery.parseJSON(this.value));
+					sel.setText(label);
+				}catch(err){}
+				
+			});	
+		});
+	</script>
+	    
+  
   <script type="text/JavaScript">
 <!--
 function resetSelectMenus(){
@@ -74,7 +101,7 @@ document.links[newindex].onclick();
   <h:form id="assessmentForm">
   
   <!-- HEADINGS (NOT PRINTED) -->
-      <p class="navIntraTool">        
+      <p>        
         <h:commandLink action="#{pdfAssessment.getActionString}">
           <h:outputText value="#{printMessages.back_to_assessmt}" rendered="#{pdfAssessment.actionString == 'editAssessment'}" escape="false" />
 		  <h:outputText value="#{printMessages.back_to_landingpage}" rendered="#{pdfAssessment.actionString != 'editAssessment'}" escape="false" />
@@ -84,7 +111,7 @@ document.links[newindex].onclick();
     <h:messages/>
     
     <div id="header">
-      <p class="navModeAction"> 
+      <div class="navModeAction"> 
         
         <label>
           <h:selectBooleanCheckbox id="showKeys" value="#{printSettings.showKeys}" />
@@ -113,22 +140,24 @@ document.links[newindex].onclick();
 		</label>
 		      
 		&nbsp;&nbsp;&nbsp;
-
-        <h:outputText value="#{printMessages.font_size}:" />
-        <h:selectOneMenu id="fontSize" value="#{printSettings.fontSize}">
-          <f:selectItem itemLabel="#{printMessages.size_xsmall}" itemValue="1" />
-          <f:selectItem itemLabel="#{printMessages.size_small}" itemValue="2" />
-          <f:selectItem itemLabel="#{printMessages.size_medium}" itemValue="3" />
-          <f:selectItem itemLabel="#{printMessages.size_large}" itemValue="4" />
-          <f:selectItem itemLabel="#{printMessages.size_xlarge}" itemValue="5" />
-        </h:selectOneMenu>
+        
+        <div>
+            <h:outputLabel for="fontSize" value="#{printMessages.font_size}:" />
+            <h:selectOneMenu id="fontSize" value="#{printSettings.fontSize}">
+                <f:selectItem itemLabel="#{printMessages.size_xsmall}" itemValue="1" />
+                <f:selectItem itemLabel="#{printMessages.size_small}" itemValue="2" />
+                <f:selectItem itemLabel="#{printMessages.size_medium}" itemValue="3" />
+                <f:selectItem itemLabel="#{printMessages.size_large}" itemValue="4" />
+                <f:selectItem itemLabel="#{printMessages.size_xlarge}" itemValue="5" />
+            </h:selectOneMenu>
+        </div>
         
         <br />
         
-        <h:commandButton action="#{pdfAssessment.prepDocumentPDF}" value="#{printMessages.apply_settings}" />
-        <h:outputText value="<input type='button' onclick='print(); return false;' value='#{printMessages.print_html}' />" escape="false" />
-        <h:commandButton action="#{pdfAssessment.getPDFAttachment}" value="#{printMessages.print_pdf}" />
-      </p>
+        <h:commandButton action="#{pdfAssessment.prepDocumentPDF}" value="#{printMessages.apply_settings}" styleClass="noActionButton" />
+        <h:outputText value="<input type='button' onclick='print(); return false;' value='#{printMessages.print_html}' class='noActionButton' />" escape="false" />
+        <h:commandButton action="#{pdfAssessment.getPDFAttachment}" value="#{printMessages.print_pdf}" styleClass="noActionButton" />
+      </div>
     </div>
     <!-- END HEADINGS -->
     
@@ -230,6 +259,9 @@ document.links[newindex].onclick();
                 </h:panelGroup>
                 <h:panelGroup rendered="#{question.itemData.typeId == 13}">
                   <%@ include file="/jsf/print/preview_item/MatrixChoicesSurvey.jsp" %>
+                </h:panelGroup>
+                <h:panelGroup rendered="#{question.itemData.typeId == 16}">
+                  <%@ include file="/jsf/print/preview_item/ImageMapQuestion.jsp" %>
                 </h:panelGroup>
 				<h:panelGroup rendered="#{question.itemData.typeId == 14}">
 		           <%@ include file="/jsf/print/preview_item/ExtendedMatchingItems.jsp" %>
