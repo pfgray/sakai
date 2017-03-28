@@ -1,6 +1,7 @@
+#!/bin/bash
 
 # TODO: it'd be nice to orchestrate this via maven...
-BASEDIR=$(dirname "$0")
+BASEDIR=$(pwd)
 BUILDDIR="$BASEDIR/tomcat"
 
 mvn install sakai:deploy -Dmaven.tomcat.home="$BUILDDIR"
